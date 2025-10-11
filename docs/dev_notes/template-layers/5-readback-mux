@@ -1,0 +1,49 @@
+--------------------------------------------------------------------------------
+Readback mux layer
+--------------------------------------------------------------------------------
+
+Implementation:
+    - Big always_comb block
+    - Initialize default rd_data value
+    - Lotsa if statements that operate on reg strb to assign rd_data
+    - Merges all fields together into reg
+    - pulls value from storage element struct, or input struct
+    - Provision for optional flop stage?
+
+Mux Strategy:
+    Flat case statement:
+        -- Cant parameterize
+        + better performance?
+
+    Flat 1-hot array then OR reduce:
+        - Create a bus-wide flat array
+            eg: 32-bits x N readable registers
+        - Assign each element:
+            the readback value of each register
+            ... masked by the register's access strobe
+        - I could also stuff an extra bit into the array that denotes the read is valid
+            A missed read will OR reduce down to a 0
+        - Finally, OR reduce all the elements in the array down to a flat 32-bit bus
+        - Retiming the large OR fanin can be done by chopping up the array into stages
+            for 2 stages, sqrt(N) gives each stage's fanin size. Round to favor
+            more fanin on 2nd stage
+            3 stages uses cube-root. etc...
+        - This has the benefit of re-using the address decode logic.
+          synth can choose to replicate logic if fanout is bad
+
+
+WARNING:
+    Beware of read/write flop stage asymmetry & race conditions.
+    Eg. If a field is rclr, dont want to sample it after it gets read:
+        addr --> strb --> clear
+        addr --> loooong...retime --> sample rd value
+    Should guarantee that read-sampling happens at the same cycle as any read-modify
+
+
+Forwards response strobe back up to cpu interface layer
+
+TODO:
+    Dont forget about alias registers here
+
+TODO:
+    Does the endinness the user sets matter anywhere?

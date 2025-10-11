@@ -1,0 +1,183 @@
+
+================================================================================
+Things that need validation by the compiler
+================================================================================
+Many of these are probably already covered, but being paranoid.
+Make a list of things as I think of them.
+Keep them here in case I forget and re-think of them.
+
+Mark these as follows:
+    X = Yes, confirmed that the compiler covers this
+    ! = No! Confirmed that the compiler does not check this, and should.
+    ? = TBD
+
+--------------------------------------------------------------------------------
+
+X resetsignal width
+    reset signals shall have width of 1
+
+X Field has no knowable value
+    - does not implement storage
+    - hw is not writable
+    - sw is readable
+    - No reset value specified
+
+    --> emit a warning?
+
+X References to a component or component property must use unambiguous array indexing
+    For example, if "array_o_regs" is an array...
+    The following is illegal:
+        my_reg.my_field->next = array_o_regs.thing
+        my_reg.my_field->next = array_o_regs.thing->anded
+    This is ok:
+        my_reg.my_field->next = array_o_regs[2].thing
+        my_reg.my_field->next = array_o_regs[2].thing->anded
+
+    NEVERMIND - compiler does not allow indefinite array references at all!
+    References are guaranteed to be unambiguous:
+        "Incompatible number of index dimensions after 'CTRL'. Expected 1, found 0."
+
+X Clause 10.6.1-f (wide registers cannot have access side-effects)
+
+X multiple field_reset in the same hierarchy
+    there can only be one signal declared with field_reset
+    in a given hierarchy
+
+X multiple cpuif_reset in the same hierarchy
+    there can only be one signal declared with cpuif_reset
+    in a given hierarchy
+
+X Mutually-exclusive property checking
+    --> Yes. compiler now auto-clears mutex partners on assign, so it is
+        implicitly handled
+
+X incrwidth/incrvalue & decrvalue/decrwidth
+    these pairs are mutually exclusive.
+    Make sure they are not both set after elaboration
+    Compiler checks for mutex within the same scope, but
+    i dont think I check for mutexes post-elaborate
+
+    ... or, make these properties clear each-other on assignment
+
+X Illegal property references:
+    - reference any of the counter property references to something that isn't a counter
+        decrsaturate / incrsaturate / saturate
+        overflow / underflow
+    - reference hwclr or hwset, but the owner node has them set to False
+        means that the actual inferred signal doesnt exist!
+    - reference swwe/swwel or we/wel, but the owner node has them, AND their complement set to False
+        means that the actual inferred signal doesnt exist!
+    - only valid to reference if owner has this prop set
+        enable/mask
+        haltenable/haltmask
+        hwenable
+        hwmask
+        decr/incr, decr../incrthreshold/..value
+    - others references that may not always make sense:
+        intr/halt - target must contain interrupt/halt fields
+        next
+            is this ever illegal?
+
+X If a node ispresent=true, and any of its properties are a reference,
+    then those references' ispresent shall also be true
+    This is an explicit clause in the spec: 5.3.1-i
+
+X Flag illegal sw actions if not readable/writable
+    The following combinations dont get flagged currently:
+        sw=w; rclr;
+        sw=w; rset;
+        sw=r; woset;
+        sw=r; woclr;
+    their counterparts do get flagged. such as:
+        sw=w; onread=rclr;
+
+X Signals marked as field_reset or cpuif_reset need to have activehigh/activelow
+  specified. (8.2.1-d states that activehigh/low does not have an implied default state if unset!)
+  Also applies to signals referenced by resetsignal
+
+X incrvalue/decrvalue needs to be the same or narrower than counter itself
+
+X field shall be hw writable if "next" is assigned.
+
+X sticky=true + "(posedge|negedge|bothedge) intr"
+    Edge-sensitivty doesnt make sense for full-field stickiness
+
+X we/wel + implied or explicit "sticky"/"stickybit"
+    we/wel modifier doesn't make sense here.
+
+X sticky/stickybit shall be hw writable
+
+X Illegal to use enable/mask/haltenable/haltmask on non-intr fields
+
+X incrwidth/decrwidth must be between 1 and the width of the counter
+
+X counter field that saturates should not set overflow
+    counter; incrsaturate; overflow;
+    counter; decrsaturate; underflow;
+
+    Flag this as an error on the overflow/underflow property.
+    overflow/underflow property is meaningless since it can never happen.
+
+    Same goes to prop references to overflow/underflow
+
+! hwclr/hwset/we/wel probably shouldn't be able to reference itself
+    y->hwclr = y;
+    y->we = y;
+    ... it works, but should it be allowed? Seems like user-error
+
+================================================================================
+Things that need validation by this exporter
+================================================================================
+List of stuff in case I forget.
+    X = Yes! I already implemented this.
+    ! = No! exporter does not enforce this yet
+
+--------------------------------------------------------------------------------
+
+X Contents of target are all internal. No external regs
+
+X Does not contain any mem components
+
+X Warn/error on any signal with cpuif_reset set, that is not in the top-level
+    addrmap. At the very least, warn that it will be ignored
+
+
+X "bridge" addrmap not supported
+    export shall refuse to process an addrmap marked as a "bridge"
+    Only need to check top-level. Compiler will enforce that child nodes arent bridges
+
+X regwidth/accesswidth is sane
+    X accesswidth == regwidth
+        Enforce this for now. Dont feel like supporting fancy modes yet
+        X regwidth < accesswidth
+            This is illegal and is enforced by the compiler.
+        X regwidth > accesswidth
+            Need to extend address decode strobes to have multiple bits
+            this is where looking at endianness matters to determine field placement
+            Dont feel like supporting this yet
+    X constant regwidth?
+        For now, probably limit to only allow the same regwidth everywhere?
+
+
+X Do not allow unaligned addresses
+    All offsets & strides shall be a multiple of the regwidth used
+
+    X each reg needs to be aligned to its width
+    X each regfile/addrmap/stride shall be aligned to the largest regwidth it encloses
+
+X Error if a property is a reference to something that is external, or enclosed
+  in an external component.
+  Limit this check to child nodes inside the export hierarchy
+
+! async data signals
+    Only supporting async signals if they are exclusively used in resets.
+    Anything else declared as "async" shall emit a warning that it is ignored
+    I have zero interest in implementing resynchronizers
+
+! Error if a property references a non-signal component, or property reference from
+    outside the export hierarchy
+
+! Add warning for sticky race condition
+    stickybit and other similar situations generally should use hw precedence.
+    Emit a warning as appropriate
+    Or should this be a compiler warning??

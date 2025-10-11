@@ -1,0 +1,103 @@
+================================================================================
+Summary
+================================================================================
+
+RTL interface that provides access to per-field context signals
+
+Regarding signals:
+    RDL-declared signals are part of the hwif input structure.
+    Only include them if they are referenced by the design (need to scan the
+    full design anyways, so may as well filter out unreferenced ones)
+
+    It is possible to use signals declared in a parent scope.
+    This means that not all signals will be discovered by a hierarchical listener alone
+    Need to scan ALL assigned properties for signal references too.
+        - get signal associated with top node's cpuif_reset helper property, if any
+        - collect all field_resets
+            X check all signal instances in the hier tree
+            - search parents of top node for the first field_reset signal, if any
+                This is WAY less expensive than querying EACH field's resetsignal property
+        X Check all explicitly assigned properties
+            only need to do this for fields
+    Collect all of these into the following:
+        - If inside the hier, add to a list of paths
+        - if outside the hier, add to a dict of path:SignalNode
+    These are all the signals in-use by the design
+
+    Pass list into the hwif generator
+        If the hwif generator encounters a signal during traversal:
+            check if it exists in the signal path list
+
+    out-of-hier signals are inserted outside of the hwif_in as standalone signals.
+    For now, just use their plain inst names. If I need to uniquify them i can add that later.
+    I should at least check against a list of known "dirty words". Seems very likely someone will choose
+    a signal called "rst".
+    Prefix with usersig_ if needed
+
+
+
+
+================================================================================
+Naming Scheme
+================================================================================
+
+hwif_out
+    .my_regblock
+        .my_reg[X][Y]
+            .my_field
+                .value
+                .anded
+
+hwif_in
+    .my_regblock
+        .my_reg[X][Y]
+            .my_field
+                .value
+                .we
+                .my_signal
+        .my_fieldreset_signal
+
+================================================================================
+Flattened mode? --> NO
+================================================================================
+If user wants a flattened list of ports,
+still use the same hwif_in/out struct internally.
+Rather than declaring hwif_in and hwif_out in the port list, declare it internally
+
+Add a mapping layer in the body of the module that performs a ton of assign statements
+to map flat signals <-> struct
+
+Alternatively, don't do this at all.
+If I want to add a flattened mode, generate a wrapper module instead.
+
+Marking this as YAGNI for now.
+
+
+================================================================================
+IO Signals
+================================================================================
+
+Outputs:
+    field value
+        If hw readable
+    bitwise reductions
+        if anded, ored, xored == True, output a signal
+    swmod/swacc
+        event strobes
+
+Inputs:
+    field value
+        If hw writable
+    we/wel
+        if either is boolean, and true
+        not part of external hwif if reference
+        mutually exclusive
+    hwclr/hwset
+        if either is boolean, and true
+        not part of external hwif if reference
+    incr/decr
+        if counter=true, generate BOTH
+    incrvalue/decrvalue
+        if either incrwidth/decrwidth are set
+    signals!
+        any signal instances instantiated in the scope
