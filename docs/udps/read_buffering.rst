@@ -24,12 +24,12 @@ Properties
 The behavior of read-buffered registers is defined using the following two
 properties:
 
-.. literalinclude:: ../../hdl-src/regblock_udps.rdl
+.. literalinclude:: ../../hdl-src/busdecoder_udps.rdl
     :lines: 10-18
 
-These UDP definitions, along with others supported by PeakRDL-regblock can be
+These UDP definitions, along with others supported by PeakRDL-busdecoder can be
 enabled by compiling the following file along with your design:
-:download:`regblock_udps.rdl <../../hdl-src/regblock_udps.rdl>`.
+:download:`busdecoder_udps.rdl <../../hdl-src/busdecoder_udps.rdl>`.
 
 .. describe:: buffer_reads
 

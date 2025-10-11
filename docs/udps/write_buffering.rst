@@ -4,8 +4,8 @@ Write-buffered Registers
 ========================
 
 In order to support larger software write accesses that are atomic, the
-regblock generator understands several UDPs that implement write-buffering to
-specific registers. This causes the regblock to delay the effect of a software
+busdecoder generator understands several UDPs that implement write-buffering to
+specific registers. This causes the busdecoder to delay the effect of a software
 write operation until a defined trigger event.
 
 Some examples of when this is useful:
@@ -30,12 +30,12 @@ Properties
 The behavior of write-buffered registers is defined using the following two
 properties:
 
-.. literalinclude:: ../../hdl-src/regblock_udps.rdl
+.. literalinclude:: ../../hdl-src/busdecoder_udps.rdl
     :lines: 20-28
 
-These UDP definitions, along with others supported by PeakRDL-regblock can be
+These UDP definitions, along with others supported by PeakRDL-busdecoder can be
 enabled by compiling the following file along with your design:
-:download:`regblock_udps.rdl <../../hdl-src/regblock_udps.rdl>`.
+:download:`busdecoder_udps.rdl <../../hdl-src/busdecoder_udps.rdl>`.
 
 .. describe:: buffer_writes
 

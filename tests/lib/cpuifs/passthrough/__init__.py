@@ -1,6 +1,7 @@
 from ..base import CpuifTestMode
 
-from peakrdl_regblock.cpuif.passthrough import PassthroughCpuif
+from peakrdl_busdecoder.cpuif.passthrough import PassthroughCpuif
+
 
 class Passthrough(CpuifTestMode):
     cpuif_cls = PassthroughCpuif

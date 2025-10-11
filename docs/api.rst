@@ -2,9 +2,9 @@ Exporter API
 ============
 
 If you are not using the `PeakRDL command-line tool <https://peakrdl.readthedocs.io>`_,
-you can still generate regblocks programmatically using the exporter API:
+you can still generate busdecoders programmatically using the exporter API:
 
-.. autoclass:: peakrdl_regblock.RegblockExporter
+.. autoclass:: peakrdl_busdecoder.BusDecoderExporter
     :members:
 
 Example
@@ -16,9 +16,9 @@ implementation from SystemRDL source.
     :emphasize-lines: 2-4, 29-33
 
     from systemrdl import RDLCompiler, RDLCompileError
-    from peakrdl_regblock import RegblockExporter
-    from peakrdl_regblock.cpuif.axi4lite import AXI4Lite_Cpuif
-    from peakrdl_regblock.udps import ALL_UDPS
+    from peakrdl_busdecoder import BusDecoderExporter
+    from peakrdl_busdecoder.cpuif.axi4lite import AXI4Lite_Cpuif
+    from peakrdl_busdecoder.udps import ALL_UDPS
 
     input_files = [
         "PATH/TO/my_register_block.rdl"
@@ -27,7 +27,7 @@ implementation from SystemRDL source.
     # Create an instance of the compiler
     rdlc = RDLCompiler()
 
-    # Register all UDPs that 'regblock' requires
+    # Register all UDPs that 'busdecoder' requires
     for udp in ALL_UDPS:
         rdlc.register_udp(udp)
 
@@ -43,7 +43,7 @@ implementation from SystemRDL source.
         sys.exit(1)
 
     # Export a SystemVerilog implementation
-    exporter = RegblockExporter()
+    exporter = BusDecoderExporter()
     exporter.export(
         root, "path/to/output_dir",
         cpuif_cls=AXI4Lite_Cpuif

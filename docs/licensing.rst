@@ -1,9 +1,9 @@
 Licensing
 =========
 
-Re-distribution of the PeakRDL-regblock code generator tool shall adhere to the
+Re-distribution of the PeakRDL-busdecoder code generator tool shall adhere to the
 terms outlined by the GNU LGPL v3 license. For a copy of the license, see:
-https://github.com/SystemRDL/PeakRDL-regblock/blob/main/LICENSE
+https://github.com/SystemRDL/PeakRDL-busdecoder/blob/main/LICENSE
 
 
 Why LGPLv3?
@@ -23,19 +23,19 @@ explicitly mentioned in the exemptions below.
 
 What is exempt from the LGPLv3 license?
 ---------------------------------------
-Don't worry. Not everything that the PeakRDL-regblock project touches is
+Don't worry. Not everything that the PeakRDL-busdecoder project touches is
 considered LGPLv3 code.
 
 The following are exempt and are free to use with no restrictions:
 
-*   Any code that is generated using PeakRDL-regblock is 100% yours. Since it
-    was derived from your regblock definition, it remains yours. You can
+*   Any code that is generated using PeakRDL-busdecoder is 100% yours. Since it
+    was derived from your busdecoder definition, it remains yours. You can
     distribute it freely, use it in a proprietary ASIC, sell it as part of an
     IP, whatever.
 *   Any code snippets in this documentation can be freely copy/pasted. These are
     examples that are intended for this purpose.
 *   All reference files that are downloadable from this documentation, which are
-    also available in the `hdl-src folder in the repository <https://github.com/SystemRDL/PeakRDL-regblock/tree/main/hdl-src>`_
+    also available in the `hdl-src folder in the repository <https://github.com/SystemRDL/PeakRDL-busdecoder/tree/main/hdl-src>`_
 
 
 Can I use this as part of my company's internally developed tools?

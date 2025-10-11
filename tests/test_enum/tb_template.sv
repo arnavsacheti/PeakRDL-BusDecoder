@@ -7,16 +7,16 @@
     ##1;
 
     // check enum values
-    assert(regblock_pkg::top__my_enum__val_1 == 'd3);
-    assert(regblock_pkg::top__my_enum__val_2 == 'd4);
+    assert(busdecoder_pkg::top__my_enum__val_1 == 'd3);
+    assert(busdecoder_pkg::top__my_enum__val_2 == 'd4);
 
     // check initial conditions
-    cpuif.assert_read('h0, regblock_pkg::top__my_enum__val_2);
+    cpuif.assert_read('h0, busdecoder_pkg::top__my_enum__val_2);
 
     //---------------------------------
     // set r0 = val_1
-    cpuif.write('h0, regblock_pkg::top__my_enum__val_1);
+    cpuif.write('h0, busdecoder_pkg::top__my_enum__val_1);
 
-    cpuif.assert_read('h0, regblock_pkg::top__my_enum__val_1);
+    cpuif.assert_read('h0, busdecoder_pkg::top__my_enum__val_1);
 
 {% endblock %}

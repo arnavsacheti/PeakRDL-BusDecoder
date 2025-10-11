@@ -3,9 +3,9 @@
 Internal CPUIF Protocol
 =======================
 
-Internally, the regblock generator uses a common CPU interface handshake
+Internally, the busdecoder generator uses a common CPU interface handshake
 protocol. This strobe-based protocol is designed to add minimal overhead to the
-regblock implementation, while also being flexible enough to support advanced
+busdecoder implementation, while also being flexible enough to support advanced
 features of a variety of bus interface standards.
 
 
@@ -205,7 +205,7 @@ request until the stall is cleared.
 For non-pipelined CPU interfaces that only allow one outstanding transaction at a time,
 these stall signals can be safely ignored.
 
-In the following example, the regblock is configured such that:
+In the following example, the busdecoder is configured such that:
 
 * A read transaction takes 1 clock cycle to complete
 * A write transaction takes 0 clock cycles to complete

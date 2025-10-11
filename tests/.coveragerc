@@ -8,9 +8,9 @@ omit =
 
 [paths]
 source =
-    ../src/peakrdl_regblock/
-    */site-packages/*/peakrdl_regblock
-    */site-packages/peakrdl_regblock
+    ../src/peakrdl_busdecoder/
+    */site-packages/*/peakrdl_busdecoder
+    */site-packages/peakrdl_busdecoder
 
 [report]
 exclude_lines =

@@ -1,7 +1,7 @@
 Introduction
 ============
 
-PeakRDL-regblock is a free and open-source control & status register (CSR) compiler.
+PeakRDL-busdecoder is a free and open-source control & status register (CSR) compiler.
 This code generator translates your SystemRDL register description into
 a synthesizable SystemVerilog RTL module that can be easily instantiated into
 your hardware design.
@@ -14,31 +14,31 @@ your hardware design.
 
 Quick Start
 -----------
-The easiest way to use PeakRDL-regblock is via the  `PeakRDL command line tool <https://peakrdl.readthedocs.io/>`_:
+The easiest way to use PeakRDL-busdecoder is via the  `PeakRDL command line tool <https://peakrdl.readthedocs.io/>`_:
 
 .. code-block:: bash
 
-    # Install PeakRDL-regblock along with the command-line tool
-    python3 -m pip install peakrdl-regblock[cli]
+    # Install PeakRDL-busdecoder along with the command-line tool
+    python3 -m pip install peakrdl-busdecoder[cli]
 
     # Export!
-    peakrdl regblock atxmega_spi.rdl -o regblock/ --cpuif axi4-lite
+    peakrdl busdecoder atxmega_spi.rdl -o busdecoder/ --cpuif axi4-lite
 
 
 Looking for VHDL?
 -----------------
 This project generates SystemVerilog RTL. If you prefer using VHDL, check out
 the sister project which aims to be a feature-equivalent fork of
-PeakRDL-regblock: `PeakRDL-regblock-VHDL <https://peakrdl-regblock-vhdl.readthedocs.io>`_
+PeakRDL-busdecoder: `PeakRDL-busdecoder-VHDL <https://peakrdl-busdecoder-vhdl.readthedocs.io>`_
 
 
 Links
 -----
 
-- `Source repository <https://github.com/SystemRDL/PeakRDL-regblock>`_
-- `Release Notes <https://github.com/SystemRDL/PeakRDL-regblock/releases>`_
-- `Issue tracker <https://github.com/SystemRDL/PeakRDL-regblock/issues>`_
-- `PyPi <https://pypi.org/project/peakrdl-regblock>`_
+- `Source repository <https://github.com/SystemRDL/PeakRDL-busdecoder>`_
+- `Release Notes <https://github.com/SystemRDL/PeakRDL-busdecoder/releases>`_
+- `Issue tracker <https://github.com/SystemRDL/PeakRDL-busdecoder/issues>`_
+- `PyPi <https://pypi.org/project/peakrdl-busdecoder>`_
 - `SystemRDL Specification <http://accellera.org/downloads/standards/systemrdl>`_
 
 

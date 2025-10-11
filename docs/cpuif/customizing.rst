@@ -29,7 +29,7 @@ Rather than rewriting a new CPU interface definition, you can extend and adjust 
 
 .. code-block:: python
 
-    from peakrdl_regblock.cpuif.axi4lite import AXI4Lite_Cpuif
+    from peakrdl_busdecoder.cpuif.axi4lite import AXI4Lite_Cpuif
 
     class My_AXI4Lite(AXI4Lite_Cpuif):
         @property
@@ -45,7 +45,7 @@ Then use your custom CPUIF during export:
 
 .. code-block:: python
 
-   exporter = RegblockExporter()
+   exporter = BusDecoderExporter()
    exporter.export(
       root, "path/to/output_dir",
       cpuif_cls=My_AXI4Lite
@@ -72,7 +72,7 @@ you can define your own.
 
 2. Create a Python class that defines your CPUIF
 
-    Extend your class from :class:`peakrdl_regblock.cpuif.CpuifBase`.
+    Extend your class from :class:`peakrdl_busdecoder.cpuif.CpuifBase`.
     Define the port declaration string, and provide a reference to your template file.
 
 3. Use your new CPUIF definition when exporting.
@@ -94,17 +94,17 @@ Via a package's entry point definition
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 If you are publishing a collection of PeakRDL plugins as an installable Python
 package, you can advertise them to PeakRDL using an entry point.
-This advertises your custom CPUIF class to the PeakRDL-regblock tool as a plugin
+This advertises your custom CPUIF class to the PeakRDL-busdecoder tool as a plugin
 that should be loaded, and made available as a command-line option in PeakRDL.
 
 .. code-block:: toml
 
-    [project.entry-points."peakrdl_regblock.cpuif"]
+    [project.entry-points."peakrdl_busdecoder.cpuif"]
     my-cpuif = "my_package.my_module:MyCPUIF"
 
 
 *   ``my_package``: The name of your installable Python module
-*   ``peakrdl-regblock.cpuif``: This is the namespace that PeakRDL-regblock will
+*   ``peakrdl-busdecoder.cpuif``: This is the namespace that PeakRDL-busdecoder will
     search. Any cpuif plugins you create must be enclosed in this namespace in
     order to be discovered.
 *   ``my_package.my_module:MyCPUIF``: This is the import path that

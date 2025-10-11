@@ -16,13 +16,13 @@ pip install -r requirements.txt
 pip install -e "../[cli]"
 
 # Run lint
-pylint --rcfile pylint.rc ../src/peakrdl_regblock
+pylint --rcfile pylint.rc ../src/peakrdl_busdecoder
 
 # Run static type checking
-mypy ../src/peakrdl_regblock
+mypy ../src/peakrdl_busdecoder
 
 # Run unit tests
-pytest --workers auto --cov=peakrdl_regblock --synth-tool skip
+pytest --workers auto --cov=peakrdl_busdecoder --synth-tool skip
 
 # Generate coverage report
 coverage html -i -d htmlcov

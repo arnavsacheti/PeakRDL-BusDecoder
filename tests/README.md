@@ -104,8 +104,8 @@ Each testcase group has its own folder and contains the following:
 `test_*/__init__.py`
 : Empty file required for test discovery.
 
-`test_*/regblock.rdl`
-: Testcase RDL file. Testcase infrastructure will automatically compile this and generate the regblock output SystemVerilog.
+`test_*/busdecoder.rdl`
+: Testcase RDL file. Testcase infrastructure will automatically compile this and generate the busdecoder output SystemVerilog.
 
 `test_*/tb_template.sv`
 : Jinja template that defines the testcase-specific sequence.
@@ -116,4 +116,4 @@ Each testcase group has its own folder and contains the following:
 
 
 ## Parameterization
-Testcase classes can be parameterized using the [parameterized](https://github.com/wolever/parameterized) extension. This allows the same testcase to be run against multiple permutations of regblock export modes such as CPU interfaces, retiming flop stages, or even RDL parameterizations.
+Testcase classes can be parameterized using the [parameterized](https://github.com/wolever/parameterized) extension. This allows the same testcase to be run against multiple permutations of busdecoder export modes such as CPU interfaces, retiming flop stages, or even RDL parameterizations.

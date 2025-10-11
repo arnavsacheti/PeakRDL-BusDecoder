@@ -8,18 +8,18 @@ The ``is_signed`` user-defined property fills this need.
 
 For this SystemVerilog exporter, marking a field as signed only affects the
 signal type in the ``hwif`` structs. There is no special handling in the internals
-of the regblock.
+of the busdecoder.
 
 Properties
 ----------
 A field can be marked as signed using the following user-defined property:
 
-.. literalinclude:: ../../hdl-src/regblock_udps.rdl
+.. literalinclude:: ../../hdl-src/busdecoder_udps.rdl
     :lines: 40-44
 
-This UDP definition, along with others supported by PeakRDL-regblock, can be
+This UDP definition, along with others supported by PeakRDL-busdecoder, can be
 enabled by compiling the following file along with your design:
-:download:`regblock_udps.rdl <../../hdl-src/regblock_udps.rdl>`.
+:download:`busdecoder_udps.rdl <../../hdl-src/busdecoder_udps.rdl>`.
 
 .. describe:: is_signed
 

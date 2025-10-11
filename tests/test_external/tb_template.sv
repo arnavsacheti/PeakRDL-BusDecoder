@@ -296,8 +296,8 @@
 
     // Check register struct bit-order
     repeat(32) begin
-        regblock_pkg::top__my_reg_alt__external__fields__in_t fields_in;
-        regblock_pkg::top__my_reg_alt__external__fields__out_t fields_out;
+        busdecoder_pkg::top__my_reg_alt__external__fields__in_t fields_in;
+        busdecoder_pkg::top__my_reg_alt__external__fields__out_t fields_out;
         fields_in = $urandom();
         fields_out = $urandom();
 

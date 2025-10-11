@@ -5,6 +5,7 @@ from systemrdl.messages import RDLCompileError
 
 from ..lib.base_testcase import BaseTestCase
 
+
 class TestValidationErrors(BaseTestCase):
     def setUp(self) -> None:
         # Stub usual pre-test setup
@@ -19,10 +20,9 @@ class TestValidationErrors(BaseTestCase):
         f = io.StringIO()
         with contextlib.redirect_stderr(f):
             with self.assertRaises(RDLCompileError):
-                self.export_regblock()
+                self.export_busdecoder()
         stderr = f.getvalue()
         self.assertRegex(stderr, err_regex)
-
 
     def test_unaligned_reg(self) -> None:
         self.assert_validate_error(
@@ -39,7 +39,7 @@ class TestValidationErrors(BaseTestCase):
     def test_bad_external_ref(self) -> None:
         self.assert_validate_error(
             "external_ref.rdl",
-            "Property is assigned a reference that points to a component not internal to the regblock being exported",
+            "Property is assigned a reference that points to a component not internal to the busdecoder being exported",
         )
 
     def test_sharedextbus_not_supported(self) -> None:
@@ -51,7 +51,7 @@ class TestValidationErrors(BaseTestCase):
     def test_inconsistent_accesswidth(self) -> None:
         self.assert_validate_error(
             "inconsistent_accesswidth.rdl",
-            r"Multi-word registers that have an accesswidth \(16\) that are inconsistent with this regblock's CPU bus width \(32\) are not supported",
+            r"Multi-word registers that have an accesswidth \(16\) that are inconsistent with this busdecoder's CPU bus width \(32\) are not supported",
         )
 
     def test_unbuffered_wide_w_fields(self) -> None:
@@ -117,5 +117,5 @@ class TestValidationErrors(BaseTestCase):
     def test_signed_enum(self) -> None:
         self.assert_validate_error(
             "signed_enum.rdl",
-            "The property is_signed=true is not supported for fields encoded as an enum."
+            "The property is_signed=true is not supported for fields encoded as an enum.",
         )

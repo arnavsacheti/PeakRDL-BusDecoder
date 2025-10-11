@@ -2,7 +2,7 @@
 
 {% block seq %}
     {% sv_line_anchor %}
-    assert(regblock_pkg::N_REGS == {{testcase.n_regs}});
-    assert(regblock_pkg::REGWIDTH == {{testcase.regwidth}});
-    assert(regblock_pkg::NAME == "{{testcase.name}}");
+    assert(busdecoder_pkg::N_REGS == {{testcase.n_regs}});
+    assert(busdecoder_pkg::REGWIDTH == {{testcase.regwidth}});
+    assert(busdecoder_pkg::NAME == "{{testcase.name}}");
 {% endblock %}

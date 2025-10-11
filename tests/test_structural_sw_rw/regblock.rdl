@@ -1,4 +1,4 @@
-addrmap regblock {
+addrmap busdecoder {
     default sw=rw;
     default hw=r;
 

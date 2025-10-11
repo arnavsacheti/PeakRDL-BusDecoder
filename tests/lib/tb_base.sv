@@ -28,11 +28,11 @@ module tb;
     // DUT Signal declarations
     //--------------------------------------------------------------------------
 {%- if exporter.hwif.has_input_struct %}
-    regblock_pkg::regblock__in_t hwif_in;
+    busdecoder_pkg::busdecoder__in_t hwif_in;
 {%- endif %}
 
 {%- if exporter.hwif.has_output_struct %}
-    regblock_pkg::regblock__out_t hwif_out;
+    busdecoder_pkg::busdecoder__out_t hwif_out;
 {%- endif %}
 
 {%- if exporter.ds.has_paritycheck %}
@@ -76,7 +76,7 @@ module tb;
     // DUT
     //--------------------------------------------------------------------------
     {% sv_line_anchor %}
-    regblock dut (.*);
+    busdecoder dut (.*);
 
 {%- if exporter.hwif.has_output_struct %}
     {% sv_line_anchor %}

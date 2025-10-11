@@ -6,13 +6,13 @@ import pytest
 from .base_testcase import BaseTestCase
 from .synthesizers import get_synthesizer_cls
 
-class SynthTestCase(BaseTestCase):
 
+class SynthTestCase(BaseTestCase):
     def _get_synth_files(self) -> List[str]:
         files = []
         files.extend(self.cpuif.get_synth_files())
-        files.append("regblock_pkg.sv")
-        files.append("regblock.sv")
+        files.append("busdecoder_pkg.sv")
+        files.append("busdecoder.sv")
 
         return files
 

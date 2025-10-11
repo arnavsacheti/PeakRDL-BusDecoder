@@ -26,7 +26,8 @@ if TYPE_CHECKING:
     from systemrdl.node import SignalNode
     from systemrdl.rdltypes import UserEnum
 
-class RegblockExporter:
+
+class BusDecoderExporter:
     hwif: Hwif
     cpuif: CpuifBase
     address_decode: AddressDecode
@@ -35,28 +36,35 @@ class RegblockExporter:
     write_buffering: WriteBuffering
     read_buffering: ReadBuffering
     dereferencer: Dereferencer
-    ds: 'DesignState'
+    ds: "DesignState"
 
     def __init__(self, **kwargs: Any) -> None:
         # Check for stray kwargs
         if kwargs:
-            raise TypeError(f"got an unexpected keyword argument '{list(kwargs.keys())[0]}'")
+            raise TypeError(
+                f"got an unexpected keyword argument '{list(kwargs.keys())[0]}'"
+            )
 
-
-        loader = jj.ChoiceLoader([
-            jj.FileSystemLoader(os.path.dirname(__file__)),
-            jj.PrefixLoader({
-                'base': jj.FileSystemLoader(os.path.dirname(__file__)),
-            }, delimiter=":")
-        ])
+        loader = jj.ChoiceLoader(
+            [
+                jj.FileSystemLoader(os.path.dirname(__file__)),
+                jj.PrefixLoader(
+                    {
+                        "base": jj.FileSystemLoader(os.path.dirname(__file__)),
+                    },
+                    delimiter=":",
+                ),
+            ]
+        )
 
         self.jj_env = jj.Environment(
             loader=loader,
             undefined=jj.StrictUndefined,
         )
 
-
-    def export(self, node: Union[RootNode, AddrmapNode], output_dir:str, **kwargs: Any) -> None:
+    def export(
+        self, node: Union[RootNode, AddrmapNode], output_dir: str, **kwargs: Any
+    ) -> None:
         """
         Parameters
         ----------
@@ -65,7 +73,7 @@ class RegblockExporter:
         output_dir: str
             Path to the output directory where generated SystemVerilog will be written.
             Output includes two files: a module definition and package definition.
-        cpuif_cls: :class:`peakrdl_regblock.cpuif.CpuifBase`
+        cpuif_cls: :class:`peakrdl_busdecoder.cpuif.CpuifBase`
             Specify the class type that implements the CPU interface of your choice.
             Defaults to AMBA APB4.
         module_name: str
@@ -115,7 +123,7 @@ class RegblockExporter:
             the contents of the ``hwif_in`` and ``hwif_out`` structures.
         address_width: int
             Override the CPU interface's address width. By default, address width
-            is sized to the contents of the regblock.
+            is sized to the contents of the busdecoder.
         default_reset_activelow: bool
             If overriden to True, default reset is active-low instead of active-high.
         default_reset_async: bool
@@ -129,16 +137,18 @@ class RegblockExporter:
 
         self.ds = DesignState(top_node, kwargs)
 
-        cpuif_cls = kwargs.pop("cpuif_cls", None) or APB4_Cpuif # type: Type[CpuifBase]
-        generate_hwif_report = kwargs.pop("generate_hwif_report", False) # type: bool
+        cpuif_cls = kwargs.pop("cpuif_cls", None) or APB4_Cpuif  # type: Type[CpuifBase]
+        generate_hwif_report = kwargs.pop("generate_hwif_report", False)  # type: bool
 
         # Check for stray kwargs
         if kwargs:
-            raise TypeError(f"got an unexpected keyword argument '{list(kwargs.keys())[0]}'")
+            raise TypeError(
+                f"got an unexpected keyword argument '{list(kwargs.keys())[0]}'"
+            )
 
         if generate_hwif_report:
             path = os.path.join(output_dir, f"{self.ds.module_name}_hwif.rpt")
-            hwif_report_file = open(path, "w", encoding='utf-8') # pylint: disable=consider-using-with
+            hwif_report_file = open(path, "w", encoding="utf-8")  # pylint: disable=consider-using-with
         else:
             hwif_report_file = None
 
@@ -181,7 +191,7 @@ class RegblockExporter:
             "get_always_ff_event": self.dereferencer.get_always_ff_event,
             "ds": self.ds,
             "kwf": kwf,
-            "SVInt" : SVInt,
+            "SVInt": SVInt,
         }
 
         # Write out design
@@ -210,34 +220,38 @@ class DesignState:
         self.top_node = top_node
         msg = top_node.env.msg
 
-        #------------------------
+        # ------------------------
         # Extract compiler args
-        #------------------------
-        self.reuse_hwif_typedefs = kwargs.pop("reuse_hwif_typedefs", True) # type: bool
-        self.module_name = kwargs.pop("module_name", None) or kwf(self.top_node.inst_name) # type: str
-        self.package_name = kwargs.pop("package_name", None) or (self.module_name + "_pkg") # type: str
-        user_addr_width = kwargs.pop("address_width", None) # type: Optional[int]
+        # ------------------------
+        self.reuse_hwif_typedefs = kwargs.pop("reuse_hwif_typedefs", True)  # type: bool
+        self.module_name = kwargs.pop("module_name", None) or kwf(
+            self.top_node.inst_name
+        )  # type: str
+        self.package_name = kwargs.pop("package_name", None) or (
+            self.module_name + "_pkg"
+        )  # type: str
+        user_addr_width = kwargs.pop("address_width", None)  # type: Optional[int]
 
         # Pipelining options
-        self.retime_read_fanin = kwargs.pop("retime_read_fanin", False) # type: bool
-        self.retime_read_response = kwargs.pop("retime_read_response", False) # type: bool
-        self.retime_external_reg = kwargs.pop("retime_external_reg", False) # type: bool
-        self.retime_external_regfile = kwargs.pop("retime_external_regfile", False) # type: bool
-        self.retime_external_mem = kwargs.pop("retime_external_mem", False) # type: bool
-        self.retime_external_addrmap = kwargs.pop("retime_external_addrmap", False) # type: bool
+        self.retime_read_fanin = kwargs.pop("retime_read_fanin", False)  # type: bool
+        self.retime_read_response = kwargs.pop("retime_read_response", False)  # type: bool
+        self.retime_external_reg = kwargs.pop("retime_external_reg", False)  # type: bool
+        self.retime_external_regfile = kwargs.pop("retime_external_regfile", False)  # type: bool
+        self.retime_external_mem = kwargs.pop("retime_external_mem", False)  # type: bool
+        self.retime_external_addrmap = kwargs.pop("retime_external_addrmap", False)  # type: bool
 
         # Default reset type
-        self.default_reset_activelow = kwargs.pop("default_reset_activelow", False) # type: bool
-        self.default_reset_async = kwargs.pop("default_reset_async", False) # type: bool
+        self.default_reset_activelow = kwargs.pop("default_reset_activelow", False)  # type: bool
+        self.default_reset_async = kwargs.pop("default_reset_async", False)  # type: bool
 
-        #------------------------
+        # ------------------------
         # Info about the design
-        #------------------------
+        # ------------------------
         self.cpuif_data_width = 0
 
         # Collections of signals that were actually referenced by the design
-        self.in_hier_signal_paths = set() # type: Set[str]
-        self.out_of_hier_signals = OrderedDict() # type: OrderedDict[str, SignalNode]
+        self.in_hier_signal_paths = set()  # type: Set[str]
+        self.out_of_hier_signals = OrderedDict()  # type: OrderedDict[str, SignalNode]
 
         self.has_writable_msb0_fields = False
         self.has_buffered_write_regs = False
@@ -249,7 +263,7 @@ class DesignState:
         self.has_paritycheck = False
 
         # Track any referenced enums
-        self.user_enums = [] # type: List[Type[UserEnum]]
+        self.user_enums = []  # type: List[Type[UserEnum]]
 
         # Scan the design to fill in above variables
         DesignScanner(self).do_scan()
@@ -260,17 +274,21 @@ class DesignState:
             # Assume 32-bits
             msg.warning(
                 "Addrmap being exported only contains external components. Unable to infer the CPUIF bus width. Assuming 32-bits.",
-                self.top_node.inst.def_src_ref
+                self.top_node.inst.def_src_ref,
             )
             self.cpuif_data_width = 32
 
-        #------------------------
+        # ------------------------
         # Min address width encloses the total size AND at least 1 useful address bit
-        self.addr_width = max(clog2(self.top_node.size), clog2(self.cpuif_data_width//8) + 1)
+        self.addr_width = max(
+            clog2(self.top_node.size), clog2(self.cpuif_data_width // 8) + 1
+        )
 
         if user_addr_width is not None:
             if user_addr_width < self.addr_width:
-                msg.fatal(f"User-specified address width shall be greater than or equal to {self.addr_width}.")
+                msg.fatal(
+                    f"User-specified address width shall be greater than or equal to {self.addr_width}."
+                )
             self.addr_width = user_addr_width
 
     @property

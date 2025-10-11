@@ -9,8 +9,8 @@ import pathlib
 import pytest
 from systemrdl import RDLCompiler
 
-from peakrdl_regblock import RegblockExporter
-from peakrdl_regblock.udps import ALL_UDPS
+from peakrdl_busdecoder import BusDecoderExporter
+from peakrdl_busdecoder.udps import ALL_UDPS
 
 from .cpuifs.base import CpuifTestMode
 from .cpuifs.apb4 import APB4
@@ -20,17 +20,17 @@ class BaseTestCase(unittest.TestCase):
     #: Path to the testcase's RDL file.
     #: Relative to the testcase's dir. If unset, the first RDL file found in the
     #: testcase dir will be used
-    rdl_file = None # type: Optional[str]
+    rdl_file = None  # type: Optional[str]
 
     #: RDL type name to elaborate. If unset, compiler will automatically choose
     #: the top.
-    rdl_elab_target = None # type: Optional[str]
+    rdl_elab_target = None  # type: Optional[str]
 
     #: Parameters to pass into RDL elaboration
     rdl_elab_params = {}
 
     #: Define what CPUIF to use for this testcase
-    cpuif = APB4() # type: CpuifTestMode
+    cpuif = APB4()  # type: CpuifTestMode
 
     # Other exporter args:
     retime_read_fanin = False
@@ -41,9 +41,9 @@ class BaseTestCase(unittest.TestCase):
     default_reset_async = False
 
     #: this gets auto-loaded via the _load_request autouse fixture
-    request = None # type: pytest.FixtureRequest
+    request = None  # type: pytest.FixtureRequest
 
-    exporter = RegblockExporter()
+    exporter = BusDecoderExporter()
 
     @pytest.fixture(autouse=True)
     def _load_request(self, request):
@@ -72,16 +72,15 @@ class BaseTestCase(unittest.TestCase):
         """
         path = os.path.join(self.get_run_dir(), "params.txt")
 
-        with open(path, 'w') as f:
+        with open(path, "w") as f:
             for k, v in self.__class__.__dict__.items():
                 if k.startswith("_") or callable(v):
                     continue
                 f.write(f"{k}: {repr(v)}\n")
 
-
-    def export_regblock(self):
+    def export_busdecoder(self):
         """
-        Call the peakrdl_regblock exporter to generate the DUT
+        Call the peakrdl_busdecoder exporter to generate the DUT
         """
         this_dir = self.get_testcase_dir()
 
@@ -97,17 +96,17 @@ class BaseTestCase(unittest.TestCase):
         for udp in ALL_UDPS:
             rdlc.register_udp(udp)
         # ... including the definition
-        udp_file = os.path.join(this_dir, "../../hdl-src/regblock_udps.rdl")
+        udp_file = os.path.join(this_dir, "../../hdl-src/busdecoder_udps.rdl")
         rdlc.compile_file(udp_file)
 
         rdlc.compile_file(rdl_file)
-        root = rdlc.elaborate(self.rdl_elab_target, "regblock", self.rdl_elab_params)
+        root = rdlc.elaborate(self.rdl_elab_target, "busdecoder", self.rdl_elab_params)
 
         self.exporter.export(
             root,
             self.get_run_dir(),
-            module_name="regblock",
-            package_name="regblock_pkg",
+            module_name="busdecoder",
+            package_name="busdecoder_pkg",
             cpuif_cls=self.cpuif.cpuif_cls,
             retime_read_fanin=self.retime_read_fanin,
             retime_read_response=self.retime_read_response,
@@ -137,4 +136,4 @@ class BaseTestCase(unittest.TestCase):
         self._write_params()
 
         # Convert testcase RDL file --> SV
-        self.export_regblock()
+        self.export_busdecoder()

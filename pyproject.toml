@@ -3,24 +3,28 @@ requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "peakrdl-regblock"
+name = "peakrdl-busdecoder"
 dynamic = ["version"]
 requires-python = ">=3.7"
-dependencies = [
-    "systemrdl-compiler ~= 1.29",
-    "Jinja2>=2.11",
-]
+dependencies = ["systemrdl-compiler ~= 1.29", "Jinja2>=2.11"]
 
-authors = [
-    {name="Alex Mykyta"},
-]
+authors = [{ name = "Alex Mykyta" }]
 description = "Compile SystemRDL into a SystemVerilog control/status register (CSR) block"
 readme = "README.md"
-license = {text = "LGPLv3"}
+license = { text = "LGPLv3" }
 keywords = [
-    "SystemRDL", "PeakRDL", "CSR", "compiler", "tool", "registers", "generator",
-    "Verilog", "SystemVerilog", "register abstraction layer",
-    "FPGA", "ASIC",
+    "SystemRDL",
+    "PeakRDL",
+    "CSR",
+    "compiler",
+    "tool",
+    "registers",
+    "generator",
+    "Verilog",
+    "SystemVerilog",
+    "register abstraction layer",
+    "FPGA",
+    "ASIC",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -34,18 +38,16 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-cli = [
-    "peakrdl-cli >= 1.2.3",
-]
+cli = ["peakrdl-cli >= 1.2.3"]
 
 [project.urls]
-Source = "https://github.com/SystemRDL/PeakRDL-regblock"
-Tracker = "https://github.com/SystemRDL/PeakRDL-regblock/issues"
-Changelog = "https://github.com/SystemRDL/PeakRDL-regblock/releases"
-Documentation = "https://peakrdl-regblock.readthedocs.io/"
+Source = "https://github.com/SystemRDL/PeakRDL-busdecoder"
+Tracker = "https://github.com/SystemRDL/PeakRDL-busdecoder/issues"
+Changelog = "https://github.com/SystemRDL/PeakRDL-busdecoder/releases"
+Documentation = "https://peakrdl-busdecoder.readthedocs.io/"
 
 [tool.setuptools.dynamic]
-version = {attr = "peakrdl_regblock.__about__.__version__"}
+version = { attr = "peakrdl_busdecoder.__about__.__version__" }
 
 [project.entry-points."peakrdl.exporters"]
-regblock = "peakrdl_regblock.__peakrdl__:Exporter"
+busdecoder = "peakrdl_busdecoder.__peakrdl__:Exporter"

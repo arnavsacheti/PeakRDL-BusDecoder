@@ -17,9 +17,9 @@ encountered in the design.
 Addressing
 ^^^^^^^^^^
 
-The regblock exporter will always generate its address decoding logic using local
+The busdecoder exporter will always generate its address decoding logic using local
 address offsets. The absolute address offset of your device shall be
-handled by your system interconnect, and present addresses to the regblock that
+handled by your system interconnect, and present addresses to the busdecoder that
 only include the local offset.
 
 For example, consider a fictional AXI4-Lite device that:

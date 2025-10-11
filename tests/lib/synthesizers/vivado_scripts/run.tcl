@@ -25,7 +25,7 @@ set_msg_config -severity {CRITICAL WARNING} -new_severity "ERROR"
 set_part [lindex [get_parts] 0]
 read_verilog -sv $files
 read_xdc $this_dir/constr.xdc
-synth_design -top regblock -mode out_of_context
+synth_design -top busdecoder -mode out_of_context
 
 #write_checkpoint -force synth.dcp
 

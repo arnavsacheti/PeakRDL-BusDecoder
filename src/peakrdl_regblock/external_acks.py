@@ -6,12 +6,12 @@ from systemrdl.node import RegNode
 from .forloop_generator import RDLForLoopGenerator
 
 if TYPE_CHECKING:
-    from .exporter import RegblockExporter
+    from .exporter import BusDecoderExporter
     from systemrdl.node import AddressableNode
 
 
 class ExternalWriteAckGenerator(RDLForLoopGenerator):
-    def __init__(self, exp: 'RegblockExporter') -> None:
+    def __init__(self, exp: "BusDecoderExporter") -> None:
         super().__init__()
         self.exp = exp
 
@@ -21,19 +21,21 @@ class ExternalWriteAckGenerator(RDLForLoopGenerator):
             return ""
         return content
 
-    def enter_AddressableComponent(self, node: 'AddressableNode') -> WalkerAction:
+    def enter_AddressableComponent(self, node: "AddressableNode") -> WalkerAction:
         super().enter_AddressableComponent(node)
 
         if node.external:
             if not isinstance(node, RegNode) or node.has_sw_writable:
-                self.add_content(f"wr_ack |= {self.exp.hwif.get_external_wr_ack(node)};")
+                self.add_content(
+                    f"wr_ack |= {self.exp.hwif.get_external_wr_ack(node)};"
+                )
             return WalkerAction.SkipDescendants
 
         return WalkerAction.Continue
 
 
 class ExternalReadAckGenerator(RDLForLoopGenerator):
-    def __init__(self, exp: 'RegblockExporter') -> None:
+    def __init__(self, exp: "BusDecoderExporter") -> None:
         super().__init__()
         self.exp = exp
 
@@ -43,12 +45,14 @@ class ExternalReadAckGenerator(RDLForLoopGenerator):
             return ""
         return content
 
-    def enter_AddressableComponent(self, node: 'AddressableNode') -> WalkerAction:
+    def enter_AddressableComponent(self, node: "AddressableNode") -> WalkerAction:
         super().enter_AddressableComponent(node)
 
         if node.external:
             if not isinstance(node, RegNode) or node.has_sw_readable:
-                self.add_content(f"rd_ack |= {self.exp.hwif.get_external_rd_ack(node)};")
+                self.add_content(
+                    f"rd_ack |= {self.exp.hwif.get_external_rd_ack(node)};"
+                )
             return WalkerAction.SkipDescendants
 
         return WalkerAction.Continue

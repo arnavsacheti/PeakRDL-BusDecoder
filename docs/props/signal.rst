@@ -2,7 +2,7 @@ Signal Properties
 =================
 
 .. note:: Any properties not explicitly listed here are either implicitly
-    supported, or are not relevant to the regblock exporter and are ignored.
+    supported, or are not relevant to the busdecoder exporter and are ignored.
 
 
 activehigh/activelow
@@ -19,7 +19,7 @@ Ignored in all other contexts.
 cpuif_reset
 -----------
 Specify that this signal shall be used as alternate reset signal for the CPU
-interface for this regblock.
+interface for this busdecoder.
 
 
 field_reset

@@ -42,14 +42,14 @@ Naming Scheme
 ================================================================================
 
 hwif_out
-    .my_regblock
+    .my_busdecoder
         .my_reg[X][Y]
             .my_field
                 .value
                 .anded
 
 hwif_in
-    .my_regblock
+    .my_busdecoder
         .my_reg[X][Y]
             .my_field
                 .value

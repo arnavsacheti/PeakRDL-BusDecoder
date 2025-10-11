@@ -6,7 +6,8 @@ from ..utils import get_indexed_path
 if TYPE_CHECKING:
     from systemrdl.node import FieldNode
 
-    from ..exporter import RegblockExporter
+    from ..exporter import BusDecoderExporter
+
 
 class AssignmentPrecedence(enum.IntEnum):
     """
@@ -29,16 +30,15 @@ class AssignmentPrecedence(enum.IntEnum):
     # Hardware access assignment groups
     HW_WRITE = 3000
     HWSET = 2000
-    HWCLR  = 1000
+    HWCLR = 1000
     COUNTER_INCR_DECR = 0
-
-
 
 
 class SVLogic:
     """
     Represents a SystemVerilog logic signal
     """
+
     def __init__(self, name: str, width: int, default_assignment: str) -> None:
         self.name = name
         self.width = width
@@ -67,10 +67,10 @@ class NextStateConditional:
     # Optional comment to emit next to the conditional
     comment = ""
 
-    def __init__(self, exp:'RegblockExporter'):
+    def __init__(self, exp: "BusDecoderExporter"):
         self.exp = exp
 
-    def is_match(self, field: 'FieldNode') -> bool:
+    def is_match(self, field: "FieldNode") -> bool:
         """
         Returns True if this conditional is relevant to the field. If so,
         it instructs the FieldBuilder that Verilog for this conditional shall
@@ -78,17 +78,16 @@ class NextStateConditional:
         """
         raise NotImplementedError
 
-    def get_field_path(self, field:'FieldNode') -> str:
+    def get_field_path(self, field: "FieldNode") -> str:
         return get_indexed_path(self.exp.ds.top_node, field)
 
-    def get_predicate(self, field: 'FieldNode') -> str:
+    def get_predicate(self, field: "FieldNode") -> str:
         """
         Returns the rendered conditional text
         """
         raise NotImplementedError
 
-
-    def get_assignments(self, field: 'FieldNode') -> List[str]:
+    def get_assignments(self, field: "FieldNode") -> List[str]:
         """
         Returns a list of rendered assignment strings
         This will basically always be two:
@@ -97,12 +96,13 @@ class NextStateConditional:
         """
         raise NotImplementedError
 
-    def get_extra_combo_signals(self, field: 'FieldNode') -> List[SVLogic]:
+    def get_extra_combo_signals(self, field: "FieldNode") -> List[SVLogic]:
         """
         Return any additional combinational signals that this conditional
         will assign if present.
         """
         return []
+
 
 class NextStateUnconditional(NextStateConditional):
     """

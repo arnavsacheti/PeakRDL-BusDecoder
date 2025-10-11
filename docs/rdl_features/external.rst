@@ -1,9 +1,9 @@
 External Components
 ===================
 SystemRDL allows some component instances to be defined as "external" elements
-of an address space definition. In the context of this regblock generator,
+of an address space definition. In the context of this busdecoder generator,
 the implementation of an external component is left up to the designer. When
-generating the RTL for a regblock, the implementations of external components
+generating the RTL for a busdecoder, the implementations of external components
 are omitted and instead a user-interface is presented on the
 ``hwif_in``/``hwif_out`` i/o structs.
 
@@ -16,7 +16,7 @@ Things you should know
 
 * By default external ``hwif_out`` signals are driven combinationally. An
   optional output retiming stage can be enabled if needed.
-* Due to the uncertain access latency of external components, the regblock will
+* Due to the uncertain access latency of external components, the busdecoder will
   only issue one outstanding transaction to an external component at a time.
   This is enforced even if the CPUIF is capable of pipelined accesses such as
   AXI4-Lite.
@@ -109,7 +109,7 @@ Broader external address regions can be represented by external block-like
 components such as ``addrmap``, ``regfile`` or ``mem`` elements.
 
 To ensure address decoding for external blocks is simple (only requires simple bit-pruning),
-blocks that are external to an exported regblock shall be aligned to their size.
+blocks that are external to an exported busdecoder shall be aligned to their size.
 
 Request
 ^^^^^^^

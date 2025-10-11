@@ -15,7 +15,7 @@ Unaligned Registers
 -------------------
 All address offsets & strides shall be a multiple of the cpuif bus width used. Specifically:
 
-* Bus width is inferred by the maximum accesswidth used in the regblock.
+* Bus width is inferred by the maximum accesswidth used in the busdecoder.
 * Each component's address and array stride shall be aligned to the bus width.
 
 
