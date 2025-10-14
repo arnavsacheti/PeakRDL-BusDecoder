@@ -1,9 +1,10 @@
 from typing import TYPE_CHECKING
-from systemrdl.node import AddrmapNode, FieldNode, RegNode, AddressableNode
+
+from systemrdl.node import AddressableNode, AddrmapNode, FieldNode, RegNode
 
 if TYPE_CHECKING:
-    from .exporter import BusDecoderExporter, DesignState
     from .addr_decode import AddressDecode
+    from .exporter import BusDecoderExporter, DesignState
 
 
 class Dereferencer:
@@ -12,7 +13,7 @@ class Dereferencer:
     into Verilog identifiers
     """
 
-    def __init__(self, exp: "BusDecoderExporter"):
+    def __init__(self, exp: "BusDecoderExporter") -> None:
         self.exp = exp
 
     @property

@@ -1,8 +1,9 @@
 import re
-from typing import Match, overload
+from re import Match
+from typing import overload
 
+from systemrdl.node import AddrmapNode, Node
 from systemrdl.rdltypes.references import PropertyReference
-from systemrdl.node import Node, AddrmapNode
 
 from .identifier_filter import kw_filter as kwf
 from .sv_int import SVInt

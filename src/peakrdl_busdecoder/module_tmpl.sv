@@ -22,6 +22,8 @@ module {{ds.module_name}}
     // CPU Bus interface logic
     //--------------------------------------------------------------------------
     logic cpuif_req;
+    logic cpuif_wr_en;
+    logic cpuif_rd_en;
     logic [{{cpuif.addr_width-1}}:0] cpuif_wr_addr;
     logic [{{cpuif.addr_width-1}}:0] cpuif_rd_addr;
 
@@ -30,9 +32,9 @@ module {{ds.module_name}}
     logic [{{cpuif.data_width-1}}:0] cpuif_wr_data;
     logic [{{cpuif.data_width//8-1}}:0] cpuif_wr_byte_en;
 
-    logic cpuif_rd_ack;
-    logic cpuif_rd_err;
-    logic [{{cpuif.data_width-1}}:0] cpuif_rd_data;
+    logic cpuif_rd_ack [{{cpuif.addressable_children|length}}];
+    logic cpuif_rd_err [{{cpuif.addressable_children|length}}];
+    logic [{{cpuif.data_width-1}}:0] cpuif_rd_data [{{cpuif.addressable_children|length}}];
 
     //--------------------------------------------------------------------------
     // Child instance signals
@@ -56,12 +58,12 @@ module {{ds.module_name}}
             // A write request is pending
             {%- for child in cpuif.addressable_children -%}
             {%- if loop.first -%}
-            if ({{cpuif.get_address_decode_condition(child)}}) begin
+            if {{child|address_decode}} begin
             {%- else -%}
-            end else if ({{cpuif.get_address_decode_condition(child)}}) begin
+            end else if {{child|address_decode}} begin
             {%- endif -%}
                 // Address matched for {{child.inst_name}} 
-                cpuif_wr_sel[{{loop.index0}}] = 1'b1;
+                cpuif_wr_sel[{{loop.index}}] = 1'b1;
             {%- endfor -%}
             end else begin
                 // No address match, all select signals remain 0
@@ -79,16 +81,16 @@ module {{ds.module_name}}
         // Default all read select signals to 0
         cpuif_rd_sel = '0;
 
-        if (cpuif_req && !cpuif_wr_en) begin
+        if (cpuif_req && cpuif_rd_en) begin
             // A read request is pending
             {%- for child in cpuif.addressable_children -%}
             {%- if loop.first -%}
-            if ({{cpuif.get_address_decode_condition(child)}}) begin
+            if {{child|address_decode}} begin
             {%- else -%}
-            end else if ({{cpuif.get_address_decode_condition(child)}}) begin
+            end else if {{child|address_decode}} begin
             {%- endif -%}
                 // Address matched for {{child.inst_name}} 
-                cpuif_rd_sel[{{loop.index0}}] = 1'b1;
+                cpuif_rd_sel[{{loop.index}}] = 1'b1;
             {%- endfor -%}
             end else begin
                 // No address match, all select signals remain 0

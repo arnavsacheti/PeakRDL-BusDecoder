@@ -6,14 +6,14 @@ from systemrdl.node import AddrmapNode, RootNode
 from systemrdl.rdltypes.user_enum import UserEnum
 
 from .addr_decode import AddressDecode
-from .dereferencer import Dereferencer
-from .identifier_filter import kw_filter as kwf
-from .utils import clog2
-from .scan_design import DesignScanner
-from .validate_design import DesignValidator
 from .cpuif import BaseCpuif
 from .cpuif.apb4 import APB4Cpuif
+from .dereferencer import Dereferencer
+from .identifier_filter import kw_filter as kwf
+from .scan_design import DesignScanner
 from .sv_int import SVInt
+from .utils import clog2
+from .validate_design import DesignValidator
 
 if TYPE_CHECKING:
     pass

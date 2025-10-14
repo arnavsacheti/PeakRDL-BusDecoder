@@ -1,5 +1,5 @@
-from typing import TYPE_CHECKING
 import textwrap
+from typing import TYPE_CHECKING
 
 from systemrdl.walker import RDLListener, RDLWalker, WalkerAction
 
@@ -12,7 +12,7 @@ class Body:
         self.children: list[str | Body] = []
 
     def __str__(self) -> str:
-        s = "\n".join((str(x) for x in self.children))
+        s = "\n".join(str(x) for x in self.children)
         return s
 
 

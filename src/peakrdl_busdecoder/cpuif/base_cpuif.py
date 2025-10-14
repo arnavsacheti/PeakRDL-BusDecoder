@@ -1,6 +1,6 @@
-from typing import TYPE_CHECKING
 import inspect
 import os
+from typing import TYPE_CHECKING
 
 import jinja2 as jj
 from systemrdl.node import AddressableNode

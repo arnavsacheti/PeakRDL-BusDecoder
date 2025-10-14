@@ -1,16 +1,17 @@
-from typing import TYPE_CHECKING
 import functools
+from typing import TYPE_CHECKING
 
-from peakrdl.plugins.exporter import ExporterSubcommandPlugin
 from peakrdl.config import schema
 from peakrdl.plugins.entry_points import get_entry_points
+from peakrdl.plugins.exporter import ExporterSubcommandPlugin
 
-from .exporter import BusDecoderExporter
 from .cpuif import BaseCpuif, apb3, apb4
+from .exporter import BusDecoderExporter
 from .udps import ALL_UDPS
 
 if TYPE_CHECKING:
     import argparse
+
     from systemrdl.node import AddrmapNode
 
 
@@ -23,7 +24,7 @@ class Exporter(ExporterSubcommandPlugin):
         "cpuifs": {"*": schema.PythonObjectImport()},
     }
 
-    @functools.lru_cache()
+    @functools.lru_cache
     def get_cpuifs(self) -> dict[str, type[BaseCpuif]]:
         # All built-in CPUIFs
         cpuifs: dict[str, type[BaseCpuif]] = {

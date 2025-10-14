@@ -3,17 +3,18 @@ from typing import TYPE_CHECKING
 from systemrdl.node import FieldNode, RegNode
 from systemrdl.walker import WalkerAction
 
-from .utils import get_indexed_path
 from .forloop_generator import RDLForLoopGenerator
 from .sv_int import SVInt
+from .utils import get_indexed_path
 
 if TYPE_CHECKING:
+    from systemrdl.node import AddressableNode, AddrmapNode
+
     from .exporter import BusDecoderExporter
-    from systemrdl.node import AddrmapNode, AddressableNode
 
 
 class AddressDecode:
-    def __init__(self, exp: "BusDecoderExporter"):
+    def __init__(self, exp: "BusDecoderExporter") -> None:
         self.exp = exp
 
     @property

@@ -1,13 +1,10 @@
 from typing import TYPE_CHECKING
 
-from systemrdl.walker import RDLListener, RDLWalker, WalkerAction
+from systemrdl.node import AddressableNode, AddrmapNode, FieldNode, Node, RegfileNode, RegNode, SignalNode
 from systemrdl.rdltypes import PropertyReference
-from systemrdl.node import Node, RegNode, FieldNode, SignalNode, AddressableNode
-from systemrdl.node import RegfileNode, AddrmapNode
+from systemrdl.walker import RDLListener, RDLWalker, WalkerAction
 
-from .utils import roundup_pow2, is_pow2
-
-from .utils import ref_is_internal
+from .utils import is_pow2, ref_is_internal, roundup_pow2
 
 if TYPE_CHECKING:
     from .exporter import BusDecoderExporter

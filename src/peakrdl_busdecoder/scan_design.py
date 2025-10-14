@@ -1,10 +1,11 @@
 from typing import TYPE_CHECKING
 
-from systemrdl.walker import RDLListener, RDLWalker, WalkerAction
 from systemrdl.node import RegNode
+from systemrdl.walker import RDLListener, RDLWalker, WalkerAction
 
 if TYPE_CHECKING:
-    from systemrdl.node import Node, AddressableNode, AddrmapNode
+    from systemrdl.node import AddressableNode, AddrmapNode, Node
+
     from .exporter import DesignState
 
 
