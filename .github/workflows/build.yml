@@ -91,6 +91,7 @@ jobs:
 
 #-------------------------------------------------------------------------------
   typecheck:
+    runs-on: ubuntu-latest
     steps:
       - name: Setup (Python + uv + sync)
         uses: ./.github/actions/setup-uv-python
