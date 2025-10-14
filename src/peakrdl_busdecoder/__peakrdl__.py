@@ -1,0 +1,120 @@
+from typing import TYPE_CHECKING
+import functools
+
+from peakrdl.plugins.exporter import ExporterSubcommandPlugin
+from peakrdl.config import schema
+from peakrdl.plugins.entry_points import get_entry_points
+
+from .exporter import BusDecoderExporter
+from .cpuif import BaseCpuif, apb3, apb4
+from .udps import ALL_UDPS
+
+if TYPE_CHECKING:
+    import argparse
+    from systemrdl.node import AddrmapNode
+
+
+class Exporter(ExporterSubcommandPlugin):
+    short_desc = "Generate a SystemVerilog control/status register (CSR) block"
+
+    udp_definitions = ALL_UDPS
+
+    cfg_schema = {
+        "cpuifs": {"*": schema.PythonObjectImport()},
+    }
+
+    @functools.lru_cache()
+    def get_cpuifs(self) -> dict[str, type[BaseCpuif]]:
+        # All built-in CPUIFs
+        cpuifs: dict[str, type[BaseCpuif]] = {
+            # "passthrough": passthrough.PassthroughCpuif,
+            "apb3": apb3.APB3Cpuif,
+            "apb3-flat": apb3.APB3CpuifFlat,
+            "apb4": apb4.APB4Cpuif,
+            "apb4-flat": apb4.APB4CpuifFlat,
+            # "axi4-lite": axi4lite.AXI4Lite_Cpuif,
+            # "axi4-lite-flat": axi4lite.AXI4Lite_Cpuif_flattened,
+        }
+
+        # Load any cpuifs specified via entry points
+        for ep, _ in get_entry_points("peakrdl_busdecoder.cpuif"):
+            name = ep.name
+            cpuif = ep.load()
+            if name in cpuifs:
+                raise RuntimeError(
+                    f"A plugin for 'peakrdl-busdecoder' tried to load cpuif '{name}' but it already exists"
+                )
+            if not issubclass(cpuif, BaseCpuif):
+                raise RuntimeError(
+                    f"A plugin for 'peakrdl-busdecoder' tried to load cpuif '{name}' but it not a BaseCpuif class"
+                )
+            cpuifs[name] = cpuif
+
+        # Load any CPUIFs via config import
+        for name, cpuif in self.cfg["cpuifs"].items():
+            if name in cpuifs:
+                raise RuntimeError(
+                    f"A plugin for 'peakrdl-busdecoder' tried to load cpuif '{name}' but it already exists"
+                )
+            if not issubclass(cpuif, BaseCpuif):
+                raise RuntimeError(
+                    f"A plugin for 'peakrdl-busdecoder' tried to load cpuif '{name}' but it not a BaseCpuif class"
+                )
+            cpuifs[name] = cpuif
+
+        return cpuifs
+
+    def add_exporter_arguments(self, arg_group: "argparse._ActionsContainer") -> None:
+        cpuifs = self.get_cpuifs()
+
+        arg_group.add_argument(
+            "--cpuif",
+            choices=cpuifs.keys(),
+            default="apb3",
+            help="Select the CPU interface protocol to use [apb3]",
+        )
+
+        arg_group.add_argument(
+            "--module-name",
+            metavar="NAME",
+            default=None,
+            help="Override the SystemVerilog module name",
+        )
+
+        arg_group.add_argument(
+            "--package-name",
+            metavar="NAME",
+            default=None,
+            help="Override the SystemVerilog package name",
+        )
+
+        arg_group.add_argument(
+            "--addr-width",
+            type=int,
+            default=None,
+            help="""Override the CPU interface's address width. By default,
+            address width is sized to the contents of the busdecoder.
+            """,
+        )
+
+        arg_group.add_argument(
+            "--unroll",
+            action="store_true",
+            help="""Unroll arrayed addressable nodes into separate instances in
+            the CPU interface. By default, arrayed nodes are kept as arrays.
+            """,
+        )
+
+    def do_export(self, top_node: "AddrmapNode", options: "argparse.Namespace") -> None:
+        cpuifs = self.get_cpuifs()
+
+        x = BusDecoderExporter()
+        x.export(
+            top_node,
+            options.output,
+            cpuif_cls=cpuifs[options.cpuif],
+            module_name=options.module_name,
+            package_name=options.package_name,
+            address_width=options.addr_width,
+            unroll=options.unroll,
+        )

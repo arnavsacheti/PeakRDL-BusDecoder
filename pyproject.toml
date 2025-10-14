@@ -4,9 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "peakrdl-busdecoder"
-dynamic = ["version"]
-requires-python = ">=3.7"
-dependencies = ["systemrdl-compiler ~= 1.29", "Jinja2>=2.11"]
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "jinja2>=3.1.6",
+    "systemrdl-compiler~=1.30.1",
+]
 
 authors = [{ name = "Alex Mykyta" }]
 description = "Compile SystemRDL into a SystemVerilog control/status register (CSR) block"
@@ -46,8 +49,21 @@ Tracker = "https://github.com/SystemRDL/PeakRDL-busdecoder/issues"
 Changelog = "https://github.com/SystemRDL/PeakRDL-busdecoder/releases"
 Documentation = "https://peakrdl-busdecoder.readthedocs.io/"
 
-[tool.setuptools.dynamic]
-version = { attr = "peakrdl_busdecoder.__about__.__version__" }
+[dependency-groups]
+docs = [
+    "pygments-systemrdl>=1.3.0",
+    "sphinx-book-theme>=1.1.4",
+    "sphinxcontrib-wavedrom>=3.0.4",
+]
+test = [
+    "parameterized>=0.9.0",
+    "pytest>=7.4.4",
+    "pytest-cov>=4.1.0",
+    "pytest-xdist>=3.5.0",
+]
+tools = [
+    "ruff>=0.14.0",
+]
 
 [project.entry-points."peakrdl.exporters"]
 busdecoder = "peakrdl_busdecoder.__peakrdl__:Exporter"

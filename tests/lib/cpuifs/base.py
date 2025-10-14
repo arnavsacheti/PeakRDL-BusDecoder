@@ -4,7 +4,7 @@ import inspect
 
 import jinja2 as jj
 
-from peakrdl_busdecoder.cpuif.base import CpuifBase
+from peakrdl_busdecoder.cpuif.base_cpuif import CpuifBase
 
 from ..sv_line_anchor import SVLineAnchor
 
