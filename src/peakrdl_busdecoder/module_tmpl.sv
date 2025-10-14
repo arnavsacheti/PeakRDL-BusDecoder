@@ -3,7 +3,7 @@
 //  Module: {{ds.module_name}}
 //  Description: CPU Interface Bus Decoder
 //  Author: PeakRDL-busdecoder
-//  License: GLPLv3
+//  License: LGPL-3.0
 //  Date: {{current_date}}
 //  Version: {{version}}
 //  Links:
@@ -78,7 +78,7 @@ module {{ds.module_name}}
     always_comb begin
         // Default all read select signals to 0
         cpuif_rd_sel = '0;
-        
+
 
         if (cpuif_req && !cpuif_wr_en) begin
             // A read request is pending

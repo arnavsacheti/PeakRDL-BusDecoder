@@ -30,22 +30,10 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v3
-
-      - name: Install UV
-        uses: astral-sh/setup-uv@v6
-
-      - name: Set up Python ${{ matrix.python-version }}
-        run: |
-          uv venv -p ${{ matrix.python-version }} .venv
-
-      - name: Install dependencies
-        run: |
-          uv sync --group test
-
-      - name: Install
-        run: |
-          python -m pip install ".[cli]"
+      - uses: ./.github/actions/setup-uv-python
+        with:
+          python-version: ${{ matrix.python-version }}
+          groups: "test"
 
       - name: Test
         run: |
@@ -78,71 +66,56 @@ jobs:
           coveralls --service=github --finish
 
 #-------------------------------------------------------------------------------
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup (Python + uv + sync)
+        uses: ./.github/actions/setup-uv-python
+        with:
+          python-version: "3.10"
+          groups: "tools"
+      - name: Ruff format (check only)
+        run: uvx ruff format --check .
+
+#-------------------------------------------------------------------------------
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Setup (Python + uv + sync)
+        uses: ./.github/actions/setup-uv-python
         with:
           python-version: "3.10"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install -r tests/requirements.txt
-
-      - name: Install
-        run: |
-          python -m pip install ".[cli]"
-
-      - name: Run Lint
-        run: |
-          pylint --rcfile tests/pylint.rc peakrdl_busdecoder
+          groups: "tools"
+      - name: Ruff lint
+        run: uvx ruff check --output-format=github .
 
 #-------------------------------------------------------------------------------
-  mypy:
-    runs-on: ubuntu-latest
+  typecheck:
     steps:
-      - uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Setup (Python + uv + sync)
+        uses: ./.github/actions/setup-uv-python
         with:
           python-version: "3.10"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install -r tests/requirements.txt
-
-      - name: Install
-        run: |
-          python -m pip install ".[cli]"
-
-      - name: Type Check
-        run: |
-          mypy --config-file tests/mypy.ini src/peakrdl_busdecoder
+      - name: Pyrefly type check
+        run: uvx pyrefly check --summarize-errors
 
 #-------------------------------------------------------------------------------
   build:
     needs:
       - test
+      - format
       - lint
-      - mypy
+      - typecheck
     name: Build distributions
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-
-      - uses: actions/setup-python@v4
-        name: Install Python
+      - name: Setup (Python + uv + sync)
+        uses: ./.github/actions/setup-uv-python
         with:
           python-version: "3.10"
 
-      - name: Install dependencies
-        run: |
-          python -m pip install build
-
-      - name: Build sdist
-        run: python -m build
+      - name: Build Package
+        run: uv build
 
       - uses: actions/upload-artifact@v4
         with:
@@ -152,21 +125,21 @@ jobs:
             dist/*.whl
 
 #-------------------------------------------------------------------------------
-  deploy:
-    needs:
-      - build
+  # deploy:
+  #   needs:
+  #     - build
 
-    runs-on: ubuntu-latest
-    environment: release
-    permissions:
-      id-token: write
+  #   runs-on: ubuntu-latest
+  #   environment: release
+  #   permissions:
+  #     id-token: write
 
-    # Only publish when a GitHub Release is created.
-    if: github.event_name == 'release'
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist
+  #   # Only publish when a GitHub Release is created.
+  #   if: github.event_name == 'release'
+  #   steps:
+  #     - uses: actions/download-artifact@v4
+  #       with:
+  #         name: dist
+  #         path: dist
 
-      - uses: pypa/gh-action-pypi-publish@release/v1
+  #     - uses: pypa/gh-action-pypi-publish@release/v1

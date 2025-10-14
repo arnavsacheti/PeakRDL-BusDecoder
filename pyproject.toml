@@ -6,10 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "peakrdl-busdecoder"
 version = "0.1.0"
 requires-python = ">=3.10"
-dependencies = [
-    "jinja2>=3.1.6",
-    "systemrdl-compiler~=1.30.1",
-]
+dependencies = ["jinja2>=3.1.6", "systemrdl-compiler~=1.30.1"]
 
 authors = [{ name = "Alex Mykyta" }]
 description = "Compile SystemRDL into a SystemVerilog control/status register (CSR) block"
@@ -61,9 +58,47 @@ test = [
     "pytest-cov>=4.1.0",
     "pytest-xdist>=3.5.0",
 ]
-tools = [
-    "ruff>=0.14.0",
-]
+tools = ["pyrefly>=0.37.0", "ruff>=0.14.0"]
 
 [project.entry-points."peakrdl.exporters"]
 busdecoder = "peakrdl_busdecoder.__peakrdl__:Exporter"
+
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+extend-exclude = ["CVS", "parser", "docs", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # bugbear
+    "UP",  # pyupgrade
+    "RUF", # ruff-specific
+    "ANN", # flake8-annotations (require type annotations)
+]
+ignore = [
+    "F841",  # unused-variable
+    "UP032", # consider-using-f-string
+    "E501",  # line-too-long
+]
+
+# Make tests less strict for annotations.
+# [tool.ruff.lint.per-file-ignores]
+# "tests/**/*" = ["ANN*"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# ---------------------- PYREFLY ----------------------
+[tool.pyrefly]
+python-version = "3.10"
+
+# Default behavior: check bodies of untyped defs & infer return types.
+untyped-def-behavior = "check-and-infer-return-type"
+
+project-includes = ["**/*"]
+project-excludes = ["**/__pycache__", "**/*venv/**/*"]
