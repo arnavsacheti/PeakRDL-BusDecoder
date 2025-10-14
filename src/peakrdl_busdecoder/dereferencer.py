@@ -27,9 +27,7 @@ class Dereferencer:
     def top_node(self) -> AddrmapNode:
         return self.exp.ds.top_node
 
-    def get_access_strobe(
-        self, obj: RegNode | FieldNode, reduce_substrobes: bool = True
-    ) -> str:
+    def get_access_strobe(self, obj: RegNode | FieldNode, reduce_substrobes: bool = True) -> str:
         """
         Returns the Verilog string that represents the register's access strobe
         """

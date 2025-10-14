@@ -18,9 +18,7 @@ class APB4Cpuif(BaseCpuif):
     def port_declaration(self) -> str:
         """Returns the port declaration for the APB4 interface."""
         slave_ports: list[str] = ["apb4_intf.slave s_apb"]
-        master_ports: list[str] = list(
-            map(self._port_declaration, self.addressable_children)
-        )
+        master_ports: list[str] = list(map(self._port_declaration, self.addressable_children))
 
         return ",\n".join(slave_ports + master_ports)
 

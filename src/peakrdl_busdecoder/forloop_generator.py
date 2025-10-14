@@ -82,9 +82,7 @@ class RDLForLoopGenerator(ForLoopGenerator, RDLListener):
         walker.walk(node, self, skip_top=True)
         return self.finish()
 
-    def enter_AddressableComponent(
-        self, node: "AddressableNode"
-    ) -> WalkerAction | None:
+    def enter_AddressableComponent(self, node: "AddressableNode") -> WalkerAction | None:
         if not node.array_dimensions:
             return None
 

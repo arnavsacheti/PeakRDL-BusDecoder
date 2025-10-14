@@ -28,9 +28,7 @@ class BusDecoderExporter:
     def __init__(self, **kwargs: Any) -> None:
         # Check for stray kwargs
         if kwargs:
-            raise TypeError(
-                f"got an unexpected keyword argument '{list(kwargs.keys())[0]}'"
-            )
+            raise TypeError(f"got an unexpected keyword argument '{list(kwargs.keys())[0]}'")
 
         loader = jj.ChoiceLoader(
             [
@@ -49,9 +47,7 @@ class BusDecoderExporter:
             undefined=jj.StrictUndefined,
         )
 
-    def export(
-        self, node: RootNode | AddrmapNode, output_dir: str, **kwargs: Any
-    ) -> None:
+    def export(self, node: RootNode | AddrmapNode, output_dir: str, **kwargs: Any) -> None:
         """
         Parameters
         ----------
@@ -88,9 +84,7 @@ class BusDecoderExporter:
 
         # Check for stray kwargs
         if kwargs:
-            raise TypeError(
-                f"got an unexpected keyword argument '{list(kwargs.keys())[0]}'"
-            )
+            raise TypeError(f"got an unexpected keyword argument '{list(kwargs.keys())[0]}'")
 
         # Construct exporter components
         self.cpuif = cpuif_cls(self)
@@ -139,12 +133,8 @@ class DesignState:
         # Extract compiler args
         # ------------------------
         self.reuse_hwif_typedefs: bool = kwargs.pop("reuse_hwif_typedefs", True)
-        self.module_name: str = kwargs.pop("module_name", None) or kwf(
-            self.top_node.inst_name
-        )
-        self.package_name: str = kwargs.pop("package_name", None) or (
-            self.module_name + "_pkg"
-        )
+        self.module_name: str = kwargs.pop("module_name", None) or kwf(self.top_node.inst_name)
+        self.package_name: str = kwargs.pop("package_name", None) or (self.module_name + "_pkg")
         user_addr_width: int | None = kwargs.pop("address_width", None)
 
         self.cpuif_unroll: bool = kwargs.pop("cpuif_unroll", False)
@@ -172,9 +162,7 @@ class DesignState:
 
         # ------------------------
         # Min address width encloses the total size AND at least 1 useful address bit
-        self.addr_width = max(
-            clog2(self.top_node.size), clog2(self.cpuif_data_width // 8) + 1
-        )
+        self.addr_width = max(clog2(self.top_node.size), clog2(self.cpuif_data_width // 8) + 1)
 
         if user_addr_width is not None:
             if user_addr_width < self.addr_width:

@@ -20,16 +20,12 @@ class _FixedpointWidth(UDPDefinition):
 
         # incompatible with "counter" fields
         if node.get_property("counter"):
-            self.msg.error(
-                "Fixed-point representations are not supported for counter fields.",
-                prop_ref
-            )
+            self.msg.error("Fixed-point representations are not supported for counter fields.", prop_ref)
 
         # incompatible with "encode" fields
         if node.get_property("encode") is not None:
             self.msg.error(
-                "Fixed-point representations are not supported for fields encoded as an enum.",
-                prop_ref
+                "Fixed-point representations are not supported for fields encoded as an enum.", prop_ref
             )
 
         # ensure node width = fracwidth + intwidth
@@ -37,7 +33,7 @@ class _FixedpointWidth(UDPDefinition):
             self.msg.error(
                 f"Number of integer bits ({intwidth}) plus number of fractional bits ({fracwidth})"
                 f" must be equal to the width of the component ({node.width}).",
-                prop_ref
+                prop_ref,
             )
 
 

@@ -26,9 +26,7 @@ class AddressDecode:
         assert s is not None
         return s
 
-    def get_access_strobe(
-        self, node: RegNode | FieldNode, reduce_substrobes: bool = True
-    ) -> str:
+    def get_access_strobe(self, node: RegNode | FieldNode, reduce_substrobes: bool = True) -> str:
         """
         Returns the Verilog string that represents the register/field's access strobe.
         """
@@ -72,9 +70,7 @@ class DecodeLogicGenerator(RDLForLoopGenerator):
         # List of address strides for each dimension
         self._array_stride_stack: list[int] = []
 
-    def enter_AddressableComponent(
-        self, node: "AddressableNode"
-    ) -> WalkerAction | None:
+    def enter_AddressableComponent(self, node: "AddressableNode") -> WalkerAction | None:
         super().enter_AddressableComponent(node)
 
         if node.array_dimensions:
@@ -103,9 +99,7 @@ class DecodeLogicGenerator(RDLForLoopGenerator):
         expr_width = self.addr_decode.exp.ds.addr_width
         a = str(
             SVInt(
-                node.raw_absolute_address
-                - self.addr_decode.top_node.raw_absolute_address
-                + subword_offset,
+                node.raw_absolute_address - self.addr_decode.top_node.raw_absolute_address + subword_offset,
                 expr_width,
             )
         )

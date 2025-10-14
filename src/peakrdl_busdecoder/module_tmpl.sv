@@ -79,7 +79,6 @@ module {{ds.module_name}}
         // Default all read select signals to 0
         cpuif_rd_sel = '0;
 
-
         if (cpuif_req && !cpuif_wr_en) begin
             // A read request is pending
             {%- for child in cpuif.addressable_children -%}

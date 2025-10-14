@@ -1,4 +1,5 @@
 from systemrdl.node import AddressableNode
+
 from ..base_cpuif import BaseCpuif
 
 
@@ -17,9 +18,7 @@ class APB3Cpuif(BaseCpuif):
     @property
     def port_declaration(self) -> str:
         slave_ports: list[str] = ["apb3_intf.slave s_apb"]
-        master_ports: list[str] = list(
-            map(self._port_declaration, self.addressable_children)
-        )
+        master_ports: list[str] = list(map(self._port_declaration, self.addressable_children))
 
         return ",\n".join(slave_ports + master_ports)
 
