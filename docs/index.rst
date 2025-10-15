@@ -35,9 +35,9 @@ PeakRDL-busdecoder: `PeakRDL-busdecoder-VHDL <https://peakrdl-busdecoder-vhdl.re
 Links
 -----
 
-- `Source repository <https://github.com/SystemRDL/PeakRDL-busdecoder>`_
-- `Release Notes <https://github.com/SystemRDL/PeakRDL-busdecoder/releases>`_
-- `Issue tracker <https://github.com/SystemRDL/PeakRDL-busdecoder/issues>`_
+- `Source repository <https://github.com/arnavsacheti/PeakRDL-busdecoder>`_
+- `Release Notes <https://github.com/arnavsacheti/PeakRDL-busdecoder/releases>`_
+- `Issue tracker <https://github.com/arnavsacheti/PeakRDL-busdecoder/issues>`_
 - `PyPi <https://pypi.org/project/peakrdl-busdecoder>`_
 - `SystemRDL Specification <http://accellera.org/downloads/standards/systemrdl>`_
 

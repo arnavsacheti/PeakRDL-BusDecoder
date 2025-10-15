@@ -7,7 +7,7 @@ assignees: ''
 
 ---
 
-- [ ] I have reviewed this project's [contribution guidelines](https://github.com/SystemRDL/PeakRDL-busdecoder/blob/main/CONTRIBUTING.md)
+- [ ] I have reviewed this project's [contribution guidelines](https://github.com/arnavsacheti/PeakRDL-busdecoder/blob/main/CONTRIBUTING.md)
 
 **Describe the bug**
 A clear and concise description of what the bug is.

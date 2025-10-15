@@ -127,5 +127,5 @@ complexity to the tool.
 
 If you encounter a lint violation, please carefully review and consider waiving
 it if it does not pose an actual danger. If you still believe it is a problem,
-please let us know by `submitting an issue <https://github.com/SystemRDL/PeakRDL-busdecoder/issues>`_
+please let us know by `submitting an issue <https://github.com/arnavsacheti/PeakRDL-busdecoder/issues>`_
 that describes the problem.

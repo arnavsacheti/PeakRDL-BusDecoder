@@ -7,7 +7,7 @@
 //  Date: {{current_date}}
 //  Version: {{version}}
 //  Links:
-//    - https://github.com/SystemRDL/PeakRDL-busdecoder
+//    - https://github.com/arnavsacheti/PeakRDL-busdecoder
 //==========================================================
 
 

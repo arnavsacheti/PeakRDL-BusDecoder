@@ -9,9 +9,9 @@ transparent as possible, whether it's:
 - Becoming a maintainer
 
 
-## Open an issue using the [Issue Tracker](https://github.com/SystemRDL/PeakRDL-busdecoder/issues)
+## Open an issue using the [Issue Tracker](https://github.com/arnavsacheti/PeakRDL-busdecoder/issues)
 Talking to us is the easiest way to contribute! Report a bug or feature request by
-[opening a new issue](https://github.com/SystemRDL/PeakRDL-busdecoder/issues).
+[opening a new issue](https://github.com/arnavsacheti/PeakRDL-busdecoder/issues).
 
 Issue submission expectations:
 * Please keep each issue submission limited to one topic. This helps us stay organized.

@@ -3,7 +3,7 @@ Licensing
 
 Re-distribution of the PeakRDL-busdecoder code generator tool shall adhere to the
 terms outlined by the GNU LGPL v3 license. For a copy of the license, see:
-https://github.com/SystemRDL/PeakRDL-busdecoder/blob/main/LICENSE
+https://github.com/arnavsacheti/PeakRDL-busdecoder/blob/main/LICENSE
 
 
 Why LGPLv3?
@@ -35,7 +35,7 @@ The following are exempt and are free to use with no restrictions:
 *   Any code snippets in this documentation can be freely copy/pasted. These are
     examples that are intended for this purpose.
 *   All reference files that are downloadable from this documentation, which are
-    also available in the `hdl-src folder in the repository <https://github.com/SystemRDL/PeakRDL-busdecoder/tree/main/hdl-src>`_
+    also available in the `hdl-src folder in the repository <https://github.com/arnavsacheti/PeakRDL-busdecoder/tree/main/hdl-src>`_
 
 
 Can I use this as part of my company's internally developed tools?

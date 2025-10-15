@@ -1,6 +1,6 @@
 [![Documentation Status](https://readthedocs.org/projects/peakrdl-busdecoder/badge/?version=latest)](http://peakrdl-busdecoder.readthedocs.io)
-[![build](https://github.com/SystemRDL/PeakRDL-busdecoder/workflows/build/badge.svg)](https://github.com/SystemRDL/PeakRDL-busdecoder/actions?query=workflow%3Abuild+branch%3Amain)
-[![Coverage Status](https://coveralls.io/repos/github/SystemRDL/PeakRDL-busdecoder/badge.svg?branch=main)](https://coveralls.io/github/SystemRDL/PeakRDL-busdecoder?branch=main)
+[![build](https://github.com/arnavsacheti/PeakRDL-busdecoder/workflows/build/badge.svg)](https://github.com/arnavsacheti/PeakRDL-busdecoder/actions?query=workflow%3Abuild+branch%3Amain)
+[![Coverage Status](https://coveralls.io/repos/github/arnavsacheti/PeakRDL-busdecoder/badge.svg?branch=main)](https://coveralls.io/github/arnavsacheti/PeakRDL-busdecoder?branch=main)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/peakrdl-busdecoder.svg)](https://pypi.org/project/peakrdl-busdecoder)
 
 # PeakRDL-busdecoder
