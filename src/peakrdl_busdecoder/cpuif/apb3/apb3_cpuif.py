@@ -12,7 +12,7 @@ class APB3Cpuif(BaseCpuif):
         if not child.is_array:
             return base
         if child.current_idx is not None:
-            return f"{base}_{'_'.join(map(str, child.current_idx))} [N_{child.inst_name.upper()}S]"
+            return f"{base}_{'_'.join(map(str, child.current_idx))}"
         return f"{base} [N_{child.inst_name.upper()}S]"
 
     @property

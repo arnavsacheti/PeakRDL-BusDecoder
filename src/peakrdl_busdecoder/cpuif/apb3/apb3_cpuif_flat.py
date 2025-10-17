@@ -61,3 +61,4 @@ class APB3CpuifFlat(BaseCpuif):
         if idx is not None:
             return f"{base}_{signal}[{idx}]"
         return f"{base}_{signal}[N_{node.inst_name.upper()}S]"
+

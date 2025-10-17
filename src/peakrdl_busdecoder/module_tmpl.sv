@@ -12,11 +12,11 @@
 
 
 module {{ds.module_name}}
-    {%- if cpuif.parameters %} #(
-        {{-cpuif.parameters|join(",\n")|indent(8)}}
-    ) {%- endif %} (
-        {{-cpuif.port_declaration|indent(8)}}
-    );
+{%- if cpuif.parameters %} #(
+    {{cpuif.parameters|join(",\n")|indent(4)}}
+) {%- endif %} (
+    {{cpuif.port_declaration|indent(4)}}
+);
 
     //--------------------------------------------------------------------------
     // CPU Bus interface logic

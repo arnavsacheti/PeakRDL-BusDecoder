@@ -101,6 +101,7 @@ class Exporter(ExporterSubcommandPlugin):
         arg_group.add_argument(
             "--unroll",
             action="store_true",
+            default=False,
             help="""Unroll arrayed addressable nodes into separate instances in
             the CPU interface. By default, arrayed nodes are kept as arrays.
             """,
@@ -117,5 +118,5 @@ class Exporter(ExporterSubcommandPlugin):
             module_name=options.module_name,
             package_name=options.package_name,
             address_width=options.addr_width,
-            unroll=options.unroll,
+            cpuif_unroll=options.unroll,
         )

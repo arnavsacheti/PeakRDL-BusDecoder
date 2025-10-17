@@ -1,14 +1,15 @@
 import os
+from datetime import datetime
+from importlib.metadata import version
 from typing import TYPE_CHECKING, Any
 
 import jinja2 as jj
 from systemrdl.node import AddrmapNode, RootNode
 from systemrdl.rdltypes.user_enum import UserEnum
 
-from .addr_decode import AddressDecode
 from .cpuif import BaseCpuif
 from .cpuif.apb4 import APB4Cpuif
-from .dereferencer import Dereferencer
+from .decoder import AddressDecode
 from .identifier_filter import kw_filter as kwf
 from .scan_design import DesignScanner
 from .sv_int import SVInt
@@ -22,13 +23,12 @@ if TYPE_CHECKING:
 class BusDecoderExporter:
     cpuif: BaseCpuif
     address_decode: AddressDecode
-    dereferencer: Dereferencer
     ds: "DesignState"
 
     def __init__(self, **kwargs: Any) -> None:
         # Check for stray kwargs
         if kwargs:
-            raise TypeError(f"got an unexpected keyword argument '{list(kwargs.keys())[0]}'")
+            raise TypeError(f"got an unexpected keyword argument '{next(iter(kwargs.keys()))}'")
 
         loader = jj.ChoiceLoader(
             [
@@ -84,18 +84,19 @@ class BusDecoderExporter:
 
         # Check for stray kwargs
         if kwargs:
-            raise TypeError(f"got an unexpected keyword argument '{list(kwargs.keys())[0]}'")
+            raise TypeError(f"got an unexpected keyword argument '{next(iter(kwargs.keys()))}'")
 
         # Construct exporter components
         self.cpuif = cpuif_cls(self)
-        self.address_decode = AddressDecode(self)
-        self.dereferencer = Dereferencer(self)
+        self.address_decode = AddressDecode(top_node, self.ds.addr_width)
 
         # Validate that there are no unsupported constructs
         DesignValidator(self).do_validate()
 
         # Build Jinja template context
         context = {
+            "current_date": datetime.now().strftime("%Y-%m-%d"),
+            "version": version("peakrdl-busdecoder"),
             "cpuif": self.cpuif,
             "address_decode": self.address_decode,
             "ds": self.ds,
@@ -114,9 +115,6 @@ class BusDecoderExporter:
         template = self.jj_env.get_template("module_tmpl.sv")
         stream = template.stream(context)
         stream.dump(module_file_path)
-
-        if hwif_report_file:
-            hwif_report_file.close()
 
 
 class DesignState:
@@ -146,6 +144,9 @@ class DesignState:
 
         # Track any referenced enums
         self.user_enums: list[type[UserEnum]] = []
+
+        self.has_external_addressable = False
+        self.has_external_block = False
 
         # Scan the design to fill in above variables
         DesignScanner(self).do_scan()

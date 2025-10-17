@@ -1,4 +1,4 @@
-{%- if cpuif.is_interface -%}
+{%- if cpuif.is_interface %}
 `ifndef SYNTHESIS
     initial begin
         assert_bad_addr_width: assert($bits({{cpuif.signal("PADDR")}}) >= {{ds.package_name}}::{{ds.module_name|upper}}_MIN_ADDR_WIDTH)
@@ -16,14 +16,14 @@ assign cpuif_rd_en = !{{cpuif.signal("PWRITE")}};
 
 {%- for child in cpuif.addressable_children -%}
 {%- if child is array -%}
-for (genvar g_{{child.inst_name|lower}}_idx = 0; g_{{child.inst_name|lower}}_idx < N_{{child.inst_name|upper}}S; g_{{child.inst_name|lower}}_idx++) begin : g_passthrough_{{child.inst_name|lower}}
-    assign {{cpuif.signal("PCLK", child, f"g_{child.inst_name.lower()}_idx")}}    = {{cpuif.signal("PCLK")}};
-    assign {{cpuif.signal("PRESETn", child, f"g_{child.inst_name.lower()}_idx")}} = {{cpuif.signal("PRESETn")}};
-    assign {{cpuif.signal("PSELx", child, f"g_{child.inst_name.lower()}_idx")}}    = (cpuif_wr_req[{{loop.indx}}] || cpuif_rd_req[{{loop.indx}}]) ? 1'b1 : 1'b0;
-    assign {{cpuif.signal("PENABLE", child, f"g_{child.inst_name.lower()}_idx")}} = {{cpuif.signal("PENABLE")}};
-    assign {{cpuif.signal("PWRITE", child, f"g_{child.inst_name.lower()}_idx")}}  = (cpuif_wr_req[{{loop.index}}]) ? 1'b1 : 1'b0;
-    assign {{cpuif.signal("PADDR", child, f"g_{child.inst_name.lower()}_idx")}}   = {{cpuif.get_address_slice(cpuif_wr_addr, child)}};
-    assign {{cpuif.signal("PWDATA", child, f"g_{child.inst_name.lower()}_idx")}}  = cpuif_wr_data;
+for (genvar g_idx = 0; g_idx < N_{{child.inst_name|upper}}S; g_idx++) begin : g_passthrough_{{child.inst_name|lower}}
+    assign {{cpuif.signal("PCLK", child, "g_idx")}}    = {{cpuif.signal("PCLK")}};
+    assign {{cpuif.signal("PRESETn", child, "g_idx")}} = {{cpuif.signal("PRESETn")}};
+    assign {{cpuif.signal("PSELx", child, "g_idx")}}    = (cpuif_wr_req[{{loop.index}}] || cpuif_rd_req[{{loop.index}}]) ? 1'b1 : 1'b0;
+    assign {{cpuif.signal("PENABLE", child, "g_idx")}} = {{cpuif.signal("PENABLE")}};
+    assign {{cpuif.signal("PWRITE", child, "g_idx")}}  = (cpuif_wr_req[{{loop.index}}]) ? 1'b1 : 1'b0;
+    assign {{cpuif.signal("PADDR", child, "g_idx")}}   = cpuif_wr_addr{{child|address_slice}};
+    assign {{cpuif.signal("PWDATA", child, "g_idx")}}  = cpuif_wr_data;
     assign cpuif_rd_ack[loop.index] = {{cpuif.signal("PREADY", child)}};
     assign cpuif_rd_data[loop.index] = {{cpuif.signal("PRDATA", child)}};
     assign cpuif_rd_err[loop.index] = {{cpuif.signal("PSLVERR", child)}};
@@ -34,13 +34,13 @@ assign {{cpuif.signal("PRESETn", child)}} = {{cpuif.signal("PRESETn")}};
 assign {{cpuif.signal("PSELx", child)}}    = (cpuif_wr_sel[{{loop.index0}}] || cpuif_rd_sel[{{loop.index0}}]) ? 1'b1 : 1'b0;
 assign {{cpuif.signal("PENABLE", child)}} = {{cpuif.signal("PENABLE")}};
 assign {{cpuif.signal("PWRITE", child)}}  = (cpuif_wr_req[{{loop.index}}]) ? 1'b1 : 1'b0;
-assign {{cpuif.signal("PADDR", child)}}   = {{cpuif.get_address_slice(cpuif_wr_addr, child)}};
+assign {{cpuif.signal("PADDR", child)}}   = cpuif_wr_addr{{child|address_slice}};
 assign {{cpuif.signal("PWDATA", child)}}  = cpuif_wr_data;
 assign cpuif_rd_ack[loop.index] = {{cpuif.signal("PREADY", child)}};
 assign cpuif_rd_data[loop.index] = {{cpuif.signal("PRDATA", child)}};
 assign cpuif_rd_err[loop.index] = {{cpuif.signal("PSLVERR", child)}};
 {%- endif -%}
-{%- endfor -%}
+{%- endfor%}
 
 always_comb begin
     {{cpuif.signal("PREADY")}} = 1'b0;

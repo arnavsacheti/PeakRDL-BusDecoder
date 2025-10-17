@@ -13,3 +13,9 @@ class SVInt:
             return f"{self.value.bit_length()}'h{self.value:x}"
         else:
             return f"'h{self.value:x}"
+
+    def __add__(self, other: "SVInt") -> "SVInt":
+        if self.width is not None and other.width is not None:
+            return SVInt(self.value + other.value, max(self.width, other.width))
+        else:
+            return SVInt(self.value + other.value, None)
