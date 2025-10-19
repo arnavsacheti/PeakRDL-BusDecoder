@@ -1,20 +1,30 @@
 import os
 from datetime import datetime
 from importlib.metadata import version
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import TYPE_CHECKING, TypedDict
 
 import jinja2 as jj
 from systemrdl.node import AddrmapNode, RootNode
-from systemrdl.rdltypes.user_enum import UserEnum
+from typing_extensions import Unpack
 
 from .cpuif import BaseCpuif
 from .cpuif.apb4 import APB4Cpuif
-from .decoder import AddressDecode
+from .decoder import AddressDecode, DecodeLogicFlavor
+from .design_state import DesignState
 from .identifier_filter import kw_filter as kwf
-from .scan_design import DesignScanner
 from .sv_int import SVInt
-from .utils import clog2
 from .validate_design import DesignValidator
+
+
+class ExporterKwargs(TypedDict, total=False):
+    cpuif_cls: type[BaseCpuif]
+    module_name: str
+    package_name: str
+    address_width: int
+    cpuif_unroll: bool
+    reuse_hwif_typedefs: bool
+
 
 if TYPE_CHECKING:
     pass
@@ -22,32 +32,32 @@ if TYPE_CHECKING:
 
 class BusDecoderExporter:
     cpuif: BaseCpuif
-    address_decode: AddressDecode
-    ds: "DesignState"
+    address_decode: type[AddressDecode]
+    ds: DesignState
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(self, **kwargs: Unpack[ExporterKwargs]) -> None:
         # Check for stray kwargs
         if kwargs:
             raise TypeError(f"got an unexpected keyword argument '{next(iter(kwargs.keys()))}'")
 
-        loader = jj.ChoiceLoader(
+        fs_loader = jj.FileSystemLoader(Path(__file__).parent)
+        c_loader = jj.ChoiceLoader(
             [
-                jj.FileSystemLoader(os.path.dirname(__file__)),
+                fs_loader,
                 jj.PrefixLoader(
-                    {
-                        "base": jj.FileSystemLoader(os.path.dirname(__file__)),
-                    },
+                    {"base": fs_loader},
                     delimiter=":",
                 ),
             ]
         )
 
         self.jj_env = jj.Environment(
-            loader=loader,
+            loader=c_loader,
             undefined=jj.StrictUndefined,
         )
+        self.jj_env.filters["kwf"] = kwf
 
-    def export(self, node: RootNode | AddrmapNode, output_dir: str, **kwargs: Any) -> None:
+    def export(self, node: RootNode | AddrmapNode, output_dir: str, **kwargs: Unpack[ExporterKwargs]) -> None:
         """
         Parameters
         ----------
@@ -68,7 +78,7 @@ class BusDecoderExporter:
         address_width: int
             Override the CPU interface's address width. By default, address width
             is sized to the contents of the busdecoder.
-        unroll: bool
+        cpuif_unroll: bool
             Unroll arrayed addressable nodes into separate instances in the CPU
             interface. By default, arrayed nodes are kept as arrays.
         """
@@ -88,7 +98,7 @@ class BusDecoderExporter:
 
         # Construct exporter components
         self.cpuif = cpuif_cls(self)
-        self.address_decode = AddressDecode(top_node, self.ds.addr_width)
+        self.address_decode = AddressDecode
 
         # Validate that there are no unsupported constructs
         DesignValidator(self).do_validate()
@@ -99,8 +109,8 @@ class BusDecoderExporter:
             "version": version("peakrdl-busdecoder"),
             "cpuif": self.cpuif,
             "address_decode": self.address_decode,
+            "DecodeLogicFlavor": DecodeLogicFlavor,
             "ds": self.ds,
-            "kwf": kwf,
             "SVInt": SVInt,
         }
 
@@ -115,59 +125,3 @@ class BusDecoderExporter:
         template = self.jj_env.get_template("module_tmpl.sv")
         stream = template.stream(context)
         stream.dump(module_file_path)
-
-
-class DesignState:
-    """
-    Dumping ground for all sorts of variables that are relevant to a particular
-    design.
-    """
-
-    def __init__(self, top_node: AddrmapNode, kwargs: Any) -> None:
-        self.top_node = top_node
-        msg = top_node.env.msg
-
-        # ------------------------
-        # Extract compiler args
-        # ------------------------
-        self.reuse_hwif_typedefs: bool = kwargs.pop("reuse_hwif_typedefs", True)
-        self.module_name: str = kwargs.pop("module_name", None) or kwf(self.top_node.inst_name)
-        self.package_name: str = kwargs.pop("package_name", None) or (self.module_name + "_pkg")
-        user_addr_width: int | None = kwargs.pop("address_width", None)
-
-        self.cpuif_unroll: bool = kwargs.pop("cpuif_unroll", False)
-
-        # ------------------------
-        # Info about the design
-        # ------------------------
-        self.cpuif_data_width = 0
-
-        # Track any referenced enums
-        self.user_enums: list[type[UserEnum]] = []
-
-        self.has_external_addressable = False
-        self.has_external_block = False
-
-        # Scan the design to fill in above variables
-        DesignScanner(self).do_scan()
-
-        if self.cpuif_data_width == 0:
-            # Scanner did not find any registers in the design being exported,
-            # so the width is not known.
-            # Assume 32-bits
-            msg.warning(
-                "Addrmap being exported only contains external components. Unable to infer the CPUIF bus width. Assuming 32-bits.",
-                self.top_node.inst.def_src_ref,
-            )
-            self.cpuif_data_width = 32
-
-        # ------------------------
-        # Min address width encloses the total size AND at least 1 useful address bit
-        self.addr_width = max(clog2(self.top_node.size), clog2(self.cpuif_data_width // 8) + 1)
-
-        if user_addr_width is not None:
-            if user_addr_width < self.addr_width:
-                msg.fatal(
-                    f"User-specified address width shall be greater than or equal to {self.addr_width}."
-                )
-            self.addr_width = user_addr_width

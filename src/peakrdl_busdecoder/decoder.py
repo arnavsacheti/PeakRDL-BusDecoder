@@ -1,72 +1,92 @@
 from collections import deque
+from enum import Enum
 
 from systemrdl.node import AddressableNode
 from systemrdl.walker import RDLListener, RDLSimpleWalker, WalkerAction
 
 from .body import Body, ForLoopBody, IfBody
+from .design_state import DesignState
 from .sv_int import SVInt
+from .utils import get_indexed_path
+
+
+class DecodeLogicFlavor(Enum):
+    READ = "rd"
+    WRITE = "wr"
+
+    @property
+    def cpuif_address(self) -> str:
+        return f"cpuif_{self.value}_addr"
+
+    @property
+    def cpuif_select(self) -> str:
+        return f"cpuif_{self.value}_sel"
 
 
 class AddressDecode:
-    def __init__(self, node: AddressableNode, addr_width: int) -> None:
-        self._node = node
-        self._addr_width = addr_width
+    def __init__(self, flavor: DecodeLogicFlavor, ds: DesignState) -> None:
+        self._flavor = flavor
+        self._ds = ds
 
     def walk(self) -> str:
         walker = RDLSimpleWalker()
-        dlg = DecodeLogicGenerator(self)
-        walker.walk(self._node, dlg, skip_top=True)
+        dlg = DecodeLogicGenerator(self._flavor, self._ds)
+        walker.walk(self._ds.top_node, dlg, skip_top=True)
         return str(dlg)
-
-    @property
-    def node(self) -> AddressableNode:
-        return self._node
-
-    @property
-    def addr_width(self) -> int:
-        return self._addr_width
 
 
 class DecodeLogicGenerator(RDLListener):
-    cpuif_addr_signal = "addr"
-    cpuif_sel_prefix = "cpuif_"
-
     def __init__(
         self,
-        address_decoder: AddressDecode,
-        max_depth: int = 1,
+        flavor: DecodeLogicFlavor,
+        ds: DesignState,
     ) -> None:
-        self._address_decoder = address_decoder
-        self._depth = 0
-        self._max_depth = max_depth
+        self._ds = ds
+        self._flavor = flavor
 
-        self._stack: list[Body] = [IfBody()]
-        self._conditions: deque[str] = deque()
-        self._select_signal = [f"{self.cpuif_sel_prefix}{address_decoder.node.inst_name}"]
+        self._decode_stack: deque[Body] = deque()  # Tracks decoder body
+        self._cond_stack: deque[str] = deque()  # Tracks conditions nested for loops
+        self._array_stride_stack: deque[int] = deque()  # Tracks nested array strids
 
-        # Stack to keep track of array strides for nested arrayed components
-        self._array_stride_stack: list[int] = []
+        # Initial Stack Conditions
+        self._decode_stack.append(IfBody())
 
-    def enter_AddressableComponent(self, node: AddressableNode) -> WalkerAction | None:
+    def cpuif_addr_predicate(self, node: AddressableNode) -> list[str]:
         # Generate address bounds
-        addr_width = self._address_decoder.addr_width
+        addr_width = self._ds.addr_width
         l_bound = SVInt(
-            node.raw_absolute_address - self._address_decoder.node.raw_absolute_address,
+            node.raw_address_offset,
             addr_width,
         )
         u_bound = l_bound + SVInt(node.total_size, addr_width)
 
         # Handle arrayed components
-        l_bound_str = str(l_bound)
-        u_bound_str = str(u_bound)
+        l_bound_comp = [str(l_bound)]
+        u_bound_comp = [str(u_bound)]
         for i, stride in enumerate(self._array_stride_stack):
-            l_bound_str += f" + (({addr_width})'(i{i}) * {SVInt(stride, addr_width)})"
-            u_bound_str += f" + (({addr_width})'(i{i}) * {SVInt(stride, addr_width)})"
+            l_bound_comp.append(f"({addr_width}'(i{i})*{SVInt(stride, addr_width)})")
+            u_bound_comp.append(f"({addr_width}'(i{i})*{SVInt(stride, addr_width)})")
 
-        # Generate condition string
-        condition = (
-            f"({self.cpuif_addr_signal} >= ({l_bound_str})) && ({self.cpuif_addr_signal} < ({u_bound_str}))"
-        )
+        # Generate Conditions
+        return [
+            f"{self._flavor.cpuif_address} >= ({'+'.join(l_bound_comp)})",
+            f"{self._flavor.cpuif_address} < ({'+'.join(u_bound_comp)})",
+        ]
+
+    def cpuif_prot_predicate(self, node: AddressableNode) -> list[str]:
+        if self._flavor == DecodeLogicFlavor.READ:
+            # Can we have PROT on read? (axi full?)
+            return []
+
+        # TODO: Implement
+        return []
+
+    def enter_AddressableComponent(self, node: AddressableNode) -> WalkerAction | None:
+        conditions: list[str] = []
+        conditions.extend(self.cpuif_addr_predicate(node))
+        conditions.extend(self.cpuif_prot_predicate(node))
+
+        condition = " && ".join(f"({c})" for c in conditions)
 
         if node.array_dimensions:
             assert node.array_stride is not None, "Array stride should be defined for arrayed components"
@@ -80,26 +100,25 @@ class DecodeLogicGenerator(RDLListener):
             self._array_stride_stack.extend(strides)
 
         # Generate condition string and manage stack
-        signal = node.inst_name
-        if isinstance(self._stack[-1], IfBody) and node.array_dimensions:
+        if isinstance(self._decode_stack[-1], IfBody) and node.array_dimensions:
             # arrayed component with new if-body
-            self._conditions.append(condition)
-            for dim in node.array_dimensions:
+            self._cond_stack.append(condition)
+            for i, dim in enumerate(
+                node.array_dimensions,
+                start=len(self._array_stride_stack) - len(node.array_dimensions),
+            ):
                 fb = ForLoopBody(
                     "int",
-                    f"i{self._depth}",
+                    f"i{i}",
                     dim,
                 )
-                self._stack.append(fb)
-                signal += f"[i{self._depth}]"
-                self._depth += 1
+                self._decode_stack.append(fb)
 
-            self._stack.append(IfBody())
-        elif isinstance(self._stack[-1], IfBody):
+            self._decode_stack.append(IfBody())
+        elif isinstance(self._decode_stack[-1], IfBody):
             # non-arrayed component with if-body
-            with self._stack[-1].cm(condition) as b:
-                b += f"{'.'.join([*self._select_signal, signal])} = 1'b1;"
-        self._select_signal.append(signal)
+            with self._decode_stack[-1].cm(condition) as b:
+                b += f"{self._flavor.cpuif_select}.{get_indexed_path(self._ds.top_node, node)} = 1'b1;"
 
         # if node.external:
         #     return WalkerAction.SkipDescendants
@@ -107,26 +126,34 @@ class DecodeLogicGenerator(RDLListener):
         return WalkerAction.Continue
 
     def exit_AddressableComponent(self, node: AddressableNode) -> None:
-        self._select_signal.pop()
-
         if not node.array_dimensions:
             return
 
-        ifb = self._stack.pop()
-        self._stack[-1] += ifb
+        ifb = self._decode_stack.pop()
+        if ifb:
+            self._decode_stack[-1] += ifb
+        else:
+            self._decode_stack[-1] += (
+                f"{self._flavor.cpuif_select}.{get_indexed_path(self._ds.top_node, node)} = 1'b1;"
+            )
 
         for _ in node.array_dimensions:
-            self._depth -= 1
+            b = self._decode_stack.pop()
+            if not b:
+                continue
 
-            b = self._stack.pop()
-            if b.lines:
-                if isinstance(self._stack[-1], IfBody):
-                    with self._stack[-1].cm(self._conditions.pop()) as parent_b:
-                        parent_b += b
-                else:
-                    self._stack[-1] += b
+            if isinstance(self._decode_stack[-1], IfBody):
+                with self._decode_stack[-1].cm(self._cond_stack.pop()) as parent_b:
+                    parent_b += b
+            else:
+                self._decode_stack[-1] += b
 
             self._array_stride_stack.pop()
 
     def __str__(self) -> str:
-        return str(self._stack[-1])
+        body = self._decode_stack[-1]
+        if isinstance(body, IfBody):
+            with body.cm(...) as b:
+                b += f"{self._flavor.cpuif_select}.bad_addr = 1'b1;"
+
+        return str(body)

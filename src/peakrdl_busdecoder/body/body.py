@@ -15,3 +15,6 @@ class Body:
     def __add__(self, other: SupportsStr) -> Self:
         self.lines.append(other)
         return self
+
+    def __bool__(self) -> bool:
+        return bool(self.lines)

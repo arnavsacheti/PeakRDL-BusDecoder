@@ -39,8 +39,11 @@ module {{ds.module_name}}
     //--------------------------------------------------------------------------
     // Child instance signals
     //--------------------------------------------------------------------------
-    logic [{{cpuif.addressable_children | length}}-1:0] cpuif_wr_sel;
-    logic [{{cpuif.addressable_children | length}}-1:0] cpuif_rd_sel;
+    typedef struct packed {
+        
+    } cpuif_sel_t;
+    cpuif_sel_t cpuif_wr_sel;
+    cpuif_sel_t cpuif_rd_sel;
 
     //--------------------------------------------------------------------------
     // Slave <-> Internal CPUIF <-> Master
@@ -56,19 +59,7 @@ module {{ds.module_name}}
 
         if (cpuif_req && cpuif_wr_en) begin
             // A write request is pending
-            {%- for child in cpuif.addressable_children -%}
-            {%- if loop.first -%}
-            if {{child|address_decode}} begin
-            {%- else -%}
-            end else if {{child|address_decode}} begin
-            {%- endif -%}
-                // Address matched for {{child.inst_name}} 
-                cpuif_wr_sel[{{loop.index}}] = 1'b1;
-            {%- endfor -%}
-            end else begin
-                // No address match, all select signals remain 0
-                cpuif_wr_err = 1'b1; // Indicate error on no match
-            end
+            {{address_decode(DecodeLogicFlavor.WRITE, ds).walk()|indent(12)}}
         end else begin
             // No write request, all select signals remain 0
         end
@@ -83,19 +74,7 @@ module {{ds.module_name}}
 
         if (cpuif_req && cpuif_rd_en) begin
             // A read request is pending
-            {%- for child in cpuif.addressable_children -%}
-            {%- if loop.first -%}
-            if {{child|address_decode}} begin
-            {%- else -%}
-            end else if {{child|address_decode}} begin
-            {%- endif -%}
-                // Address matched for {{child.inst_name}} 
-                cpuif_rd_sel[{{loop.index}}] = 1'b1;
-            {%- endfor -%}
-            end else begin
-                // No address match, all select signals remain 0
-                cpuif_rd_err = 1'b1; // Indicate error on no match
-            end
+            {{address_decode(DecodeLogicFlavor.READ, ds).walk()|indent(12)}}
         end else begin
             // No read request, all select signals remain 0
         end

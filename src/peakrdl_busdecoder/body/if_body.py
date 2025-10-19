@@ -1,16 +1,18 @@
 from __future__ import annotations
+
+from textwrap import indent
 from types import EllipsisType
 from typing import Self
+
 from .body import Body, SupportsStr
 
 
 class IfBody(Body):
-    def __init__(self, *, indent: int = 4) -> None:
+    def __init__(self) -> None:
         super().__init__()
         # (None means 'else')
         self._branches: list[tuple[SupportsStr | None, Body]] = []
         self._has_else = False
-        self._indent = " " * indent
 
     # --- Item access: if/else-if via condition; else via Ellipsis/None ---
     def __getitem__(self, condition: SupportsStr | EllipsisType | None) -> Body:
@@ -63,7 +65,7 @@ class IfBody(Body):
         ) -> bool:
             return False
 
-    def cm(self, condition: SupportsStr | None) -> "IfBody._BranchCtx":
+    def cm(self, condition: SupportsStr | None) -> IfBody._BranchCtx:
         """Use with: with ifb.cm('cond') as b: ...  ; use None for else."""
         return IfBody._BranchCtx(self, condition)
 
@@ -79,6 +81,12 @@ class IfBody(Body):
                 out.append("else begin")
             body_str = str(body)
             if body_str:
-                out.extend(self._indent + ln for ln in body_str.splitlines())
+                out.extend(indent(ln, "    ") for ln in body_str.splitlines())
             out.append("end")
         return "\n".join(out)
+
+    def __len__(self) -> int:
+        return len(self._branches)
+
+    def __bool__(self) -> bool:
+        return bool(self._branches)

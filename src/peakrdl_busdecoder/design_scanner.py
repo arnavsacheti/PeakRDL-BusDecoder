@@ -1,12 +1,10 @@
 from typing import TYPE_CHECKING
 
-from systemrdl.node import RegNode
+from systemrdl.node import AddressableNode, AddrmapNode, Node, RegNode
 from systemrdl.walker import RDLListener, RDLWalker, WalkerAction
 
 if TYPE_CHECKING:
-    from systemrdl.node import AddressableNode, AddrmapNode, Node
-
-    from .exporter import DesignState
+    from .design_state import DesignState
 
 
 class DesignScanner(RDLListener):
@@ -22,7 +20,7 @@ class DesignScanner(RDLListener):
         self.msg = self.top_node.env.msg
 
     @property
-    def top_node(self) -> "AddrmapNode":
+    def top_node(self) -> AddrmapNode:
         return self.ds.top_node
 
     def do_scan(self) -> None:
@@ -30,7 +28,7 @@ class DesignScanner(RDLListener):
         if self.msg.had_error:
             self.msg.fatal("Unable to export due to previous errors")
 
-    def enter_Component(self, node: "Node") -> WalkerAction | None:
+    def enter_Component(self, node: Node) -> WalkerAction:
         if node.external and (node != self.top_node):
             # Do not inspect external components. None of my business
             return WalkerAction.SkipDescendants
@@ -41,7 +39,7 @@ class DesignScanner(RDLListener):
 
         return WalkerAction.Continue
 
-    def enter_AddressableComponent(self, node: "AddressableNode") -> None:
+    def enter_AddressableComponent(self, node: AddressableNode) -> None:
         if node.external and node != self.top_node:
             self.ds.has_external_addressable = True
             if not isinstance(node, RegNode):

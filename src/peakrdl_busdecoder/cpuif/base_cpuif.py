@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 import jinja2 as jj
 from systemrdl.node import AddressableNode
 
-from ..utils import clog2, is_pow2, roundup_pow2
+from ..utils import clog2, get_indexed_path, is_pow2, roundup_pow2
 
 if TYPE_CHECKING:
     from ..exporter import BusDecoderExporter
@@ -83,6 +83,7 @@ class BaseCpuif:
         jj_env.filters["is_pow2"] = is_pow2  # type: ignore
         jj_env.filters["roundup_pow2"] = roundup_pow2  # type: ignore
         jj_env.filters["address_slice"] = self.get_address_slice  # type: ignore
+        jj_env.filters["get_path"] = lambda x: get_indexed_path(self.exp.ds.top_node, x, "i") # type: ignore
 
         context = {
             "cpuif": self,
@@ -92,33 +93,13 @@ class BaseCpuif:
         template = jj_env.get_template(self.template_path)
         return template.render(context)
 
-    def get_address_slice(self, node: AddressableNode) -> str:
-        """
-        Returns a SystemVerilog expression that extracts the address bits
-        relevant to the given node.
-        """
-        addr_mask = (1 << self.addr_width) - 1
-        addr = node.absolute_address & addr_mask
+    def get_address_slice(self, node: AddressableNode, cpuif_addr: str = "cpuif_addr") -> str:
+        addr = node.raw_absolute_address - self.exp.ds.top_node.raw_absolute_address
         size = node.size
-        if size == 0:
-            raise ValueError(f"Node size '{size:#X}' must be greater than 0")
-        if (addr % size) != 0:
-            raise ValueError(f"Node address '{addr:#X}' must be aligned to its size '{size:#X}'")
 
-        # Calculate the address range of the node
-        addr_start = addr
-        addr_end = addr + size - 1
-        if addr_end > addr_mask:
-            raise ValueError("Node address range exceeds address width")
+        addr_msb = clog2(addr + size) - 1
+        addr_lsb = clog2(addr)
 
-        # Calculate the number of bits needed to represent the size
-        size_bits = size.bit_length() - 1
-        if size_bits < 0:
-            size_bits = 0
-
-        if size_bits >= self.addr_width:
-            # Node covers entire address space, so return full address
-            return ""
-
-        # Extract the relevant bits from PADDR
-        return f"[{self.addr_width - 1}:{size_bits}]"
+        if addr_msb == addr_lsb:
+            return f"{cpuif_addr}[{addr_lsb}]"
+        return f"{cpuif_addr}[{addr_msb}:{addr_lsb}]"

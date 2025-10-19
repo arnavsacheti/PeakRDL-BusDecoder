@@ -65,13 +65,13 @@ class Exporter(ExporterSubcommandPlugin):
 
         return cpuifs
 
-    def add_exporter_arguments(self, arg_group: "argparse._ActionsContainer") -> None:
+    def add_exporter_arguments(self, arg_group: "argparse.ArgumentParser") -> None: # type: ignore
         cpuifs = self.get_cpuifs()
 
         arg_group.add_argument(
             "--cpuif",
             choices=cpuifs.keys(),
-            default="apb3",
+            default="apb4",
             help="Select the CPU interface protocol to use [apb3]",
         )
 
