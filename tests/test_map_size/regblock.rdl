@@ -1,5 +1,0 @@
-addrmap top {
-    reg {
-        field {} f1[32] = 0;
-    } my_reg;
-};
