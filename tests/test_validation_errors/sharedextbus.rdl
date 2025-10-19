@@ -1,7 +1,0 @@
-addrmap top {
-    sharedextbus;
-
-    reg {
-        field {}f;
-    } x;
-};
