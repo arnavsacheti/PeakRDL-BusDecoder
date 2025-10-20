@@ -83,7 +83,7 @@ class BaseCpuif:
         jj_env.filters["is_pow2"] = is_pow2  # type: ignore
         jj_env.filters["roundup_pow2"] = roundup_pow2  # type: ignore
         jj_env.filters["address_slice"] = self.get_address_slice  # type: ignore
-        jj_env.filters["get_path"] = lambda x: get_indexed_path(self.exp.ds.top_node, x, "i") # type: ignore
+        jj_env.filters["get_path"] = lambda x: get_indexed_path(self.exp.ds.top_node, x, "i")  # type: ignore
 
         context = {
             "cpuif": self,
@@ -97,9 +97,4 @@ class BaseCpuif:
         addr = node.raw_absolute_address - self.exp.ds.top_node.raw_absolute_address
         size = node.size
 
-        addr_msb = clog2(addr + size) - 1
-        addr_lsb = clog2(addr)
-
-        if addr_msb == addr_lsb:
-            return f"{cpuif_addr}[{addr_lsb}]"
-        return f"{cpuif_addr}[{addr_msb}:{addr_lsb}]"
+        return f"({cpuif_addr} - 'h{addr:x})[{clog2(size) - 1}:0]"

@@ -32,23 +32,21 @@ module {{ds.module_name}}
     logic [{{cpuif.data_width-1}}:0] cpuif_wr_data;
     logic [{{cpuif.data_width//8-1}}:0] cpuif_wr_byte_en;
 
-    logic cpuif_rd_ack [{{cpuif.addressable_children|length}}];
-    logic cpuif_rd_err [{{cpuif.addressable_children|length}}];
-    logic [{{cpuif.data_width-1}}:0] cpuif_rd_data [{{cpuif.addressable_children|length}}];
+    logic cpuif_rd_ack;
+    logic cpuif_rd_err;
+    logic [{{cpuif.data_width-1}}:0] cpuif_rd_data;
 
     //--------------------------------------------------------------------------
     // Child instance signals
     //--------------------------------------------------------------------------
-    typedef struct packed {
-        
-    } cpuif_sel_t;
+    {{cpuif_select|walk|indent(4)}}
     cpuif_sel_t cpuif_wr_sel;
     cpuif_sel_t cpuif_rd_sel;
 
     //--------------------------------------------------------------------------
     // Slave <-> Internal CPUIF <-> Master
     //--------------------------------------------------------------------------
-    {{-cpuif.get_implementation()|indent}}
+    {{-cpuif.get_implementation()|indent(4)}}
 
     //--------------------------------------------------------------------------
     // Write Address Decoder
@@ -59,7 +57,7 @@ module {{ds.module_name}}
 
         if (cpuif_req && cpuif_wr_en) begin
             // A write request is pending
-            {{address_decode(DecodeLogicFlavor.WRITE, ds).walk()|indent(12)}}
+            {{cpuif_decode|walk(flavor=cpuif_decode_flavor.WRITE)|indent(12)}}
         end else begin
             // No write request, all select signals remain 0
         end
@@ -74,7 +72,7 @@ module {{ds.module_name}}
 
         if (cpuif_req && cpuif_rd_en) begin
             // A read request is pending
-            {{address_decode(DecodeLogicFlavor.READ, ds).walk()|indent(12)}}
+            {{cpuif_decode|walk(flavor=cpuif_decode_flavor.READ)|indent(12)}}
         end else begin
             // No read request, all select signals remain 0
         end

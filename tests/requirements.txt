@@ -1,3 +1,0 @@
-pytest
-systemrdl-compiler
-jinja2
