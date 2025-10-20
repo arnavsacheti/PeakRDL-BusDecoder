@@ -148,7 +148,6 @@ class DesignValidator(RDLListener):
                     node.inst.inst_src_ref,
                 )
 
-
     def exit_AddressableComponent(self, node: AddressableNode) -> None:
         if not isinstance(node, RegNode):
             # Exiting block-like node
