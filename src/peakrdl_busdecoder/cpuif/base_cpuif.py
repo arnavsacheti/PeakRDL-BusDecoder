@@ -1,11 +1,15 @@
 import inspect
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import jinja2 as jj
 from systemrdl.node import AddressableNode
+from systemrdl.walker import RDLSteerableWalker
 
+from ..listener import BusDecoderListener
 from ..utils import clog2, get_indexed_path, is_pow2, roundup_pow2
+from .fanin_gen import FaninGenerator
+from .fanout_gen import FanoutGenerator
 
 if TYPE_CHECKING:
     from ..exporter import BusDecoderExporter
@@ -84,10 +88,13 @@ class BaseCpuif:
         jj_env.filters["roundup_pow2"] = roundup_pow2  # type: ignore
         jj_env.filters["address_slice"] = self.get_address_slice  # type: ignore
         jj_env.filters["get_path"] = lambda x: get_indexed_path(self.exp.ds.top_node, x, "i")  # type: ignore
+        jj_env.filters["walk"] = self.walk  # type: ignore
 
-        context = {
+        context = {  # type: ignore
             "cpuif": self,
             "ds": self.exp.ds,
+            "fanout": FanoutGenerator,
+            "fanin": FaninGenerator,
         }
 
         template = jj_env.get_template(self.template_path)
@@ -98,3 +105,9 @@ class BaseCpuif:
         size = node.size
 
         return f"({cpuif_addr} - 'h{addr:x})[{clog2(size) - 1}:0]"
+
+    def walk(self, listener_cls: type[BusDecoderListener], **kwargs: Any) -> str:
+        walker = RDLSteerableWalker()
+        listener = listener_cls(self.exp.ds, **kwargs)
+        walker.walk(self.exp.ds.top_node, listener, skip_top=True)
+        return str(listener)

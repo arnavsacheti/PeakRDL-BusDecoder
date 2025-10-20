@@ -11,11 +11,11 @@ from typing_extensions import Unpack
 
 from .cpuif import BaseCpuif
 from .cpuif.apb4 import APB4Cpuif
-from .decoder import DecodeLogicFlavor, DecodeLogicGenerator
+from .decode_logic_gen import DecodeLogicFlavor, DecodeLogicGenerator
 from .design_state import DesignState
 from .identifier_filter import kw_filter as kwf
 from .listener import BusDecoderListener
-from .struct_generator import StructGenerator
+from .struct_gen import StructGenerator
 from .sv_int import SVInt
 from .validate_design import DesignValidator
 
@@ -57,8 +57,8 @@ class BusDecoderExporter:
             loader=c_loader,
             undefined=jj.StrictUndefined,
         )
-        self.jj_env.filters["kwf"] = kwf
-        self.jj_env.filters["walk"] = self.walk
+        self.jj_env.filters["kwf"] = kwf # type: ignore
+        self.jj_env.filters["walk"] = self.walk # type: ignore
 
     def export(self, node: RootNode | AddrmapNode, output_dir: str, **kwargs: Unpack[ExporterKwargs]) -> None:
         """
@@ -106,7 +106,7 @@ class BusDecoderExporter:
         DesignValidator(self).do_validate()
 
         # Build Jinja template context
-        context = {
+        context = {  # type: ignore
             "current_date": datetime.now().strftime("%Y-%m-%d"),
             "version": version("peakrdl-busdecoder"),
             "cpuif": self.cpuif,
@@ -129,7 +129,7 @@ class BusDecoderExporter:
         stream = template.stream(context)
         stream.dump(module_file_path)
 
-    def walk(self, listener_cls: type[BusDecoderListener], **kwargs: Any) -> BusDecoderListener:
+    def walk(self, listener_cls: type[BusDecoderListener], **kwargs: Any) -> str:
         walker = RDLSteerableWalker()
         listener = listener_cls(self.ds, **kwargs)
         walker.walk(self.ds.top_node, listener, skip_top=True)

@@ -1,5 +1,5 @@
 import functools
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from peakrdl.config import schema
 from peakrdl.plugins.entry_points import get_entry_points
@@ -15,55 +15,61 @@ if TYPE_CHECKING:
     from systemrdl.node import AddrmapNode
 
 
+@functools.lru_cache
+def get_cpuifs(
+    config: dict[str, Any],
+) -> dict[str, type[BaseCpuif]]:
+    # All built-in CPUIFs
+    cpuifs: dict[str, type[BaseCpuif]] = {
+        # "passthrough": passthrough.PassthroughCpuif,
+        "apb3": apb3.APB3Cpuif,
+        "apb3-flat": apb3.APB3CpuifFlat,
+        "apb4": apb4.APB4Cpuif,
+        "apb4-flat": apb4.APB4CpuifFlat,
+        # "axi4-lite": axi4lite.AXI4Lite_Cpuif,
+        # "axi4-lite-flat": axi4lite.AXI4Lite_Cpuif_flattened,
+    }
+
+    # Load any cpuifs specified via entry points
+    for ep, _ in get_entry_points("peakrdl_busdecoder.cpuif"):
+        name = ep.name
+        cpuif = ep.load()
+        if name in cpuifs:
+            raise RuntimeError(
+                f"A plugin for 'peakrdl-busdecoder' tried to load cpuif '{name}' but it already exists"
+            )
+        if not issubclass(cpuif, BaseCpuif):
+            raise RuntimeError(
+                f"A plugin for 'peakrdl-busdecoder' tried to load cpuif '{name}' but it not a BaseCpuif class"
+            )
+        cpuifs[name] = cpuif
+
+    # Load any CPUIFs via config import
+    for name, cpuif in config.items():
+        if name in cpuifs:
+            raise RuntimeError(
+                f"A plugin for 'peakrdl-busdecoder' tried to load cpuif '{name}' but it already exists"
+            )
+        if not issubclass(cpuif, BaseCpuif):
+            raise RuntimeError(
+                f"A plugin for 'peakrdl-busdecoder' tried to load cpuif '{name}' but it not a BaseCpuif class"
+            )
+        cpuifs[name] = cpuif
+
+    return cpuifs
+
+
 class Exporter(ExporterSubcommandPlugin):
     short_desc = "Generate a SystemVerilog control/status register (CSR) block"
 
     udp_definitions = ALL_UDPS
 
-    cfg_schema = {
+    cfg_schema = {  # noqa: RUF012
         "cpuifs": {"*": schema.PythonObjectImport()},
     }
 
-    @functools.lru_cache
     def get_cpuifs(self) -> dict[str, type[BaseCpuif]]:
-        # All built-in CPUIFs
-        cpuifs: dict[str, type[BaseCpuif]] = {
-            # "passthrough": passthrough.PassthroughCpuif,
-            "apb3": apb3.APB3Cpuif,
-            "apb3-flat": apb3.APB3CpuifFlat,
-            "apb4": apb4.APB4Cpuif,
-            "apb4-flat": apb4.APB4CpuifFlat,
-            # "axi4-lite": axi4lite.AXI4Lite_Cpuif,
-            # "axi4-lite-flat": axi4lite.AXI4Lite_Cpuif_flattened,
-        }
-
-        # Load any cpuifs specified via entry points
-        for ep, _ in get_entry_points("peakrdl_busdecoder.cpuif"):
-            name = ep.name
-            cpuif = ep.load()
-            if name in cpuifs:
-                raise RuntimeError(
-                    f"A plugin for 'peakrdl-busdecoder' tried to load cpuif '{name}' but it already exists"
-                )
-            if not issubclass(cpuif, BaseCpuif):
-                raise RuntimeError(
-                    f"A plugin for 'peakrdl-busdecoder' tried to load cpuif '{name}' but it not a BaseCpuif class"
-                )
-            cpuifs[name] = cpuif
-
-        # Load any CPUIFs via config import
-        for name, cpuif in self.cfg["cpuifs"].items():
-            if name in cpuifs:
-                raise RuntimeError(
-                    f"A plugin for 'peakrdl-busdecoder' tried to load cpuif '{name}' but it already exists"
-                )
-            if not issubclass(cpuif, BaseCpuif):
-                raise RuntimeError(
-                    f"A plugin for 'peakrdl-busdecoder' tried to load cpuif '{name}' but it not a BaseCpuif class"
-                )
-            cpuifs[name] = cpuif
-
-        return cpuifs
+        return get_cpuifs(self.cfg["cpuifs"])
 
     def add_exporter_arguments(self, arg_group: "argparse.ArgumentParser") -> None:  # type: ignore
         cpuifs = self.get_cpuifs()
