@@ -61,7 +61,7 @@ def pytest_addoption(parser):
 def rdl_compile(tmp_path):
     """Compile SystemRDL source text and return the elaborated top addrmap."""
 
-    udp_file = Path(__file__).resolve().parents[1] / "hdl-src" / "busdecoder_udps.rdl"
+    udp_file = Path(__file__).resolve().parents[1] / "hdl-src" / "regblock_udps.rdl"
 
     def _compile(source: str, top: str, inst_name: str = "top", params: dict | None = None):
         rdl_path = tmp_path / f"{uuid.uuid4().hex}.rdl"
