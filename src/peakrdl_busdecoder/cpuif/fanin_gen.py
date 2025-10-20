@@ -1,19 +1,49 @@
+from collections import deque
+from typing import TYPE_CHECKING
+
 from systemrdl.node import AddressableNode
 from systemrdl.walker import WalkerAction
 
+from ..body import Body, CombinationalBody, ForLoopBody
 from ..design_state import DesignState
 from ..listener import BusDecoderListener
-from .base_cpuif import BaseCpuif
+
+if TYPE_CHECKING:
+    from .base_cpuif import BaseCpuif
 
 
 class FaninGenerator(BusDecoderListener):
-    def __init__(self, ds: DesignState, cpuif: BaseCpuif) -> None:
+    def __init__(self, ds: DesignState, cpuif: "BaseCpuif") -> None:
         super().__init__(ds)
         self._cpuif = cpuif
 
+        self._stack: deque[Body] = deque()
+        self._stack.append(CombinationalBody())
+
     def enter_AddressableComponent(self, node: AddressableNode) -> WalkerAction | None:
         action = super().enter_AddressableComponent(node)
+
+        if node.array_dimensions:
+            for i, dim in enumerate(node.array_dimensions):
+                fb = ForLoopBody(
+                    "int",
+                    f"i{i}",
+                    dim,
+                )
+                self._stack.append(fb)
+
+        self._stack[-1] += self._cpuif.fanin(node)
         return action
 
     def exit_AddressableComponent(self, node: AddressableNode) -> None:
+        if node.array_dimensions:
+            for _ in node.array_dimensions:
+                b = self._stack.pop()
+                if not b:
+                    continue
+                self._stack[-1] += b
+
         super().exit_AddressableComponent(node)
+
+    def __str__(self) -> str:
+        return "\n".join(map(str, self._stack))

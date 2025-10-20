@@ -11,47 +11,20 @@
 
 assign cpuif_req   = {{cpuif.signal("PSELx")}};
 assign cpuif_wr_en = {{cpuif.signal("PWRITE")}};
-assign cpuif_wr_data = {{cpuif.signal("PWDATA")}};
 assign cpuif_rd_en = !{{cpuif.signal("PWRITE")}};
 
-{%- for child in cpuif.addressable_children -%}
-{%- if child is array -%}
-for (genvar gi = 0; gi < N_{{child.inst_name|upper}}S; gi++) begin : g_passthrough_{{child.inst_name|lower}}
-    assign {{cpuif.signal("PCLK", child, "gi")}}    = {{cpuif.signal("PCLK")}};
-    assign {{cpuif.signal("PRESETn", child, "gi")}} = {{cpuif.signal("PRESETn")}};
-    assign {{cpuif.signal("PSELx", child, "gi")}}   = (cpuif_wr_req[{{loop.index}}] || cpuif_rd_req[{{loop.index}}]) ? 1'b1 : 1'b0;
-    assign {{cpuif.signal("PENABLE", child, "gi")}} = {{cpuif.signal("PENABLE")}};
-    assign {{cpuif.signal("PWRITE", child, "gi")}}  = (cpuif_wr_req[{{loop.index}}]) ? 1'b1 : 1'b0;
-    assign {{cpuif.signal("PADDR", child, "gi")}}   = {{child|address_slice(cpuif_addr="cpuif_wr_addr")}};
-    assign {{cpuif.signal("PWDATA", child, "gi")}}  = cpuif_wr_data;
-    assign cpuif_rd_ack[loop.index] = {{cpuif.signal("PREADY", child)}};
-    assign cpuif_rd_data[loop.index] = {{cpuif.signal("PRDATA", child)}};
-    assign cpuif_rd_err[loop.index] = {{cpuif.signal("PSLVERR", child)}};
-end
-{%- else -%}
-assign {{cpuif.signal("PCLK", child)}}    = {{cpuif.signal("PCLK")}};
-assign {{cpuif.signal("PRESETn", child)}} = {{cpuif.signal("PRESETn")}};
-assign {{cpuif.signal("PSELx", child)}}   = (cpuif_wr_sel[{{loop.index0}}] || cpuif_rd_sel[{{loop.index0}}]) ? 1'b1 : 1'b0;
-assign {{cpuif.signal("PENABLE", child)}} = {{cpuif.signal("PENABLE")}};
-assign {{cpuif.signal("PWRITE", child)}}  = (cpuif_wr_req[{{loop.index}}]) ? 1'b1 : 1'b0;
-assign {{cpuif.signal("PADDR", child)}}   = {{child|address_slice(cpuif_addr="cpuif_wr_addr")}};
-assign {{cpuif.signal("PWDATA", child)}}  = cpuif_wr_data;
-assign cpuif_rd_ack[loop.index] = {{cpuif.signal("PREADY", child)}};
-assign cpuif_rd_data[loop.index] = {{cpuif.signal("PRDATA", child)}};
-assign cpuif_rd_err[loop.index] = {{cpuif.signal("PSLVERR", child)}};
-{%- endif -%}
-{%- endfor%}
+assign cpuif_wr_data = {{cpuif.signal("PWDATA")}};
 
-always_comb begin
-    {{cpuif.signal("PREADY")}} = 1'b0;
-    {{cpuif.signal("PRDATA")}} = '0;
-    {{cpuif.signal("PSLVERR")}} = 1'b0;
+assign {{cpuif.signal("PRDATA")}} = cpuif_rd_data;
+assign {{cpuif.signal("PREADY")}} = cpuif_rd_ack;
+assign {{cpuif.signal("PSLVERR")}} = cpuif_rd_err;
 
-    for(int i = 0; i < {{cpuif.addressable_children | length}}; i++) begin
-        if (cpuif_rd_sel[i]) begin
-            {{cpuif.signal("PREADY")}} = cpuif_rd_ack[i];
-            {{cpuif.signal("PRDATA")}} = cpuif_rd_data[i];
-            {{cpuif.signal("PSLVERR")}} = cpuif_rd_err[i];
-        end
-    end
-end
+//--------------------------------------------------------------------------
+// Fanout CPU Bus interface signals
+//--------------------------------------------------------------------------
+{{fanout|walk(cpuif=cpuif)}}
+
+//--------------------------------------------------------------------------
+// Fanin CPU Bus interface signals
+//--------------------------------------------------------------------------
+{{fanin|walk(cpuif=cpuif)}}

@@ -106,8 +106,14 @@ class BaseCpuif:
 
         return f"({cpuif_addr} - 'h{addr:x})[{clog2(size) - 1}:0]"
 
-    def walk(self, listener_cls: type[BusDecoderListener], **kwargs: Any) -> str:
+    def walk(self, listener_cls: type[BusDecoderListener], **kwargs: Any) -> str:  # noqa: ANN401
         walker = RDLSteerableWalker()
         listener = listener_cls(self.exp.ds, **kwargs)
         walker.walk(self.exp.ds.top_node, listener, skip_top=True)
         return str(listener)
+
+    def fanout(self, node: AddressableNode) -> str:
+        raise NotImplementedError
+
+    def fanin(self, node: AddressableNode) -> str:
+        raise NotImplementedError

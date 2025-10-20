@@ -16,9 +16,7 @@ if TYPE_CHECKING:
 
 
 @functools.lru_cache
-def get_cpuifs(
-    config: dict[str, Any],
-) -> dict[str, type[BaseCpuif]]:
+def get_cpuifs(config: list[tuple[str, Any]]) -> dict[str, type[BaseCpuif]]:
     # All built-in CPUIFs
     cpuifs: dict[str, type[BaseCpuif]] = {
         # "passthrough": passthrough.PassthroughCpuif,
@@ -45,7 +43,7 @@ def get_cpuifs(
         cpuifs[name] = cpuif
 
     # Load any CPUIFs via config import
-    for name, cpuif in config.items():
+    for name, cpuif in config:
         if name in cpuifs:
             raise RuntimeError(
                 f"A plugin for 'peakrdl-busdecoder' tried to load cpuif '{name}' but it already exists"
@@ -69,7 +67,7 @@ class Exporter(ExporterSubcommandPlugin):
     }
 
     def get_cpuifs(self) -> dict[str, type[BaseCpuif]]:
-        return get_cpuifs(self.cfg["cpuifs"])
+        return get_cpuifs(map(tuple, self.cfg["cpuifs"].items()))
 
     def add_exporter_arguments(self, arg_group: "argparse.ArgumentParser") -> None:  # type: ignore
         cpuifs = self.get_cpuifs()

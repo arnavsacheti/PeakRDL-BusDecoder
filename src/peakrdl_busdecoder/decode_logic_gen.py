@@ -83,7 +83,7 @@ class DecodeLogicGenerator(BusDecoderListener):
         condition = " && ".join(f"({c})" for c in conditions)
 
         # Generate condition string and manage stack
-        if isinstance(self._decode_stack[-1], IfBody) and node.array_dimensions:
+        if node.array_dimensions:
             # arrayed component with new if-body
             self._cond_stack.append(condition)
             for i, dim in enumerate(
@@ -101,6 +101,8 @@ class DecodeLogicGenerator(BusDecoderListener):
             # non-arrayed component with if-body
             with self._decode_stack[-1].cm(condition) as b:
                 b += f"{self._flavor.cpuif_select}.{get_indexed_path(self._ds.top_node, node)} = 1'b1;"
+        else:
+            raise RuntimeError("Invalid decode stack state")
 
         return action
 

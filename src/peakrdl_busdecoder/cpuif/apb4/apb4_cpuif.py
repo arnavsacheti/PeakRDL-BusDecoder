@@ -1,5 +1,6 @@
 from systemrdl.node import AddressableNode
 
+from ...utils import get_indexed_path
 from ..base_cpuif import BaseCpuif
 
 
@@ -27,21 +28,34 @@ class APB4Cpuif(BaseCpuif):
         self,
         signal: str,
         node: AddressableNode | None = None,
-        idx: str | int | None = None,
     ) -> str:
-        """Returns the signal name for the given signal and node."""
         if node is None:
             # Node is none, so this is a slave signal
             return f"s_apb.{signal}"
 
         # Master signal
-        base = f"m_apb_{node.inst_name}"
-        if not node.is_array:
-            return f"{base}.{signal}"
-        if node.current_idx is not None:
-            # This is a specific instance of an array
-            return f"{base}_{'_'.join(map(str, node.current_idx))}.{signal}"
-        if idx is not None:
-            return f"{base}[{idx}].{signal}"
+        return f"m_apb_{node.inst_name}.{signal}"
 
-        raise ValueError("Must provide an index for arrayed interface signals")
+    def fanout(self, node: AddressableNode) -> str:
+        fanout: dict[str, str] = {}
+        fanout[f"m_apb_{get_indexed_path(node.parent, node, 'gi')}.PSEL"] = (
+            f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node)}|cpuif_rd_sel.{get_indexed_path(self.exp.ds.top_node, node)}"
+        )
+        fanout[f"m_apb_{get_indexed_path(node.parent, node, 'gi')}.PSEL"] = self.signal("PSEL")
+        fanout[f"m_apb_{get_indexed_path(node.parent, node, 'gi')}.PWRITE"] = (
+            f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
+        )
+        fanout[f"m_apb_{get_indexed_path(node.parent, node, 'gi')}.PADDR"] = self.signal("PADDR")
+        fanout[f"m_apb_{get_indexed_path(node.parent, node, 'gi')}.PPROT"] = self.signal("PPROT")
+        fanout[f"m_apb_{get_indexed_path(node.parent, node, 'gi')}.PWDATA"] = "cpuif_wr_data"
+        fanout[f"m_apb_{get_indexed_path(node.parent, node, 'gi')}.PSTRB"] = "cpuif_wr_byte_en"
+
+        return "\n".join(map(lambda kv: f"assign {kv[0]} = {kv[1]};", fanout.items()))
+
+    def fanin(self, node: AddressableNode) -> str:
+        fanin: dict[str, str] = {}
+        fanin["cpuif_rd_data"] = self.signal("PRDATA", node)
+        fanin["cpuif_rd_ack"] = self.signal("PREADY", node)
+        fanin["cpuif_rd_err"] = self.signal("PSLVERR", node)
+
+        return "\n".join(map(lambda kv: f"{kv[0]} = {kv[1]};", fanin.items()))
