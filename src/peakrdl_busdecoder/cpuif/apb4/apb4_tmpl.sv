@@ -6,19 +6,24 @@
         assert_bad_data_width: assert($bits({{cpuif.signal("PWDATA")}}) == {{ds.package_name}}::{{ds.module_name|upper}}_DATA_WIDTH)
             else $error("Interface data width of %0d is incorrect. Shall be %0d bits", $bits({{cpuif.signal("PWDATA")}}), {{ds.package_name}}::{{ds.module_name|upper}}_DATA_WIDTH);
     end
+    assert_wr_sel: assert (@(posedge {{cpuif.signal("PCLK")}}) {{cpuif.signal("PSEL")}} && {{cpuif.signal("PWRITE")}} |-> ##1 ({{cpuif.signal("PREADY")}} || {{cpuif.signal("PSLVERR")}}))
+        else $error("APB4 Slave port SEL implies that cpuif_wr_sel must be one-hot encoded");
 `endif
 {%- endif %}
 
-assign cpuif_req   = {{cpuif.signal("PSELx")}};
+assign cpuif_req   = {{cpuif.signal("PSEL")}};
 assign cpuif_wr_en = {{cpuif.signal("PWRITE")}};
 assign cpuif_rd_en = !{{cpuif.signal("PWRITE")}};
+
+assign cpuif_wr_addr = {{cpuif.signal("PADDR")}};
+assign cpuif_rd_addr = {{cpuif.signal("PADDR")}};
 
 assign cpuif_wr_data = {{cpuif.signal("PWDATA")}};
 assign cpuif_wr_byte_en = {{cpuif.signal("PSTRB")}};
 
 assign {{cpuif.signal("PRDATA")}} = cpuif_rd_data;
 assign {{cpuif.signal("PREADY")}} = cpuif_rd_ack;
-assign {{cpuif.signal("PSLVERR")}} = cpuif_rd_err;
+assign {{cpuif.signal("PSLVERR")}} = cpuif_rd_err | cpuif_rd_sel.cpuif_err | cpuif_wr_sel.cpuif_err;
 
 //--------------------------------------------------------------------------
 // Fanout CPU Bus interface signals

@@ -39,17 +39,20 @@ class DecodeLogicGenerator(BusDecoderListener):
         # Initial Stack Conditions
         self._decode_stack.append(IfBody())
 
-    def cpuif_addr_predicate(self, node: AddressableNode) -> list[str]:
+    def cpuif_addr_predicate(self, node: AddressableNode, total_size: bool = True) -> list[str]:
         # Generate address bounds
         addr_width = self._ds.addr_width
         l_bound = SVInt(
             node.raw_absolute_address,
             addr_width,
         )
-        u_bound = l_bound + SVInt(node.total_size, addr_width)
+        if total_size:
+            u_bound = l_bound + SVInt(node.total_size, addr_width)
+        else:
+            u_bound = l_bound + SVInt(node.size, addr_width)
 
         array_stack = list(self._array_stride_stack)
-        if node.array_dimensions:
+        if total_size and node.array_dimensions:
             array_stack = array_stack[: -len(node.array_dimensions)]
 
         # Handle arrayed components
@@ -79,7 +82,6 @@ class DecodeLogicGenerator(BusDecoderListener):
         conditions: list[str] = []
         conditions.extend(self.cpuif_addr_predicate(node))
         conditions.extend(self.cpuif_prot_predicate(node))
-
         condition = " && ".join(f"({c})" for c in conditions)
 
         # Generate condition string and manage stack
@@ -111,12 +113,14 @@ class DecodeLogicGenerator(BusDecoderListener):
             return
 
         ifb = self._decode_stack.pop()
-        if ifb:
-            self._decode_stack[-1] += ifb
-        else:
-            self._decode_stack[-1] += (
-                f"{self._flavor.cpuif_select}.{get_indexed_path(self._ds.top_node, node)} = 1'b1;"
-            )
+        if not ifb and isinstance(ifb, IfBody):
+            conditions: list[str] = []
+            conditions.extend(self.cpuif_addr_predicate(node, total_size=False))
+            condition = " && ".join(f"({c})" for c in conditions)
+
+            with ifb.cm(condition) as b:
+                b += f"{self._flavor.cpuif_select}.{get_indexed_path(self._ds.top_node, node)} = 1'b1;"
+        self._decode_stack[-1] += ifb
 
         for _ in node.array_dimensions:
             b = self._decode_stack.pop()
@@ -135,6 +139,6 @@ class DecodeLogicGenerator(BusDecoderListener):
         body = self._decode_stack[-1]
         if isinstance(body, IfBody):
             with body.cm(...) as b:
-                b += f"{self._flavor.cpuif_select}.bad_addr = 1'b1;"
+                b += f"{self._flavor.cpuif_select}.cpuif_err = 1'b1;"
 
         return str(body)

@@ -7,7 +7,9 @@ from systemrdl.rdltypes.references import PropertyReference
 from .identifier_filter import kw_filter as kwf
 
 
-def get_indexed_path(top_node: Node, target_node: Node, indexer: str = "i") -> str:
+def get_indexed_path(
+    top_node: Node, target_node: Node, indexer: str = "i", skip_kw_filter: bool = False
+) -> str:
     """
     Get the relative path from top_node to target_node, replacing any unknown
     array indexes with incrementing iterators (i0, i1, ...).
@@ -30,7 +32,8 @@ def get_indexed_path(top_node: Node, target_node: Node, indexer: str = "i") -> s
     def kw_filter_repl(m: Match[str]) -> str:
         return kwf(m.group(0))
 
-    path = re.sub(r"\w+", kw_filter_repl, path)
+    if not skip_kw_filter:
+        path = re.sub(r"\w+", kw_filter_repl, path)
 
     return path
 

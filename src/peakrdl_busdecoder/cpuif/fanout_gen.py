@@ -32,7 +32,9 @@ class FanoutGenerator(BusDecoderListener):
                 )
                 self._stack.append(fb)
 
-        self._stack[-1] += self._cpuif.fanout(node)
+        if action == WalkerAction.Continue:
+            self._stack[-1] += self._cpuif.fanout(node)
+            
         return action
 
     def exit_AddressableComponent(self, node: AddressableNode) -> None:

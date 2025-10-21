@@ -1,3 +1,5 @@
+from typing import overload
+
 from systemrdl.node import AddressableNode
 
 from ...utils import get_indexed_path
@@ -10,11 +12,11 @@ class APB4Cpuif(BaseCpuif):
 
     def _port_declaration(self, child: AddressableNode) -> str:
         base = f"apb4_intf.master m_apb_{child.inst_name}"
-        if not child.is_array:
+        if child.array_dimensions is None:
             return base
         if child.current_idx is not None:
-            return f"{base}_{'_'.join(map(str, child.current_idx))} [N_{child.inst_name.upper()}S]"
-        return f"{base} [N_{child.inst_name.upper()}S]"
+            return f"{base}_{'_'.join(map(str, child.current_idx))} {''.join(f'[{dim}]' for dim in child.array_dimensions)}"
+        return f"{base} {''.join(f'[{dim}]' for dim in child.array_dimensions)}"
 
     @property
     def port_declaration(self) -> str:
@@ -24,38 +26,50 @@ class APB4Cpuif(BaseCpuif):
 
         return ",\n".join(slave_ports + master_ports)
 
-    def signal(
-        self,
-        signal: str,
-        node: AddressableNode | None = None,
-    ) -> str:
-        if node is None:
+    @overload
+    def signal(self, signal: str, node: None = None, indexer: None = None) -> str: ...
+    @overload
+    def signal(self, signal: str, node: AddressableNode, indexer: str) -> str: ...
+    def signal(self, signal: str, node: AddressableNode | None = None, indexer: str | None = None) -> str:
+        if node is None or indexer is None:
             # Node is none, so this is a slave signal
             return f"s_apb.{signal}"
 
         # Master signal
-        return f"m_apb_{node.inst_name}.{signal}"
+        return f"m_apb_{get_indexed_path(node.parent, node, indexer, skip_kw_filter=True)}.{signal}"
 
     def fanout(self, node: AddressableNode) -> str:
         fanout: dict[str, str] = {}
-        fanout[f"m_apb_{get_indexed_path(node.parent, node, 'gi')}.PSEL"] = (
-            f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node)}|cpuif_rd_sel.{get_indexed_path(self.exp.ds.top_node, node)}"
+        fanout[self.signal("PSEL", node, "gi")] = (
+            f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}|cpuif_rd_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
         )
-        fanout[f"m_apb_{get_indexed_path(node.parent, node, 'gi')}.PSEL"] = self.signal("PSEL")
-        fanout[f"m_apb_{get_indexed_path(node.parent, node, 'gi')}.PWRITE"] = (
+        fanout[self.signal("PENABLE", node, "gi")] = self.signal("PENABLE")
+        fanout[self.signal("PWRITE", node, "gi")] = (
             f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
         )
-        fanout[f"m_apb_{get_indexed_path(node.parent, node, 'gi')}.PADDR"] = self.signal("PADDR")
-        fanout[f"m_apb_{get_indexed_path(node.parent, node, 'gi')}.PPROT"] = self.signal("PPROT")
-        fanout[f"m_apb_{get_indexed_path(node.parent, node, 'gi')}.PWDATA"] = "cpuif_wr_data"
-        fanout[f"m_apb_{get_indexed_path(node.parent, node, 'gi')}.PSTRB"] = "cpuif_wr_byte_en"
+        fanout[self.signal("PADDR", node, "gi")] = self.signal("PADDR")
+        fanout[self.signal("PPROT", node, "gi")] = self.signal("PPROT")
+        fanout[self.signal("PWDATA", node, "gi")] = "cpuif_wr_data"
+        fanout[self.signal("PSTRB", node, "gi")] = "cpuif_wr_byte_en"
 
         return "\n".join(map(lambda kv: f"assign {kv[0]} = {kv[1]};", fanout.items()))
 
-    def fanin(self, node: AddressableNode) -> str:
+    def fanin(self, node: AddressableNode | None = None) -> str:
         fanin: dict[str, str] = {}
-        fanin["cpuif_rd_data"] = self.signal("PRDATA", node)
-        fanin["cpuif_rd_ack"] = self.signal("PREADY", node)
-        fanin["cpuif_rd_err"] = self.signal("PSLVERR", node)
+        if node is None:
+            fanin["cpuif_rd_ack"] = "'0"
+            fanin["cpuif_rd_err"] = "'0"
+        else:
+            fanin["cpuif_rd_ack"] = self.signal("PREADY", node, "i")
+            fanin["cpuif_rd_err"] = self.signal("PSLVERR", node, "i")
+
+        return "\n".join(map(lambda kv: f"{kv[0]} = {kv[1]};", fanin.items()))
+
+    def readback(self, node: AddressableNode | None = None) -> str:
+        fanin: dict[str, str] = {}
+        if node is None:
+            fanin["cpuif_rd_data"] = "'0"
+        else:
+            fanin["cpuif_rd_data"] = self.signal("PRDATA", node, "i")
 
         return "\n".join(map(lambda kv: f"{kv[0]} = {kv[1]};", fanin.items()))

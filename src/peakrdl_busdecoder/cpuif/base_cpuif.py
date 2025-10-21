@@ -1,12 +1,10 @@
 import inspect
 import os
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import jinja2 as jj
 from systemrdl.node import AddressableNode
-from systemrdl.walker import RDLSteerableWalker
 
-from ..listener import BusDecoderListener
 from ..utils import clog2, get_indexed_path, is_pow2, roundup_pow2
 from .fanin_gen import FaninGenerator
 from .fanout_gen import FanoutGenerator
@@ -55,7 +53,7 @@ class BaseCpuif:
         the module's definition
         """
         array_parameters = [
-            f"parameter N_{child.inst_name.upper()}S = {child.n_elements}"
+            f"localparam N_{child.inst_name.upper()}S = {child.n_elements}"
             for child in self.addressable_children
             if self.check_is_array(child)
         ]
@@ -88,7 +86,7 @@ class BaseCpuif:
         jj_env.filters["roundup_pow2"] = roundup_pow2  # type: ignore
         jj_env.filters["address_slice"] = self.get_address_slice  # type: ignore
         jj_env.filters["get_path"] = lambda x: get_indexed_path(self.exp.ds.top_node, x, "i")  # type: ignore
-        jj_env.filters["walk"] = self.walk  # type: ignore
+        jj_env.filters["walk"] = self.exp.walk  # type: ignore
 
         context = {  # type: ignore
             "cpuif": self,
@@ -106,14 +104,11 @@ class BaseCpuif:
 
         return f"({cpuif_addr} - 'h{addr:x})[{clog2(size) - 1}:0]"
 
-    def walk(self, listener_cls: type[BusDecoderListener], **kwargs: Any) -> str:  # noqa: ANN401
-        walker = RDLSteerableWalker()
-        listener = listener_cls(self.exp.ds, **kwargs)
-        walker.walk(self.exp.ds.top_node, listener, skip_top=True)
-        return str(listener)
-
     def fanout(self, node: AddressableNode) -> str:
         raise NotImplementedError
 
-    def fanin(self, node: AddressableNode) -> str:
+    def fanin(self, node: AddressableNode | None = None) -> str:
+        raise NotImplementedError
+
+    def readback(self, node: AddressableNode | None = None) -> str:
         raise NotImplementedError

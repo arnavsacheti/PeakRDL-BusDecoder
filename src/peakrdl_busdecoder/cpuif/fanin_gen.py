@@ -4,9 +4,10 @@ from typing import TYPE_CHECKING
 from systemrdl.node import AddressableNode
 from systemrdl.walker import WalkerAction
 
-from ..body import Body, CombinationalBody, ForLoopBody
+from ..body import Body, CombinationalBody, ForLoopBody, IfBody
 from ..design_state import DesignState
 from ..listener import BusDecoderListener
+from ..utils import get_indexed_path
 
 if TYPE_CHECKING:
     from .base_cpuif import BaseCpuif
@@ -18,7 +19,10 @@ class FaninGenerator(BusDecoderListener):
         self._cpuif = cpuif
 
         self._stack: deque[Body] = deque()
-        self._stack.append(CombinationalBody())
+        cb = CombinationalBody()
+        cb += cpuif.fanin()
+        cb += cpuif.readback()
+        self._stack.append(cb)
 
     def enter_AddressableComponent(self, node: AddressableNode) -> WalkerAction | None:
         action = super().enter_AddressableComponent(node)
@@ -32,7 +36,19 @@ class FaninGenerator(BusDecoderListener):
                 )
                 self._stack.append(fb)
 
-        self._stack[-1] += self._cpuif.fanin(node)
+        if action == WalkerAction.Continue:
+            ifb = IfBody()
+            with ifb.cm(
+                f"cpuif_rd_sel.{get_indexed_path(self._cpuif.exp.ds.top_node, node)} || cpuif_wr_sel.{get_indexed_path(self._cpuif.exp.ds.top_node, node)}"
+            ) as b:
+                b += self._cpuif.fanin(node)
+            self._stack[-1] += ifb
+
+            ifb = IfBody()
+            with ifb.cm(f"cpuif_rd_sel.{get_indexed_path(self._cpuif.exp.ds.top_node, node)}") as b:
+                b += self._cpuif.readback(node)
+            self._stack[-1] += ifb
+
         return action
 
     def exit_AddressableComponent(self, node: AddressableNode) -> None:
