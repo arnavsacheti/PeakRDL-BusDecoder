@@ -54,14 +54,14 @@ interface axi4lite_intf #(
 
     modport slave (
         output AWREADY,
-        input AWVALID,
-        input AWADDR,
+        // input AWVALID,
+        // input AWADDR,
         input AWPROT,
 
         output WREADY,
-        input WVALID,
-        input WDATA,
-        input WSTRB,
+        // input WVALID,
+        // input WDATA,
+        // input WSTRB,
 
         input BREADY,
         output BVALID,
@@ -73,8 +73,8 @@ interface axi4lite_intf #(
         input ARPROT,
 
         input RREADY,
-        output RVALID,
-        output RDATA,
-        output RRESP
+        // output RVALID,
+        // output RDATA,
+        // output RRESP
     );
 endinterface

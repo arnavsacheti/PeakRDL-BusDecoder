@@ -9,15 +9,18 @@
 `endif
 {% endif -%}
 
-assign cpuif_req   = {{cpuif.signal("PSELx")}};
+assign cpuif_req   = {{cpuif.signal("PSEL")}};
 assign cpuif_wr_en = {{cpuif.signal("PWRITE")}};
 assign cpuif_rd_en = !{{cpuif.signal("PWRITE")}};
+
+assign cpuif_wr_addr = {{cpuif.signal("PADDR")}};
+assign cpuif_rd_addr = {{cpuif.signal("PADDR")}};
 
 assign cpuif_wr_data = {{cpuif.signal("PWDATA")}};
 
 assign {{cpuif.signal("PRDATA")}} = cpuif_rd_data;
 assign {{cpuif.signal("PREADY")}} = cpuif_rd_ack;
-assign {{cpuif.signal("PSLVERR")}} = cpuif_rd_err;
+assign {{cpuif.signal("PSLVERR")}} = cpuif_rd_err | cpuif_rd_sel.cpuif_err | cpuif_wr_sel.cpuif_err;
 
 //--------------------------------------------------------------------------
 // Fanout CPU Bus interface signals
