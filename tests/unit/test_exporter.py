@@ -27,23 +27,23 @@ class TestBusDecoderExporter:
         };
         """
         top = compile_rdl(rdl_source, top="simple_reg")
-        
+
         exporter = BusDecoderExporter()
         output_dir = str(tmp_path)
         exporter.export(top, output_dir, cpuif_cls=APB4Cpuif)
-        
+
         # Check that output files are created
         module_file = tmp_path / "simple_reg.sv"
         package_file = tmp_path / "simple_reg_pkg.sv"
-        
+
         assert module_file.exists()
         assert package_file.exists()
-        
+
         # Check basic content
         module_content = module_file.read_text()
         assert "module simple_reg" in module_content
         assert "my_reg" in module_content
-        
+
         package_content = package_file.read_text()
         assert "package simple_reg_pkg" in package_content
 
@@ -60,15 +60,15 @@ class TestBusDecoderExporter:
         };
         """
         top = compile_rdl(rdl_source, top="reg_array")
-        
+
         exporter = BusDecoderExporter()
         output_dir = str(tmp_path)
         exporter.export(top, output_dir, cpuif_cls=APB4Cpuif)
-        
+
         # Check that output files are created
         module_file = tmp_path / "reg_array.sv"
         assert module_file.exists()
-        
+
         module_content = module_file.read_text()
         assert "module reg_array" in module_content
         assert "my_regs" in module_content
@@ -90,15 +90,15 @@ class TestBusDecoderExporter:
         };
         """
         top = compile_rdl(rdl_source, top="outer_block")
-        
+
         exporter = BusDecoderExporter()
         output_dir = str(tmp_path)
         exporter.export(top, output_dir, cpuif_cls=APB4Cpuif)
-        
+
         # Check that output files are created
         module_file = tmp_path / "outer_block.sv"
         assert module_file.exists()
-        
+
         module_content = module_file.read_text()
         assert "module outer_block" in module_content
         assert "inner" in module_content
@@ -117,18 +117,18 @@ class TestBusDecoderExporter:
         };
         """
         top = compile_rdl(rdl_source, top="my_addrmap")
-        
+
         exporter = BusDecoderExporter()
         output_dir = str(tmp_path)
         exporter.export(top, output_dir, module_name="custom_module", cpuif_cls=APB4Cpuif)
-        
+
         # Check that output files use custom name
         module_file = tmp_path / "custom_module.sv"
         package_file = tmp_path / "custom_module_pkg.sv"
-        
+
         assert module_file.exists()
         assert package_file.exists()
-        
+
         module_content = module_file.read_text()
         assert "module custom_module" in module_content
 
@@ -145,15 +145,15 @@ class TestBusDecoderExporter:
         };
         """
         top = compile_rdl(rdl_source, top="my_addrmap")
-        
+
         exporter = BusDecoderExporter()
         output_dir = str(tmp_path)
         exporter.export(top, output_dir, package_name="custom_pkg", cpuif_cls=APB4Cpuif)
-        
+
         # Check that output files use custom package name
         package_file = tmp_path / "custom_pkg.sv"
         assert package_file.exists()
-        
+
         package_content = package_file.read_text()
         assert "package custom_pkg" in package_content
 
@@ -184,14 +184,14 @@ class TestBusDecoderExporter:
         };
         """
         top = compile_rdl(rdl_source, top="multi_reg")
-        
+
         exporter = BusDecoderExporter()
         output_dir = str(tmp_path)
         exporter.export(top, output_dir, cpuif_cls=APB4Cpuif)
-        
+
         module_file = tmp_path / "multi_reg.sv"
         assert module_file.exists()
-        
+
         module_content = module_file.read_text()
         assert "module multi_reg" in module_content
         assert "reg1" in module_content
@@ -215,14 +215,14 @@ class TestAPB4Interface:
         };
         """
         top = compile_rdl(rdl_source, top="apb_test")
-        
+
         exporter = BusDecoderExporter()
         output_dir = str(tmp_path)
         exporter.export(top, output_dir, cpuif_cls=APB4Cpuif)
-        
+
         module_file = tmp_path / "apb_test.sv"
         module_content = module_file.read_text()
-        
+
         # Check for APB4 signals
         assert "PSEL" in module_content or "psel" in module_content
         assert "PENABLE" in module_content or "penable" in module_content
@@ -245,14 +245,14 @@ class TestAPB4Interface:
         };
         """
         top = compile_rdl(rdl_source, top="apb_rw")
-        
+
         exporter = BusDecoderExporter()
         output_dir = str(tmp_path)
         exporter.export(top, output_dir, cpuif_cls=APB4Cpuif)
-        
+
         module_file = tmp_path / "apb_rw.sv"
         module_content = module_file.read_text()
-        
+
         # Basic sanity checks for logic generation
         assert "always" in module_content or "assign" in module_content
         assert "my_reg" in module_content

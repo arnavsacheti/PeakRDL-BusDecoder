@@ -48,7 +48,7 @@ def compile_rdl(tmp_path: Path):
                 return root.top
             except RDLCompileError:
                 # Print error messages if available
-                if hasattr(compiler, 'print_messages'):
+                if hasattr(compiler, "print_messages"):
                     compiler.print_messages()
                 raise
 

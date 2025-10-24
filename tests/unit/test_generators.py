@@ -27,10 +27,10 @@ class TestDecodeLogicGenerator:
         };
         """
         top = compile_rdl(rdl_source, top="test")
-        
+
         ds = DesignState(top, {})
         gen = DecodeLogicGenerator(ds, DecodeLogicFlavor.READ)
-        
+
         # Basic sanity check - it should initialize
         assert gen is not None
         assert gen._flavor == DecodeLogicFlavor.READ
@@ -48,10 +48,10 @@ class TestDecodeLogicGenerator:
         };
         """
         top = compile_rdl(rdl_source, top="test")
-        
+
         ds = DesignState(top, {})
         gen = DecodeLogicGenerator(ds, DecodeLogicFlavor.WRITE)
-        
+
         assert gen is not None
         assert gen._flavor == DecodeLogicFlavor.WRITE
 
@@ -68,10 +68,10 @@ class TestDecodeLogicGenerator:
         };
         """
         top = compile_rdl(rdl_source, top="test")
-        
+
         ds = DesignState(top, {})
         gen = DecodeLogicGenerator(ds, DecodeLogicFlavor.READ)
-        
+
         # Get the register node
         reg_node = None
         for child in top.children():
@@ -79,9 +79,9 @@ class TestDecodeLogicGenerator:
                 reg_node = child
                 break
         assert reg_node is not None
-        
+
         predicates = gen.cpuif_addr_predicate(reg_node)
-        
+
         # Should return a list of conditions
         assert isinstance(predicates, list)
         assert len(predicates) > 0
@@ -93,10 +93,10 @@ class TestDecodeLogicGenerator:
         """Test DecodeLogicFlavor enum values."""
         assert DecodeLogicFlavor.READ.value == "rd"
         assert DecodeLogicFlavor.WRITE.value == "wr"
-        
+
         assert DecodeLogicFlavor.READ.cpuif_address == "cpuif_rd_addr"
         assert DecodeLogicFlavor.WRITE.cpuif_address == "cpuif_wr_addr"
-        
+
         assert DecodeLogicFlavor.READ.cpuif_select == "cpuif_rd_sel"
         assert DecodeLogicFlavor.WRITE.cpuif_select == "cpuif_wr_sel"
 
@@ -117,14 +117,14 @@ class TestStructGenerator:
         };
         """
         top = compile_rdl(rdl_source, top="test")
-        
+
         ds = DesignState(top, {})
         gen = StructGenerator(ds)
-        
+
         # Should generate struct definition
         assert gen is not None
         result = str(gen)
-        
+
         # Should contain struct declaration
         assert "struct" in result or "typedef" in result
 
@@ -145,20 +145,21 @@ class TestStructGenerator:
         };
         """
         top = compile_rdl(rdl_source, top="outer")
-        
+
         ds = DesignState(top, {})
         gen = StructGenerator(ds)
-        
+
         # Walk the tree to generate structs
         from systemrdl.walker import RDLWalker
+
         walker = RDLWalker()
         walker.walk(top, gen, skip_top=True)
-        
+
         result = str(gen)
-        
+
         # Should contain struct declaration
         assert "struct" in result or "typedef" in result
-        # The struct should reference the inner component 
+        # The struct should reference the inner component
         assert "my_inner" in result
 
     def test_array_struct_generation(self, compile_rdl):
@@ -174,17 +175,18 @@ class TestStructGenerator:
         };
         """
         top = compile_rdl(rdl_source, top="test")
-        
+
         ds = DesignState(top, {})
         gen = StructGenerator(ds)
-        
+
         # Walk the tree to generate structs
         from systemrdl.walker import RDLWalker
+
         walker = RDLWalker()
         walker.walk(top, gen, skip_top=True)
-        
+
         result = str(gen)
-        
+
         # Should contain array notation
         assert "[" in result and "]" in result
         # Should reference the register
@@ -207,9 +209,9 @@ class TestDesignState:
         };
         """
         top = compile_rdl(rdl_source, top="test")
-        
+
         ds = DesignState(top, {})
-        
+
         assert ds.top_node == top
         assert ds.module_name == "test"
         assert ds.package_name == "test_pkg"
@@ -229,9 +231,9 @@ class TestDesignState:
         };
         """
         top = compile_rdl(rdl_source, top="test")
-        
+
         ds = DesignState(top, {"module_name": "custom_module"})
-        
+
         assert ds.module_name == "custom_module"
         assert ds.package_name == "custom_module_pkg"
 
@@ -248,9 +250,9 @@ class TestDesignState:
         };
         """
         top = compile_rdl(rdl_source, top="test")
-        
+
         ds = DesignState(top, {"package_name": "custom_pkg"})
-        
+
         assert ds.package_name == "custom_pkg"
 
     def test_design_state_custom_address_width(self, compile_rdl):
@@ -266,9 +268,9 @@ class TestDesignState:
         };
         """
         top = compile_rdl(rdl_source, top="test")
-        
+
         ds = DesignState(top, {"address_width": 16})
-        
+
         assert ds.addr_width == 16
 
     def test_design_state_unroll_arrays(self, compile_rdl):
@@ -284,9 +286,9 @@ class TestDesignState:
         };
         """
         top = compile_rdl(rdl_source, top="test")
-        
+
         ds = DesignState(top, {"cpuif_unroll": True})
-        
+
         assert ds.cpuif_unroll is True
 
     def test_design_state_64bit_registers(self, compile_rdl):
@@ -303,8 +305,8 @@ class TestDesignState:
         };
         """
         top = compile_rdl(rdl_source, top="test")
-        
+
         ds = DesignState(top, {})
-        
+
         # Should infer 32-bit data width from field
         assert ds.cpuif_data_width == 32

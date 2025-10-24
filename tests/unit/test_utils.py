@@ -106,7 +106,7 @@ class TestGetIndexedPath:
             if child.inst_name == "my_reg":
                 reg_node = child
                 break
-        
+
         assert reg_node is not None
         path = get_indexed_path(top, reg_node)
         assert path == "my_reg"
@@ -132,14 +132,14 @@ class TestGetIndexedPath:
                 inner_node = child
                 break
         assert inner_node is not None
-        
+
         reg_node = None
         for child in inner_node.children():
             if child.inst_name == "my_reg":
                 reg_node = child
                 break
         assert reg_node is not None
-        
+
         path = get_indexed_path(top, reg_node)
         assert path == "inner.my_reg"
 
@@ -159,7 +159,7 @@ class TestGetIndexedPath:
                 reg_node = child
                 break
         assert reg_node is not None
-        
+
         path = get_indexed_path(top, reg_node)
         assert path == "my_reg[i0]"
 
@@ -179,7 +179,7 @@ class TestGetIndexedPath:
                 reg_node = child
                 break
         assert reg_node is not None
-        
+
         path = get_indexed_path(top, reg_node)
         assert path == "my_reg[i0][i1]"
 
@@ -204,14 +204,14 @@ class TestGetIndexedPath:
                 inner_node = child
                 break
         assert inner_node is not None
-        
+
         reg_node = None
         for child in inner_node.children():
             if child.inst_name == "my_reg":
                 reg_node = child
                 break
         assert reg_node is not None
-        
+
         path = get_indexed_path(top, reg_node)
         assert path == "inner[i0].my_reg[i1]"
 
@@ -231,7 +231,7 @@ class TestGetIndexedPath:
                 reg_node = child
                 break
         assert reg_node is not None
-        
+
         path = get_indexed_path(top, reg_node, indexer="idx")
         assert path == "my_reg[idx0]"
 
@@ -251,12 +251,12 @@ class TestGetIndexedPath:
                 reg_node = child
                 break
         assert reg_node is not None
-        
+
         # With keyword filter (default) - SystemRDL identifiers can use keywords but SV can't
         path = get_indexed_path(top, reg_node)
         # The path should contain always_reg
         assert "always_reg" in path
-        
+
         # Without keyword filter
         path = get_indexed_path(top, reg_node, skip_kw_filter=True)
         assert path == "always_reg"
