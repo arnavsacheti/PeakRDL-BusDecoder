@@ -12,6 +12,7 @@
 **/*.pb
 **/.Xil
 **/.coverage.*
+coverage.xml
 
 build/
 dist/

@@ -33,7 +33,7 @@ def test_unroll_disabled_creates_array_interface(sample_rdl):
     with TemporaryDirectory() as tmpdir:
         exporter = BusDecoderExporter()
         exporter.export(
-            sample_rdl.top,
+            sample_rdl,
             tmpdir,
             cpuif_cls=APB4Cpuif,
             cpuif_unroll=False,
@@ -61,7 +61,7 @@ def test_unroll_enabled_creates_individual_interfaces(sample_rdl):
     with TemporaryDirectory() as tmpdir:
         exporter = BusDecoderExporter()
         exporter.export(
-            sample_rdl.top,
+            sample_rdl,
             tmpdir,
             cpuif_cls=APB4Cpuif,
             cpuif_unroll=True,
@@ -95,7 +95,7 @@ def test_unroll_with_apb3(sample_rdl):
     with TemporaryDirectory() as tmpdir:
         exporter = BusDecoderExporter()
         exporter.export(
-            sample_rdl.top,
+            sample_rdl,
             tmpdir,
             cpuif_cls=APB3Cpuif,
             cpuif_unroll=True,
@@ -138,7 +138,7 @@ def test_unroll_multidimensional_array(multidim_array_rdl):
     with TemporaryDirectory() as tmpdir:
         exporter = BusDecoderExporter()
         exporter.export(
-            multidim_array_rdl.top,
+            multidim_array_rdl,
             tmpdir,
             cpuif_cls=APB4Cpuif,
             cpuif_unroll=True,

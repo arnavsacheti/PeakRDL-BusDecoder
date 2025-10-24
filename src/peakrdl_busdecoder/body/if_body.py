@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from textwrap import indent
 from types import EllipsisType
-from typing import Self
+
+from typing_extensions import Self
 
 from .body import Body, SupportsStr
 
