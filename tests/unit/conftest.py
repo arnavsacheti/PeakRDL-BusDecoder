@@ -43,10 +43,14 @@ def compile_rdl(tmp_path: Path):
             try:
                 compiler.compile_file(tmp_file.name)
                 if top is not None:
-                    return compiler.elaborate(top)
-                return compiler.elaborate()
+                    root = compiler.elaborate(top)
+                    return root.top
+                root = compiler.elaborate()
+                return root.top
             except RDLCompileError:
-                compiler.print_messages()
+                # Print error messages if available
+                if hasattr(compiler, "print_messages"):
+                    compiler.print_messages()
                 raise
 
     return _compile
