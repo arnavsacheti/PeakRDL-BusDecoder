@@ -56,11 +56,13 @@ def ref_is_internal(top_node: AddrmapNode, ref: Node | PropertyReference) -> boo
 
     For the sake of this exporter, root signals are treated as internal.
     """
+    current_node: Node | None
     if isinstance(ref, PropertyReference):
         current_node = ref.node
     else:
         current_node = ref
 
+    # pyrefly: ignore[bad-assignment] - false positive due to circular type checking
     while current_node is not None:
         if current_node == top_node:
             # reached top node without finding any external components

@@ -1,5 +1,6 @@
 from collections import deque
 from enum import Enum
+from typing import cast
 
 from systemrdl.node import AddressableNode
 from systemrdl.walker import WalkerAction
@@ -101,7 +102,8 @@ class DecodeLogicGenerator(BusDecoderListener):
             self._decode_stack.append(IfBody())
         elif isinstance(self._decode_stack[-1], IfBody):
             # non-arrayed component with if-body
-            with self._decode_stack[-1].cm(condition) as b:
+            ifb = cast(IfBody, self._decode_stack[-1])
+            with ifb.cm(condition) as b:
                 b += f"{self._flavor.cpuif_select}.{get_indexed_path(self._ds.top_node, node)} = 1'b1;"
         else:
             raise RuntimeError("Invalid decode stack state")
@@ -128,7 +130,8 @@ class DecodeLogicGenerator(BusDecoderListener):
                 continue
 
             if isinstance(self._decode_stack[-1], IfBody):
-                with self._decode_stack[-1].cm(self._cond_stack.pop()) as parent_b:
+                ifb = cast(IfBody, self._decode_stack[-1])
+                with ifb.cm(self._cond_stack.pop()) as parent_b:
                     parent_b += b
             else:
                 self._decode_stack[-1] += b

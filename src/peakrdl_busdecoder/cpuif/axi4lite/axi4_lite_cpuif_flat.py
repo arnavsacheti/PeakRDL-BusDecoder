@@ -19,6 +19,7 @@ class AXI4LiteCpuifFlat(BaseCpuif):
 
         # Only add array dimensions if this should be treated as an array
         if self.check_is_array(child):
+            assert child.array_dimensions is not None
             return f"{base} {''.join(f'[{dim}]' for dim in child.array_dimensions)}"
 
         return base
