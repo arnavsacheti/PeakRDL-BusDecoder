@@ -1,175 +1,51 @@
-name: build
+name: Build
 
 on:
   push:
-    branches:
-      - main
-      - 'dev/**'
+    branches: [ main ]
   pull_request:
     branches: [ main ]
-  release:
-    types:
-      - published
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
+  workflow_call:
 
 jobs:
-  test:
-    strategy:
-      matrix:
-        python-version:
-          - "3.10"
-          - "3.11"
-          - "3.12"
-          - "3.13"
-          - "3.14"
-        include:
-          - os: ubuntu-latest
-
-    runs-on: ${{ matrix.os }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Setup UV
-        uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-          python-version: ${{ inputs.python-version }}
-          install-uv: true
-
-      - name: Test
-        run: |
-          uv sync --all-extras --group test
-          cd tests
-          uvx pytest --cov=peakrdl_busdecoder --synth-tool skip --sim-tool stub
-
-      - name: Coveralls
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          COVERALLS_PARALLEL: true
-        run: |
-          cd tests
-          uvx coveralls --service=github
-
-  finish_coveralls:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Setup UV
-        uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-          python-version: "3.10"
-          install-uv: true
-
-      - name: Coveralls
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          COVERALLS_PARALLEL: true
-        run: |
-          python -m pip install coveralls>=3.0.0
-          uvx coveralls --service=github --finish
-
-#-------------------------------------------------------------------------------
-  format:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Setup UV
-        uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-          python-version: "3.10"
-          install-uv: true
-          
-      - name: Ruff format (check only)
-        run: uvx ruff format --check .
-
-#-------------------------------------------------------------------------------
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Setup UV
-        uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-          python-version: "3.10"
-          install-uv: true
-
-      - name: Ruff lint
-        run: uvx ruff check --output-format=github .
-
-#-------------------------------------------------------------------------------
-  typecheck:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Setup UV
-        uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-          python-version: "3.10"
-          install-uv: true
-
-      - name: Pyrefly type check
-        run: uvx pyrefly check --summarize-errors
-
-#-------------------------------------------------------------------------------
   build:
-    needs:
-      - test
-      - format
-      - lint
-      - typecheck
-    name: Build distributions
     runs-on: ubuntu-latest
+    needs: [lint, typecheck, format, test]
+    permissions:
+      contents: read
+    
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Setup UV
-        uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v4
+      
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+      
+      - name: Build package
+        run: uvx --from build pyproject-build --installer uv
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
         with:
-          enable-cache: true
-          python-version: "3.10"
-          install-uv: true
-
-      - name: Build Package
-        run: uv build
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: |
-            dist/*.tar.gz
-            dist/*.whl
-
-#-------------------------------------------------------------------------------
-  # deploy:
-  #   needs:
-  #     - build
-
-  #   runs-on: ubuntu-latest
-  #   environment: release
-  #   permissions:
-  #     id-token: write
-
-  #   # Only publish when a GitHub Release is created.
-  #   if: github.event_name == 'release'
-  #   steps:
-  #     - uses: actions/download-artifact@v4
-  #       with:
-  #         name: dist
-  #         path: dist
-
-  #     - uses: pypa/gh-action-pypi-publish@release/v1
+          name: dist-packages
+          path: dist/
+  
+  lint:
+    uses: ./.github/workflows/lint.yml
+    permissions:
+      contents: read
+  
+  typecheck:
+    uses: ./.github/workflows/typecheck.yml
+    permissions:
+      contents: read
+  
+  format:
+    uses: ./.github/workflows/format.yml
+    permissions:
+      contents: read
+  
+  test:
+    uses: ./.github/workflows/test.yml
+    permissions:
+      contents: read

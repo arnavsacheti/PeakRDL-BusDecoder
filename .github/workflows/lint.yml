@@ -1,0 +1,23 @@
+name: Lint
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+      
+      - name: Run ruff check
+        run: uvx ruff check .

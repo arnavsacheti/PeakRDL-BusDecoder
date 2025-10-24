@@ -1,0 +1,26 @@
+name: Type Check
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+      
+      - name: Install package
+        run: uv sync --extra cli
+      
+      - name: Run pyrefly type check
+        run: uvx pyrefly check src/
