@@ -17,10 +17,7 @@ from peakrdl_busdecoder.cpuif.apb3 import APB3Cpuif
 from peakrdl_busdecoder.cpuif.apb4 import APB4Cpuif
 from peakrdl_busdecoder.cpuif.axi4lite import AXI4LiteCpuif
 
-import sys
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from common.utils import compile_rdl_and_export, get_verilog_sources
+from ..common.utils import compile_rdl_and_export, get_verilog_sources
 
 
 class TestCodeGeneration:

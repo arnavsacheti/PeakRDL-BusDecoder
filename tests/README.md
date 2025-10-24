@@ -14,7 +14,11 @@ package to elaborate inline SystemRDL snippets.
 Create an isolated environment if desired and install the minimal requirements:
 
 ```bash
-python -m pip install -e .[test]
+# Using uv (recommended)
+uv sync --group test
+
+# Or using pip
+python -m pip install -e . parameterized pytest pytest-cov pytest-xdist
 ```
 
 ### Running the suite
@@ -39,8 +43,11 @@ through simulation. These tests generate bus decoders for different CPU interfac
 ### Install dependencies
 
 ```bash
-# Install with cocotb support
-python -m pip install -e .[cocotb-test]
+# Install with cocotb support using uv (recommended)
+uv sync --group cocotb-test
+
+# Or using pip
+python -m pip install -e . cocotb cocotb-bus
 
 # Install HDL simulator (choose one)
 apt-get install iverilog  # Icarus Verilog

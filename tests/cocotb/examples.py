@@ -12,6 +12,7 @@ To run actual cocotb simulations, you need:
 - cocotb and cocotb-bus Python packages
 """
 
+import sys
 import tempfile
 from pathlib import Path
 
@@ -19,11 +20,7 @@ from peakrdl_busdecoder.cpuif.apb3 import APB3Cpuif
 from peakrdl_busdecoder.cpuif.apb4 import APB4Cpuif
 from peakrdl_busdecoder.cpuif.axi4lite import AXI4LiteCpuif
 
-# Import test utilities
-import sys
-
-sys.path.insert(0, str(Path(__file__).parent))
-from common.utils import compile_rdl_and_export
+from .common.utils import compile_rdl_and_export
 
 
 def example_apb4_simple_register():
