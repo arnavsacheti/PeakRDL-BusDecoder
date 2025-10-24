@@ -12,15 +12,15 @@ class APB3Cpuif(BaseCpuif):
 
     def _port_declaration(self, child: AddressableNode) -> str:
         base = f"apb3_intf.master m_apb_{child.inst_name}"
-        
+
         # When unrolled, current_idx is set - append it to the name
         if child.current_idx is not None:
             base = f"{base}_{'_'.join(map(str, child.current_idx))}"
-        
+
         # Only add array dimensions if this should be treated as an array
         if self.check_is_array(child):
             return f"{base} {''.join(f'[{dim}]' for dim in child.array_dimensions)}"
-        
+
         return base
 
     @property

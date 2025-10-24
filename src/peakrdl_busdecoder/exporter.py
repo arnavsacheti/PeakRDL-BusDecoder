@@ -57,8 +57,8 @@ class BusDecoderExporter:
             loader=c_loader,
             undefined=jj.StrictUndefined,
         )
-        self.jj_env.filters["kwf"] = kwf # type: ignore
-        self.jj_env.filters["walk"] = self.walk # type: ignore
+        self.jj_env.filters["kwf"] = kwf  # type: ignore
+        self.jj_env.filters["walk"] = self.walk  # type: ignore
 
     def export(self, node: RootNode | AddrmapNode, output_dir: str, **kwargs: Unpack[ExporterKwargs]) -> None:
         """
@@ -129,7 +129,7 @@ class BusDecoderExporter:
         stream = template.stream(context)
         stream.dump(module_file_path)
 
-    def walk(self, listener_cls: type[BusDecoderListener], **kwargs: Any) -> str:
+    def walk(self, listener_cls: type[BusDecoderListener], **kwargs: dict[str, Any]) -> str:
         walker = RDLSteerableWalker()
         listener = listener_cls(self.ds, **kwargs)
         walker.walk(self.ds.top_node, listener, skip_top=True)

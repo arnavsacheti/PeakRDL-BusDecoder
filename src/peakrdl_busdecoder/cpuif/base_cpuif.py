@@ -73,7 +73,7 @@ class BaseCpuif:
     def check_is_array(self, node: AddressableNode) -> bool:
         # When unrolling is enabled, children(unroll=True) returns individual
         # array elements with current_idx set. These should NOT be treated as arrays.
-        if self.unroll and hasattr(node, 'current_idx') and node.current_idx is not None:
+        if self.unroll and hasattr(node, "current_idx") and node.current_idx is not None:
             return False
         return node.is_array
 
