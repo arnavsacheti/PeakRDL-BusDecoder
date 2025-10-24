@@ -1,0 +1,39 @@
+# Makefile for cocotb simulation
+# This makefile can be used to run cocotb tests with Icarus Verilog or other simulators
+
+# Defaults
+SIM ?= icarus
+TOPLEVEL_LANG ?= verilog
+
+# Project paths
+REPO_ROOT := $(shell git rev-parse --show-toplevel)
+HDL_SRC_DIR := $(REPO_ROOT)/hdl-src
+TEST_DIR := $(REPO_ROOT)/tests/cocotb
+COMMON_DIR := $(TEST_DIR)/common
+
+# Python paths
+export PYTHONPATH := $(REPO_ROOT):$(TEST_DIR):$(PYTHONPATH)
+
+# Simulator options
+COMPILE_ARGS += -g2012  # SystemVerilog 2012
+EXTRA_ARGS += --trace --trace-structs
+
+# Common sources (interfaces)
+VERILOG_SOURCES += $(HDL_SRC_DIR)/apb4_intf.sv
+VERILOG_SOURCES += $(HDL_SRC_DIR)/apb3_intf.sv
+VERILOG_SOURCES += $(HDL_SRC_DIR)/axi4lite_intf.sv
+
+# Test-specific configuration
+# These should be overridden by test-specific makefiles
+
+# Example usage:
+# To run APB4 test:
+#   make -f Makefile.apb4 test_simple
+#
+# To run all tests:
+#   make -f Makefile.apb4 test
+#   make -f Makefile.apb3 test
+#   make -f Makefile.axi4lite test
+
+# Include cocotb's make rules to build/run simulation
+include $(shell cocotb-config --makefiles)/Makefile.sim

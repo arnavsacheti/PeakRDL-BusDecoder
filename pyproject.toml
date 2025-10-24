@@ -59,6 +59,8 @@ test = [
     "pytest>=7.4.4",
     "pytest-cov>=4.1.0",
     "pytest-xdist>=3.5.0",
+    "cocotb>=1.8.0",
+    "cocotb-bus>=0.2.1",
 ]
 tools = ["pyrefly>=0.37.0", "ruff>=0.14.0"]
 
