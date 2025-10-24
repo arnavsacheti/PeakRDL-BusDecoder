@@ -21,7 +21,11 @@ These tests:
 ### Install Dependencies
 
 ```bash
-pip install -e .[cocotb-test]
+# Using uv (recommended)
+uv sync --group test
+
+# Or using pip
+pip install -e .[test]
 ```
 
 ### Run All Cocotb Tests

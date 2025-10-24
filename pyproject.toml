@@ -57,8 +57,6 @@ test = [
     "pytest>=7.4.4",
     "pytest-cov>=4.1.0",
     "pytest-xdist>=3.5.0",
-]
-cocotb-test = [
     "cocotb>=1.8.0",
     "cocotb-bus>=0.2.1",
 ]

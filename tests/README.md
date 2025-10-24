@@ -44,10 +44,10 @@ through simulation. These tests generate bus decoders for different CPU interfac
 
 ```bash
 # Install with cocotb support using uv (recommended)
-uv sync --group cocotb-test
+uv sync --group test
 
 # Or using pip
-python -m pip install -e . cocotb cocotb-bus
+python -m pip install -e . parameterized pytest pytest-cov pytest-xdist cocotb cocotb-bus
 
 # Install HDL simulator (choose one)
 apt-get install iverilog  # Icarus Verilog
