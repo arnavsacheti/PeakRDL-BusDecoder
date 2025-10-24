@@ -1,6 +1,6 @@
 .. _peakrdl_cfg:
 
-Configuring PeakRDL-busdecoder
+Configuring PeakRDL-BusDecoder
 ============================
 
 If using the `PeakRDL command line tool <https://peakrdl.readthedocs.io/>`_,

@@ -4,82 +4,76 @@ Introduction
 Although the official SystemRDL spec defines numerous properties that allow you
 to define complex register map structures, sometimes they are not enough to
 accurately describe a necessary feature. Fortunately the SystemRDL spec allows
-the language to be extended using "User Defined Properties" (UDPs). The
-PeakRDL-busdecoder tool understands several UDPs that are described in this
-section.
+the language to be extended using "User Defined Properties" (UDPs).
 
-To enable these UDPs, compile this RDL file prior to the rest of your design:
-:download:`busdecoder_udps.rdl <../../hdl-src/busdecoder_udps.rdl>`.
+Current UDP Support
+-------------------
 
-.. list-table:: Summary of UDPs
-    :header-rows: 1
+**Note:** PeakRDL-BusDecoder currently does not implement any User Defined Properties.
+The focus of this tool is on bus decoding and address space routing rather than 
+field-level or register-level behavioral extensions.
 
-    *   - Name
-        - Component
-        - Type
-        - Description
+If you need UDPs for field-level behaviors (such as buffering, signedness, or 
+fixed-point representations), consider using `PeakRDL-regblock <https://github.com/SystemRDL/PeakRDL-regblock>`_,
+which is designed for comprehensive register block generation with extensive UDP support.
 
-    *   - buffer_reads
-        - reg
-        - boolean
-        - If set, reads from the register are double-buffered.
+Extending with Custom UDPs
+---------------------------
 
-          See: :ref:`read_buffering`.
+If your bus decoder design requires custom User Defined Properties, you can extend
+PeakRDL-BusDecoder by:
 
-    *   - rbuffer_trigger
-        - reg
-        - reference
-        - Defines the buffered read load trigger.
+1. **Define your UDP in SystemRDL**
 
-          See: :ref:`read_buffering`.
+   Create a ``.rdl`` file that defines your custom properties:
 
-    *   - buffer_writes
-        - reg
-        - boolean
-        - If set, writes to the register are double-buffered.
+   .. code-block:: systemrdl
 
-          See: :ref:`write_buffering`.
+      property my_custom_prop {
+          component = addrmap;
+          type = boolean;
+      };
 
-    *   - wbuffer_trigger
-        - reg
-        - reference
-        - Defines the buffered write commit trigger.
+2. **Implement the UDP in Python**
 
-          See: :ref:`write_buffering`.
+   Create a Python UDP definition class in your project:
 
-    *   - rd_swacc
-        - field
-        - boolean
-        - Enables an output strobe that is asserted on sw reads.
+   .. code-block:: python
 
-          See: :ref:`extended_swacc`.
+      from systemrdl.udp import UDPDefinition
 
-    *   - wr_swacc
-        - field
-        - boolean
-        - Enables an output strobe that is asserted on sw writes.
+      class MyCustomUDP(UDPDefinition):
+          name = "my_custom_prop"
+          valid_components = {"addrmap"}
+          valid_type = bool
+          default = False
 
-          See: :ref:`extended_swacc`.
+3. **Register the UDP with the compiler**
 
-    *   - is_signed
-        - field
-        - boolean
-        - Defines the signedness of a field.
+   When using PeakRDL-BusDecoder programmatically, register your UDP:
 
-          See: :ref:`signed`.
+   .. code-block:: python
 
-    *   - intwidth
-        - field
-        - unsigned integer
-        - Defines the number of integer bits in the fixed-point representation
-          of a field.
+      from systemrdl import RDLCompiler
+      from peakrdl_busdecoder import BusDecoderExporter
 
-          See: :ref:`fixedpoint`.
+      rdlc = RDLCompiler()
+      rdlc.register_udp(MyCustomUDP)
+      
+      # Compile your RDL files
+      rdlc.compile_file("my_udp_defs.rdl")
+      rdlc.compile_file("my_design.rdl")
+      
+      root = rdlc.elaborate()
+      
+      # Export
+      exporter = BusDecoderExporter()
+      exporter.export(root, "output/")
 
-    *   - fracwidth
-        - field
-        - unsigned integer
-        - Defines the number of fractional bits in the fixed-point representation
-          of a field.
+4. **Access UDP values in your design**
 
-          See: :ref:`fixedpoint`.
+   UDP values can be accessed from nodes in the SystemRDL tree and used to
+   customize the generated bus decoder logic as needed.
+
+For more information on creating User Defined Properties, see the 
+`SystemRDL Compiler documentation <https://systemrdl-compiler.readthedocs.io/en/stable/model_structure.html#user-defined-properties>`_.

@@ -58,7 +58,7 @@ def get_cpuifs(config: list[tuple[str, Any]]) -> dict[str, type[BaseCpuif]]:
 
 
 class Exporter(ExporterSubcommandPlugin):
-    short_desc = "Generate a SystemVerilog control/status register (CSR) block"
+    short_desc = "Generate a SystemVerilog bus decoder for splitting CPU interfaces to sub-address spaces"
 
     udp_definitions = ALL_UDPS
 

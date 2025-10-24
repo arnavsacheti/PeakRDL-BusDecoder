@@ -1,9 +1,11 @@
 Register Block Architecture
 ===========================
 
-The generated register block RTL is organized into several sections.
+The generated bus decoder RTL is organized into several sections.
 Each section is automatically generated based on the source register model and
-is rendered into the output register block SystemVerilog RTL.
+is rendered into the output SystemVerilog RTL module. The bus decoder serves as 
+an address decode and routing layer that splits a single CPU interface into 
+multiple sub-address spaces corresponding to child addrmaps in your SystemRDL design.
 
 .. figure:: diagrams/arch.png
 
@@ -17,14 +19,17 @@ CPU Interface
 The CPU interface logic layer provides an abstraction between the
 application-specific bus protocol and the internal register file logic.
 This logic layer normalizes external CPU read & write transactions into a common
-:ref:`cpuif_protocol` that is used to interact with the register file.
+:ref:`cpuif_protocol` that is used to interact with the register file. When the 
+design contains multiple child addrmaps, the CPU interface handles fanout of 
+transactions to the appropriate sub-address space.
 
 
 Address Decode
 --------------
 A common address decode operation is generated which computes individual access
-strobes for each software-accessible register in the design.
-This operation is performed completely combinationally.
+strobes for each software-accessible register or child addrmap in the design.
+This operation is performed completely combinationally. The decoder determines 
+which sub-address space should handle each transaction based on the address range.
 
 
 Field Logic
