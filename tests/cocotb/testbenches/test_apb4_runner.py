@@ -1,6 +1,7 @@
 """Pytest test runner for APB4 cocotb tests."""
 
 import os
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -13,6 +14,19 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from common.utils import compile_rdl_and_export
+
+
+# Check if Icarus Verilog is available
+def is_simulator_available():
+    """Check if Icarus Verilog simulator is available."""
+    return shutil.which("iverilog") is not None
+
+
+# Skip tests if simulator is not available
+skip_if_no_simulator = pytest.mark.skipif(
+    not is_simulator_available(),
+    reason="Requires Icarus Verilog or other simulator to be installed"
+)
 
 
 def generate_testbench_wrapper(top_name, slave_ports, tmpdir_path):
@@ -125,7 +139,7 @@ endmodule
     return tb_path
 
 
-@pytest.mark.skip(reason="Requires Icarus Verilog or other simulator to be installed")
+@skip_if_no_simulator
 def test_apb4_simple_register():
     """Test APB4 decoder with a simple register."""
     rdl_source = """
@@ -178,7 +192,7 @@ def test_apb4_simple_register():
         )
 
 
-@pytest.mark.skip(reason="Requires Icarus Verilog or other simulator to be installed")
+@skip_if_no_simulator
 def test_apb4_multiple_registers():
     """Test APB4 decoder with multiple registers."""
     rdl_source = """
