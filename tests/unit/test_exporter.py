@@ -256,3 +256,76 @@ class TestAPB4Interface:
         # Basic sanity checks for logic generation
         assert "always" in module_content or "assign" in module_content
         assert "my_reg" in module_content
+
+    def test_nested_addrmap_with_array_stride(self, compile_rdl, tmp_path):
+        """Test that nested addrmaps with arrays use correct stride values."""
+        rdl_source = """
+        addrmap inner_block {
+            reg {
+                field {
+                    sw=rw;
+                    hw=r;
+                } data[31:0];
+            } inner_reg @ 0x0;
+        };
+        
+        addrmap outer_block {
+            inner_block inner[4] @ 0x0 += 0x100;
+            
+            reg {
+                field {
+                    sw=rw;
+                    hw=r;
+                } outer_data[31:0];
+            } outer_reg @ 0x400;
+        };
+        """
+        top = compile_rdl(rdl_source, top="outer_block")
+
+        exporter = BusDecoderExporter()
+        output_dir = str(tmp_path)
+        exporter.export(top, output_dir, cpuif_cls=APB4Cpuif)
+
+        module_file = tmp_path / "outer_block.sv"
+        module_content = module_file.read_text()
+
+        # Check that the generated code uses the correct stride (0x100 = 256)
+        # not the array dimension (4)
+        # The decode logic should contain something like: i0)*11'h100 or i0)*256
+        assert "i0)*11'h100" in module_content or "i0)*'h100" in module_content, \
+            "Array stride should be 0x100 (256), not the dimension value (4)"
+        
+        # Ensure it's NOT using the incorrect dimension value
+        assert (
+            "i0)*11'h4" not in module_content
+            and "i0)*4" not in module_content
+        ), "Should not use array dimension (4) as stride"
+
+    def test_multidimensional_array_strides(self, compile_rdl, tmp_path):
+        """Test that multidimensional arrays calculate correct strides for each dimension."""
+        rdl_source = """
+        addrmap test_block {
+            reg {
+                field {
+                    sw=rw;
+                    hw=r;
+                } data[31:0];
+            } my_reg[2][3] @ 0x0;
+        };
+        """
+        top = compile_rdl(rdl_source, top="test_block")
+
+        exporter = BusDecoderExporter()
+        output_dir = str(tmp_path)
+        exporter.export(top, output_dir, cpuif_cls=APB4Cpuif)
+
+        module_file = tmp_path / "test_block.sv"
+        module_content = module_file.read_text()
+
+        # For a [2][3] array where each register is 4 bytes:
+        # i0 (leftmost/slowest) should have stride = 3 * 4 = 12 (0xc)
+        # i1 (rightmost/fastest) should have stride = 4 (0x4)
+        assert ("i0)*5'hc" in module_content or "i0)*12" in module_content), \
+            "i0 should use stride 12 (0xc) for [2][3] array"
+        assert ("i1)*5'h4" in module_content or "i1)*4" in module_content), \
+            "i1 should use stride 4 for [2][3] array"
