@@ -54,11 +54,13 @@ class APB3CpuifFlat(BaseCpuif):
 
         # Master signal
         base = f"m_apb_{node.inst_name}"
-        if not node.is_array:
+        if not self.check_is_array(node):
+            # Not an array or an unrolled element
+            if node.current_idx is not None:
+                # This is a specific instance of an unrolled array
+                return f"{base}_{signal}_{'_'.join(map(str, node.current_idx))}"
             return f"{base}_{signal}"
-        if node.current_idx is not None:
-            # This is a specific instance of an array
-            return f"{base}_{signal}_{'_'.join(map(str, node.current_idx))}"
+        # Is an array
         if idx is not None:
             return f"{base}_{signal}[{idx}]"
         return f"{base}_{signal}[N_{node.inst_name.upper()}S]"

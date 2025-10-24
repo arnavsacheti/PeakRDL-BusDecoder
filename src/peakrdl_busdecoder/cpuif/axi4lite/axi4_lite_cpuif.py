@@ -12,11 +12,16 @@ class AXI4LiteCpuif(BaseCpuif):
 
     def _port_declaration(self, child: AddressableNode) -> str:
         base = f"axi4lite_intf.master m_axil_{child.inst_name}"
-        if child.array_dimensions is None:
-            return base
+        
+        # When unrolled, current_idx is set - append it to the name
         if child.current_idx is not None:
-            return f"{base}_{'_'.join(map(str, child.current_idx))} {''.join(f'[{dim}]' for dim in child.array_dimensions)}"
-        return f"{base} {''.join(f'[{dim}]' for dim in child.array_dimensions)}"
+            base = f"{base}_{'_'.join(map(str, child.current_idx))}"
+        
+        # Only add array dimensions if this should be treated as an array
+        if self.check_is_array(child):
+            return f"{base} {''.join(f'[{dim}]' for dim in child.array_dimensions)}"
+        
+        return base
 
     @property
     def port_declaration(self) -> str:
