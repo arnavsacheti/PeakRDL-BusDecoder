@@ -35,17 +35,21 @@ def compile_rdl(tmp_path: Path):
         for include_path in include_paths or ():
             compiler.add_include_path(str(include_path))
 
-        with NamedTemporaryFile("w", suffix=".rdl", dir=tmp_path) as tmp_file:
+        with NamedTemporaryFile("w", suffix=".rdl", dir=tmp_path, delete=False) as tmp_file:
             tmp_file.write(source)
             tmp_file.flush()
 
             try:
                 compiler.compile_file(tmp_file.name)
                 if top is not None:
-                    return compiler.elaborate(top)
-                return compiler.elaborate()
+                    root = compiler.elaborate(top)
+                    return root.top
+                root = compiler.elaborate()
+                return root.top
             except RDLCompileError:
-                compiler.print_messages()
+                # Print error messages if available
+                if hasattr(compiler, 'print_messages'):
+                    compiler.print_messages()
                 raise
 
     return _compile
