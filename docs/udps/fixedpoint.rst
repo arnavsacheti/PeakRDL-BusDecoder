@@ -23,7 +23,7 @@ Fields can be declared as fixed-point numbers using the following two properties
 The :ref:`is_signed<signed>` property can be used in conjunction with these
 properties to declare signed fixed-point fields.
 
-These UDP definitions, along with others supported by PeakRDL-busdecoder, can be
+These UDP definitions, along with others supported by PeakRDL-BusDecoder, can be
 enabled by compiling the following file along with your design:
 :download:`busdecoder_udps.rdl <../../hdl-src/busdecoder_udps.rdl>`.
 

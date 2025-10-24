@@ -94,7 +94,7 @@ Via a package's entry point definition
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 If you are publishing a collection of PeakRDL plugins as an installable Python
 package, you can advertise them to PeakRDL using an entry point.
-This advertises your custom CPUIF class to the PeakRDL-busdecoder tool as a plugin
+This advertises your custom CPUIF class to the PeakRDL-BusDecoder tool as a plugin
 that should be loaded, and made available as a command-line option in PeakRDL.
 
 .. code-block:: toml
@@ -104,7 +104,7 @@ that should be loaded, and made available as a command-line option in PeakRDL.
 
 
 *   ``my_package``: The name of your installable Python module
-*   ``peakrdl-busdecoder.cpuif``: This is the namespace that PeakRDL-busdecoder will
+*   ``peakrdl-busdecoder.cpuif``: This is the namespace that PeakRDL-BusDecoder will
     search. Any cpuif plugins you create must be enclosed in this namespace in
     order to be discovered.
 *   ``my_package.my_module:MyCPUIF``: This is the import path that

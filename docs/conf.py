@@ -19,7 +19,7 @@ import datetime
 
 # -- Project information -----------------------------------------------------
 
-project = "PeakRDL-busdecoder"
+project = "PeakRDL-BusDecoder"
 copyright = "%d, Alex Mykyta" % datetime.datetime.now().year
 author = "Alex Mykyta"
 
@@ -53,7 +53,7 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 html_theme = "sphinx_book_theme"
 
 html_theme_options = {
-    "repository_url": "https://github.com/arnavsacheti/PeakRDL-busdecoder",
+    "repository_url": "https://github.com/arnavsacheti/PeakRDL-BusDecoder",
     "path_to_docs": "docs",
     "use_download_button": False,
     "use_source_button": True,

@@ -33,7 +33,7 @@ properties:
 .. literalinclude:: ../../hdl-src/busdecoder_udps.rdl
     :lines: 20-28
 
-These UDP definitions, along with others supported by PeakRDL-busdecoder can be
+These UDP definitions, along with others supported by PeakRDL-BusDecoder can be
 enabled by compiling the following file along with your design:
 :download:`busdecoder_udps.rdl <../../hdl-src/busdecoder_udps.rdl>`.
 

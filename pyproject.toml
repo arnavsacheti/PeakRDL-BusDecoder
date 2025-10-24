@@ -41,9 +41,9 @@ classifiers = [
 cli = ["peakrdl-cli >= 1.2.3"]
 
 [project.urls]
-Source = "https://github.com/arnavsacheti/PeakRDL-busdecoder"
-Tracker = "https://github.com/arnavsacheti/PeakRDL-busdecoder/issues"
-Changelog = "https://github.com/arnavsacheti/PeakRDL-busdecoder/releases"
+Source = "https://github.com/arnavsacheti/PeakRDL-BusDecoder"
+Tracker = "https://github.com/arnavsacheti/PeakRDL-BusDecoder/issues"
+Changelog = "https://github.com/arnavsacheti/PeakRDL-BusDecoder/releases"
 Documentation = "https://peakrdl-busdecoder.readthedocs.io/"
 
 [dependency-groups]

@@ -17,7 +17,7 @@ A field can be marked as signed using the following user-defined property:
 .. literalinclude:: ../../hdl-src/busdecoder_udps.rdl
     :lines: 40-44
 
-This UDP definition, along with others supported by PeakRDL-busdecoder, can be
+This UDP definition, along with others supported by PeakRDL-BusDecoder, can be
 enabled by compiling the following file along with your design:
 :download:`busdecoder_udps.rdl <../../hdl-src/busdecoder_udps.rdl>`.
 

@@ -1,7 +1,7 @@
 Introduction
 ============
 
-PeakRDL-busdecoder is a free and open-source control & status register (CSR) compiler.
+PeakRDL-BusDecoder is a free and open-source control & status register (CSR) compiler.
 This code generator translates your SystemRDL register description into
 a synthesizable SystemVerilog RTL module that can be easily instantiated into
 your hardware design.
@@ -14,11 +14,11 @@ your hardware design.
 
 Quick Start
 -----------
-The easiest way to use PeakRDL-busdecoder is via the  `PeakRDL command line tool <https://peakrdl.readthedocs.io/>`_:
+The easiest way to use PeakRDL-BusDecoder is via the  `PeakRDL command line tool <https://peakrdl.readthedocs.io/>`_:
 
 .. code-block:: bash
 
-    # Install PeakRDL-busdecoder along with the command-line tool
+    # Install PeakRDL-BusDecoder along with the command-line tool
     python3 -m pip install peakrdl-busdecoder[cli]
 
     # Export!
@@ -29,15 +29,15 @@ Looking for VHDL?
 -----------------
 This project generates SystemVerilog RTL. If you prefer using VHDL, check out
 the sister project which aims to be a feature-equivalent fork of
-PeakRDL-busdecoder: `PeakRDL-busdecoder-VHDL <https://peakrdl-busdecoder-vhdl.readthedocs.io>`_
+PeakRDL-BusDecoder: `PeakRDL-busdecoder-VHDL <https://peakrdl-busdecoder-vhdl.readthedocs.io>`_
 
 
 Links
 -----
 
-- `Source repository <https://github.com/arnavsacheti/PeakRDL-busdecoder>`_
-- `Release Notes <https://github.com/arnavsacheti/PeakRDL-busdecoder/releases>`_
-- `Issue tracker <https://github.com/arnavsacheti/PeakRDL-busdecoder/issues>`_
+- `Source repository <https://github.com/arnavsacheti/PeakRDL-BusDecoder>`_
+- `Release Notes <https://github.com/arnavsacheti/PeakRDL-BusDecoder/releases>`_
+- `Issue tracker <https://github.com/arnavsacheti/PeakRDL-BusDecoder/issues>`_
 - `PyPi <https://pypi.org/project/peakrdl-busdecoder>`_
 - `SystemRDL Specification <http://accellera.org/downloads/standards/systemrdl>`_
 
