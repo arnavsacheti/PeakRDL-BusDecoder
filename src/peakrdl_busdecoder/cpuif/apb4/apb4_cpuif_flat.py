@@ -1,5 +1,6 @@
 from systemrdl.node import AddressableNode
 
+from ...utils import get_indexed_path
 from ..base_cpuif import BaseCpuif
 
 
@@ -65,3 +66,39 @@ class APB4CpuifFlat(BaseCpuif):
         if idx is not None:
             return f"{base}_{signal}[{idx}]"
         return f"{base}_{signal}[N_{node.inst_name.upper()}S]"
+
+    def fanout(self, node: AddressableNode) -> str:
+        fanout: dict[str, str] = {}
+        fanout[self.signal("PSELx", node)] = (
+            f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'i')}|cpuif_rd_sel.{get_indexed_path(self.exp.ds.top_node, node, 'i')}"
+        )
+        fanout[self.signal("PENABLE", node)] = self.signal("PENABLE")
+        fanout[self.signal("PWRITE", node)] = (
+            f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'i')}"
+        )
+        fanout[self.signal("PADDR", node)] = self.signal("PADDR")
+        fanout[self.signal("PPROT", node)] = self.signal("PPROT")
+        fanout[self.signal("PWDATA", node)] = "cpuif_wr_data"
+        fanout[self.signal("PSTRB", node)] = "cpuif_wr_byte_en"
+
+        return "\n".join(map(lambda kv: f"assign {kv[0]} = {kv[1]};", fanout.items()))
+
+    def fanin(self, node: AddressableNode | None = None) -> str:
+        fanin: dict[str, str] = {}
+        if node is None:
+            fanin["cpuif_rd_ack"] = "'0"
+            fanin["cpuif_rd_err"] = "'0"
+        else:
+            fanin["cpuif_rd_ack"] = self.signal("PREADY", node)
+            fanin["cpuif_rd_err"] = self.signal("PSLVERR", node)
+
+        return "\n".join(map(lambda kv: f"{kv[0]} = {kv[1]};", fanin.items()))
+
+    def readback(self, node: AddressableNode | None = None) -> str:
+        fanin: dict[str, str] = {}
+        if node is None:
+            fanin["cpuif_rd_data"] = "'0"
+        else:
+            fanin["cpuif_rd_data"] = self.signal("PRDATA", node)
+
+        return "\n".join(map(lambda kv: f"{kv[0]} = {kv[1]};", fanin.items()))
