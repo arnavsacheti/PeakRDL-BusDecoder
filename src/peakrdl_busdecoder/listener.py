@@ -15,7 +15,23 @@ class BusDecoderListener(RDLListener):
     def enter_AddressableComponent(self, node: AddressableNode) -> WalkerAction | None:
         if node.array_dimensions:
             assert node.array_stride is not None, "Array stride should be defined for arrayed components"
-            self._array_stride_stack.extend(node.array_dimensions)
+            # Calculate stride for each dimension
+            # For multi-dimensional arrays like [2][3], array_stride gives the stride of the
+            # rightmost (fastest-changing) dimension. We need to calculate strides for all dimensions.
+            # Example: for [2][3] with 4-byte elements:
+            #   - i1 (rightmost/fastest): stride = 4 (from array_stride)
+            #   - i0 (leftmost/slowest):  stride = 3 * 4 = 12
+            strides = []
+            current_stride = node.array_stride
+            strides.append(current_stride)
+            
+            # Work backwards from rightmost to leftmost dimension (fastest to slowest changing)
+            # Each dimension's stride is the product of its size and the previous dimension's stride
+            for i in range(len(node.array_dimensions) - 1, 0, -1):
+                current_stride = current_stride * node.array_dimensions[i]
+                strides.insert(0, current_stride)
+            
+            self._array_stride_stack.extend(strides)
 
         self._depth += 1
 
