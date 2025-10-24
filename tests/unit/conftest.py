@@ -35,6 +35,7 @@ def compile_rdl(tmp_path: Path):
         for include_path in include_paths or ():
             compiler.add_include_path(str(include_path))
 
+        # Use delete=False to keep the file around after closing
         with NamedTemporaryFile("w", suffix=".rdl", dir=tmp_path, delete=False) as tmp_file:
             tmp_file.write(source)
             tmp_file.flush()

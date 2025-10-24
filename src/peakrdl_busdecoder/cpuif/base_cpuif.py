@@ -71,7 +71,11 @@ class BaseCpuif:
         raise RuntimeError
 
     def check_is_array(self, node: AddressableNode) -> bool:
-        return node.is_array and not self.unroll
+        # When unrolling is enabled, children(unroll=True) returns individual
+        # array elements with current_idx set. These should NOT be treated as arrays.
+        if self.unroll and hasattr(node, 'current_idx') and node.current_idx is not None:
+            return False
+        return node.is_array
 
     def get_implementation(self) -> str:
         class_dir = self._get_template_path_class_dir()
