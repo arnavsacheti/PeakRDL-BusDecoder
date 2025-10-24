@@ -1,13 +1,12 @@
-
 //==========================================================
 //  Module: {{ds.module_name}}
 //  Description: CPU Interface Bus Decoder
-//  Author: PeakRDL-busdecoder
+//  Author: PeakRDL-BusDecoder
 //  License: LGPL-3.0
 //  Date: {{current_date}}
 //  Version: {{version}}
 //  Links:
-//    - https://github.com/arnavsacheti/PeakRDL-busdecoder
+//    - https://github.com/arnavsacheti/PeakRDL-BusDecoder
 //==========================================================
 
 
@@ -17,7 +16,6 @@ module {{ds.module_name}}
 ) {%- endif %} (
     {{cpuif.port_declaration|indent(4)}}
 );
-
     //--------------------------------------------------------------------------
     // CPU Bus interface logic
     //--------------------------------------------------------------------------
