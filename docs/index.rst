@@ -1,14 +1,22 @@
 Introduction
 ============
 
-PeakRDL-BusDecoder is a free and open-source control & status register (CSR) compiler.
-This code generator translates your SystemRDL register description into
-a synthesizable SystemVerilog RTL module that can be easily instantiated into
-your hardware design.
+PeakRDL-BusDecoder is a free and open-source bus decoder generator for hierarchical register address maps.
+This code generator translates your SystemRDL register description into a synthesizable 
+SystemVerilog RTL module that decodes CPU interface transactions and routes them to 
+multiple sub-address spaces (child addrmaps). This is particularly useful for:
 
-* Generates fully synthesizable SystemVerilog RTL (IEEE 1800-2012)
-* Options for many popular CPU interface protocols (AMBA APB, AXI4-Lite, and more)
-* Configurable pipelining options for designs with fast clock rates.
+* Creating hierarchical register maps with multiple sub-components
+* Splitting a single CPU interface bus to serve multiple independent register blocks
+* Organizing large register designs into logical sub-address spaces
+* Implementing address decode logic for multi-drop bus architectures
+
+The generated bus decoder provides:
+
+* Fully synthesizable SystemVerilog RTL (IEEE 1800-2012)
+* Support for many popular CPU interface protocols (AMBA APB, AXI4-Lite, and more)
+* Address decode logic that routes transactions to child address maps
+* Configurable pipelining options for designs with fast clock rates
 * Broad support for SystemRDL 2.0 features
 
 

@@ -20,8 +20,8 @@ import datetime
 # -- Project information -----------------------------------------------------
 
 project = "PeakRDL-BusDecoder"
-copyright = "%d, Alex Mykyta" % datetime.datetime.now().year
-author = "Alex Mykyta"
+copyright = "%d, arnavsacheti" % datetime.datetime.now().year
+author = "arnavsacheti"
 
 
 # -- General configuration ---------------------------------------------------

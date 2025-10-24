@@ -4,7 +4,7 @@
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/peakrdl-busdecoder.svg)](https://pypi.org/project/peakrdl-busdecoder)
 
 # PeakRDL-BusDecoder
-Compile SystemRDL into a SystemVerilog control/status register (CSR) block.
+Generate a SystemVerilog bus decoder from SystemRDL that splits CPU interface signals to multiple sub-address spaces. This tool is designed for creating hierarchical register address maps by decoding bus transactions and routing them to the appropriate child address maps.
 
 For the command line tool, see the [PeakRDL project](https://peakrdl.readthedocs.io).
 

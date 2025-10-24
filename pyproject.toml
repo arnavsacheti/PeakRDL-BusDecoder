@@ -9,13 +9,15 @@ requires-python = ">=3.10"
 dependencies = ["jinja2>=3.1.6", "systemrdl-compiler~=1.30.1"]
 
 authors = [{ name = "Alex Mykyta" }]
-description = "Compile SystemRDL into a SystemVerilog control/status register (CSR) block"
+description = "Generate a SystemVerilog bus decoder from SystemRDL for splitting CPU interfaces to multiple sub-address spaces"
 readme = "README.md"
 license = { text = "LGPLv3" }
 keywords = [
     "SystemRDL",
     "PeakRDL",
-    "CSR",
+    "bus decoder",
+    "address decoder",
+    "hierarchical addressing",
     "compiler",
     "tool",
     "registers",
