@@ -36,18 +36,17 @@ class FaninGenerator(BusDecoderListener):
                 )
                 self._stack.append(fb)
 
-        if action == WalkerAction.Continue:
-            ifb = IfBody()
-            with ifb.cm(
-                f"cpuif_rd_sel.{get_indexed_path(self._cpuif.exp.ds.top_node, node)} || cpuif_wr_sel.{get_indexed_path(self._cpuif.exp.ds.top_node, node)}"
-            ) as b:
-                b += self._cpuif.fanin(node)
-            self._stack[-1] += ifb
+        ifb = IfBody()
+        with ifb.cm(
+            f"cpuif_rd_sel.{get_indexed_path(self._cpuif.exp.ds.top_node, node)} || cpuif_wr_sel.{get_indexed_path(self._cpuif.exp.ds.top_node, node)}"
+        ) as b:
+            b += self._cpuif.fanin(node)
+        self._stack[-1] += ifb
 
-            ifb = IfBody()
-            with ifb.cm(f"cpuif_rd_sel.{get_indexed_path(self._cpuif.exp.ds.top_node, node)}") as b:
-                b += self._cpuif.readback(node)
-            self._stack[-1] += ifb
+        ifb = IfBody()
+        with ifb.cm(f"cpuif_rd_sel.{get_indexed_path(self._cpuif.exp.ds.top_node, node)}") as b:
+            b += self._cpuif.readback(node)
+        self._stack[-1] += ifb
 
         return action
 

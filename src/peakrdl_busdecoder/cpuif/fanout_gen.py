@@ -32,8 +32,7 @@ class FanoutGenerator(BusDecoderListener):
                 )
                 self._stack.append(fb)
 
-        if action == WalkerAction.Continue:
-            self._stack[-1] += self._cpuif.fanout(node)
+        self._stack[-1] += self._cpuif.fanout(node)
 
         return action
 
