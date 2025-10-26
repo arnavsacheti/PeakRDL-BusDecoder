@@ -1,6 +1,6 @@
 from collections import deque
 
-from systemrdl.node import AddressableNode
+from systemrdl.node import AddressableNode, RegNode
 from systemrdl.walker import RDLListener, WalkerAction
 
 from .design_state import DesignState
@@ -11,6 +11,20 @@ class BusDecoderListener(RDLListener):
         self._array_stride_stack: deque[int] = deque()  # Tracks nested array strides
         self._ds = ds
         self._depth = 0
+
+    def should_skip_node(self, node: AddressableNode) -> bool:
+        """Check if this node should be skipped (not decoded)."""
+        # Check if current depth exceeds max depth
+        if self._depth > self._ds.max_decode_depth:
+            return True
+        
+        # Check if this node only contains external addressable children
+        if node != self._ds.top_node and not isinstance(node, RegNode):
+            if any(isinstance(c, AddressableNode) for c in node.children()) and \
+               all(c.external for c in node.children() if isinstance(c, AddressableNode)):
+                return True
+        
+        return False
 
     def enter_AddressableComponent(self, node: AddressableNode) -> WalkerAction | None:
         if node.array_dimensions:
@@ -35,8 +49,10 @@ class BusDecoderListener(RDLListener):
 
         self._depth += 1
 
-        if self._depth > 1:
+        # Check if we should skip this node's descendants
+        if self.should_skip_node(node):
             return WalkerAction.SkipDescendants
+        
         return WalkerAction.Continue
 
     def exit_AddressableComponent(self, node: AddressableNode) -> None:
