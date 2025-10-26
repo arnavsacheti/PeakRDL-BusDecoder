@@ -44,6 +44,35 @@ def external_nested_rdl(compile_rdl):
     return compile_rdl(rdl_source, top="buffer_t")
 
 
+@pytest.fixture
+def nested_addrmap_rdl(compile_rdl):
+    """Create an RDL design with nested non-external addrmaps for testing depth control."""
+    rdl_source = """
+    addrmap level2 {
+        reg {
+            field { sw=rw; hw=r; } data2[31:0];
+        } reg2 @ 0x0;
+        
+        reg {
+            field { sw=rw; hw=r; } data2b[31:0];
+        } reg2b @ 0x4;
+    };
+
+    addrmap level1 {
+        reg {
+            field { sw=rw; hw=r; } data1[31:0];
+        } reg1 @ 0x0;
+        
+        level2 inner2 @ 0x10;
+    };
+
+    addrmap level0 {
+        level1 inner1 @ 0x0;
+    };
+    """
+    return compile_rdl(rdl_source, top="level0")
+
+
 def test_external_nested_components_generate_correct_decoder(external_nested_rdl):
     """Test that external nested components generate correct decoder logic.
     
@@ -144,3 +173,30 @@ def test_non_external_nested_components_are_descended(compile_rdl):
         # Should descend into inner and reference inner_reg
         assert "inner" in content
         assert "inner_reg" in content
+
+
+def test_max_decode_depth_parameter_exists(compile_rdl):
+    """Test that max_decode_depth parameter can be set."""
+    rdl_source = """
+    addrmap simple {
+        reg {
+            field { sw=rw; hw=r; } data[31:0];
+        } my_reg @ 0x0;
+    };
+    """
+    top = compile_rdl(rdl_source, top="simple")
+    
+    with TemporaryDirectory() as tmpdir:
+        exporter = BusDecoderExporter()
+        # Should not raise an exception
+        exporter.export(
+            top,
+            tmpdir,
+            cpuif_cls=APB4Cpuif,
+            max_decode_depth=2,
+        )
+        
+        # Verify output was generated
+        module_file = Path(tmpdir) / "simple.sv"
+        assert module_file.exists()
+

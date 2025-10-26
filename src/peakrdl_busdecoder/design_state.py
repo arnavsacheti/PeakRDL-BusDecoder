@@ -14,6 +14,7 @@ class DesignStateKwargs(TypedDict, total=False):
     package_name: str
     address_width: int
     cpuif_unroll: bool
+    max_decode_depth: int
 
 
 class DesignState:
@@ -35,6 +36,7 @@ class DesignState:
         user_addr_width: int | None = kwargs.pop("address_width", None)
 
         self.cpuif_unroll: bool = kwargs.pop("cpuif_unroll", False)
+        self.max_decode_depth: int = kwargs.pop("max_decode_depth", 1)
 
         # ------------------------
         # Info about the design

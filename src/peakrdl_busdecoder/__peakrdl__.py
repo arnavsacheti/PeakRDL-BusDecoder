@@ -111,6 +111,15 @@ class Exporter(ExporterSubcommandPlugin):
             """,
         )
 
+        arg_group.add_argument(
+            "--max-decode-depth",
+            type=int,
+            default=1,
+            help="""Maximum depth for address decoder to descend into nested
+            addressable components. Default is 1.
+            """,
+        )
+
     def do_export(self, top_node: "AddrmapNode", options: "argparse.Namespace") -> None:
         cpuifs = self.get_cpuifs()
 
@@ -123,4 +132,5 @@ class Exporter(ExporterSubcommandPlugin):
             package_name=options.package_name,
             address_width=options.addr_width,
             cpuif_unroll=options.unroll,
+            max_decode_depth=options.max_decode_depth,
         )
