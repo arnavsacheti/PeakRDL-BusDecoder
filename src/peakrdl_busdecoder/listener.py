@@ -35,7 +35,7 @@ class BusDecoderListener(RDLListener):
 
             # Work backwards from rightmost to leftmost dimension (fastest to slowest changing)
             # Each dimension's stride is the product of its size and the previous dimension's stride
-            for dim in node.array_dimensions[-2::-1]:
+            for dim in node.array_dimensions[-1:0:-1]:
                 current_stride = current_stride * dim
                 self._array_stride_stack.appendleft(current_stride)
 
