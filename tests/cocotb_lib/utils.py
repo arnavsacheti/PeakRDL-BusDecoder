@@ -1,24 +1,22 @@
 """Common utilities for cocotb testbenches."""
 
-import os
-import tempfile
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 from typing import Any
 
 from systemrdl import RDLCompiler
 
+from peakrdl_busdecoder.cpuif.base_cpuif import BaseCpuif
 from peakrdl_busdecoder.exporter import BusDecoderExporter
 
 
 def compile_rdl_and_export(
-    rdl_source: str, top_name: str, output_dir: str, cpuif_cls: Any, **kwargs: Any
+    rdl_source: str, top_name: str, output_dir: Path, cpuif_cls: type[BaseCpuif], **kwargs: Any
 ) -> tuple[Path, Path]:
     """
     Compile RDL source and export to SystemVerilog.
 
     Args:
-        rdl_source: SystemRDL source code as a string
+        rdl_source: SystemRDL source code path
         top_name: Name of the top-level addrmap
         output_dir: Directory to write generated files
         cpuif_cls: CPU interface class to use
@@ -30,23 +28,12 @@ def compile_rdl_and_export(
     # Compile RDL source
     compiler = RDLCompiler()
 
-    # Write source to temporary file
-    with NamedTemporaryFile("w", suffix=".rdl", dir=output_dir, delete=False) as tmp_file:
-        tmp_file.write(rdl_source)
-        tmp_file.flush()
-        tmp_path = tmp_file.name
+    compiler.compile_file(rdl_source)
+    top = compiler.elaborate(top_name)
 
-    try:
-        compiler.compile_file(tmp_path)
-        top = compiler.elaborate(top_name)
-
-        # Export to SystemVerilog
-        exporter = BusDecoderExporter()
-        exporter.export(top, output_dir, cpuif_cls=cpuif_cls, **kwargs)
-    finally:
-        # Clean up temporary RDL file
-        if os.path.exists(tmp_path):
-            os.unlink(tmp_path)
+    # Export to SystemVerilog
+    exporter = BusDecoderExporter()
+    exporter.export(top, str(output_dir), cpuif_cls=cpuif_cls, **kwargs)
 
     # Return paths to generated files
     module_name = kwargs.get("module_name", top_name)

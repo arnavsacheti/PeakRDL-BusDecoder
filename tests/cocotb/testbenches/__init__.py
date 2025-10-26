@@ -1,1 +1,0 @@
-"""Cocotb testbenches package."""
