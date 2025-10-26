@@ -37,7 +37,7 @@ class BusDecoderListener(RDLListener):
             # Each dimension's stride is the product of its size and the previous dimension's stride
             for dim in node.array_dimensions[-2::-1]:
                 current_stride = current_stride * dim
-                self._array_stride_stack.append(current_stride)
+                self._array_stride_stack.appendleft(current_stride)
 
         self._depth += 1
 
