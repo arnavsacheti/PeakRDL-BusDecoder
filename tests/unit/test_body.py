@@ -1,6 +1,6 @@
 """Tests for body classes used in code generation."""
 
-from __future__ import annotations
+
 
 import pytest
 

@@ -1,6 +1,6 @@
 """Tests for code generation classes."""
 
-from __future__ import annotations
+
 
 import pytest
 

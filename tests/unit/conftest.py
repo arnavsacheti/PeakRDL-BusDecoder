@@ -1,6 +1,6 @@
 """Pytest fixtures for unit tests."""
 
-from __future__ import annotations
+
 
 from pathlib import Path
 from tempfile import NamedTemporaryFile

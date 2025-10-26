@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from textwrap import indent
 from types import EllipsisType
 
@@ -50,7 +48,7 @@ class IfBody(Body):
 
     # --- Context manager for a branch ---
     class _BranchCtx:
-        def __init__(self, outer: IfBody, condition: SupportsStr | None) -> None:
+        def __init__(self, outer: "IfBody", condition: SupportsStr | None) -> None:
             self._outer = outer
             # route through __getitem__ to reuse validation logic
             self._body = outer[Ellipsis if condition is None else condition]
@@ -66,7 +64,7 @@ class IfBody(Body):
         ) -> bool:
             return False
 
-    def cm(self, condition: SupportsStr | None) -> IfBody._BranchCtx:
+    def cm(self, condition: SupportsStr | None) -> "IfBody._BranchCtx":
         """Use with: with ifb.cm('cond') as b: ...  ; use None for else."""
         return IfBody._BranchCtx(self, condition)
 

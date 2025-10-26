@@ -1,6 +1,5 @@
 """Integration tests for the BusDecoderExporter."""
 
-from __future__ import annotations
 
 import os
 from pathlib import Path
@@ -321,7 +320,6 @@ class TestAPB4Interface:
 
         module_file = tmp_path / "test_block.sv"
         module_content = module_file.read_text()
-
         # For a [2][3] array where each register is 4 bytes:
         # i0 (leftmost/slowest) should have stride = 3 * 4 = 12 (0xc)
         # i1 (rightmost/fastest) should have stride = 4 (0x4)
