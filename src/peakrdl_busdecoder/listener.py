@@ -1,6 +1,6 @@
 from collections import deque
 
-from systemrdl.node import AddressableNode
+from systemrdl.node import AddressableNode, RegNode
 from systemrdl.walker import RDLListener, WalkerAction
 
 from .design_state import DesignState
@@ -34,6 +34,13 @@ class BusDecoderListener(RDLListener):
             self._array_stride_stack.extend(strides)
 
         self._depth += 1
+
+        # Skip descendants if this node only contains external addressable children
+        # This prevents the decoder from trying to decode internal structure of external blocks
+        if node != self._ds.top_node and not isinstance(node, RegNode):
+            addressable_children = [c for c in node.children() if isinstance(c, AddressableNode)]
+            if addressable_children and all(c.external for c in addressable_children):
+                return WalkerAction.SkipDescendants
 
         if self._depth > 1:
             return WalkerAction.SkipDescendants
