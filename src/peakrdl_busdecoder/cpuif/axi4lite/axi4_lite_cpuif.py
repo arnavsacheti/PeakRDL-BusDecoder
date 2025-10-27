@@ -10,7 +10,7 @@ class AXI4LiteCpuif(BaseCpuif):
     template_path = "axi4lite_tmpl.sv"
     is_interface = True
 
-    def _port_declaration(self, child: AddressableNode) -> str:
+    def _port_declaration(self, child: AddressableNode) -> list[str]:
         base = f"axi4lite_intf.master m_axil_{child.inst_name}"
 
         # When unrolled, current_idx is set - append it to the name
@@ -20,22 +20,25 @@ class AXI4LiteCpuif(BaseCpuif):
         # Only add array dimensions if this should be treated as an array
         if self.check_is_array(child):
             assert child.array_dimensions is not None
-            return f"{base} {''.join(f'[{dim}]' for dim in child.array_dimensions)}"
+            return [f"{base} {''.join(f'[{dim}]' for dim in child.array_dimensions)}"]
 
-        return base
+        return [base]
 
     @property
     def port_declaration(self) -> str:
         """Returns the port declaration for the AXI4-Lite interface."""
         slave_ports: list[str] = ["axi4lite_intf.slave s_axil"]
-        master_ports: list[str] = list(map(self._port_declaration, self.addressable_children))
+
+        master_ports: list[str] = []
+        for child in self.addressable_children:
+            master_ports.extend(self._port_declaration(child))
 
         return ",\n".join(slave_ports + master_ports)
 
     @overload
     def signal(self, signal: str, node: None = None, indexer: None = None) -> str: ...
     @overload
-    def signal(self, signal: str, node: AddressableNode, indexer: str) -> str: ...
+    def signal(self, signal: str, node: AddressableNode, indexer: str | None = None) -> str: ...
     def signal(self, signal: str, node: AddressableNode | None = None, indexer: str | None = None) -> str:
         if node is None or indexer is None:
             # Node is none, so this is a slave signal
