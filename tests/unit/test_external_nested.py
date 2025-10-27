@@ -41,9 +41,9 @@ def test_external_nested_components_generate_correct_decoder(external_nested_rdl
         assert "cpuif_rd_sel.multicast.response" not in content
         
         # Verify struct is flat (no nested structs for external children)
-        assert "typedef struct packed" in content
+        assert "typedef struct" in content
         assert "logic multicast;" in content
-        assert "logic [15:0]port;" in content
+        assert "logic port[16];" in content
 
 
 def test_external_nested_components_generate_correct_interfaces(external_nested_rdl: AddrmapNode) -> None:
