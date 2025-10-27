@@ -24,6 +24,12 @@ jobs:
         uses: astral-sh/setup-uv@v3
         with:
           python-version: ${{ matrix.python-version }}
+
+      - name: Install Verilator
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y verilator
+          verilator --version
       
       - name: Install dependencies
         run: |
