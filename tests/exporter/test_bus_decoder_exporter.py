@@ -89,7 +89,8 @@ class TestBusDecoderExporter:
 
         exporter = BusDecoderExporter()
         output_dir = str(tmp_path)
-        exporter.export(top, output_dir, cpuif_cls=APB4Cpuif)
+        # Use depth=0 to descend all the way to registers
+        exporter.export(top, output_dir, cpuif_cls=APB4Cpuif, max_decode_depth=0)
 
         # Check that output files are created
         module_file = tmp_path / "outer_block.sv"
