@@ -55,9 +55,7 @@ class AXI4LiteFlatInterface(FlatInterface):
             f"output logic [1:0] {slave_prefix}RRESP",
         ]
 
-    def _get_master_port_declarations(
-        self, child: AddressableNode, master_prefix: str
-    ) -> list[str]:
+    def _get_master_port_declarations(self, child: AddressableNode, master_prefix: str) -> list[str]:
         return [
             # Write address channel
             f"output logic {self.signal('AWVALID', child)}",

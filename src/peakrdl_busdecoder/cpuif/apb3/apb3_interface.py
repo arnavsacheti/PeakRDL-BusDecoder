@@ -41,9 +41,7 @@ class APB3FlatInterface(FlatInterface):
             f"output logic {slave_prefix}PSLVERR",
         ]
 
-    def _get_master_port_declarations(
-        self, child: AddressableNode, master_prefix: str
-    ) -> list[str]:
+    def _get_master_port_declarations(self, child: AddressableNode, master_prefix: str) -> list[str]:
         return [
             f"output logic {self.signal('PCLK', child)}",
             f"output logic {self.signal('PRESETn', child)}",

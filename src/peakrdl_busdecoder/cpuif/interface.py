@@ -175,9 +175,7 @@ class FlatInterface(Interface):
         ...
 
     @abstractmethod
-    def _get_master_port_declarations(
-        self, child: AddressableNode, master_prefix: str
-    ) -> list[str]:
+    def _get_master_port_declarations(self, child: AddressableNode, master_prefix: str) -> list[str]:
         """Get master port declarations for a child node."""
         ...
 

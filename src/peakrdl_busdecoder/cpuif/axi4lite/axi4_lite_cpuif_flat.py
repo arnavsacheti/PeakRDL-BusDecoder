@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from ...exporter import BusDecoderExporter
 
 
-class AXI4LiteCpuifFlat(AXI4LiteCpuif):
+class AXI4LiteCpuifFlat(BaseCpuif):
     """Verilator-friendly variant that flattens the AXI4-Lite interface ports."""
 
     template_path = "axi4lite_tmpl.sv"
@@ -30,9 +30,8 @@ class AXI4LiteCpuifFlat(AXI4LiteCpuif):
 
     @overload
     def signal(self, signal: str, node: None = None, indexer: None = None) -> str: ...
-
     @overload
-    def signal(self, signal: str, node: AddressableNode, indexer: str) -> str: ...
+    def signal(self, signal: str, node: AddressableNode, indexer: str | None = None) -> str: ...
     def signal(self, signal: str, node: AddressableNode | None = None, indexer: str | None = None) -> str:
         return self._interface.signal(signal, node, indexer)
 
@@ -68,14 +67,20 @@ class AXI4LiteCpuifFlat(AXI4LiteCpuif):
     def fanin(self, node: AddressableNode | None = None) -> str:
         fanin: dict[str, str] = {}
         if node is None:
-            return f"s_axil_{signal}"
+            fanin["cpuif_rd_ack"] = "'0"
+            fanin["cpuif_rd_err"] = "'0"
+        else:
+            # Read side: ack comes from RVALID; err if RRESP[1] is set (SLVERR/DECERR)
+            fanin["cpuif_rd_ack"] = self.signal("RVALID", node, "i")
+            fanin["cpuif_rd_err"] = f"{self.signal('RRESP', node, 'i')}[1]"
 
-        base = f"m_axil_{node.inst_name}_{signal}"
-        if not self.check_is_array(node):
-            if node.current_idx is not None:
-                return f"{base}_{'_'.join(map(str, node.current_idx))}"
-            return base
+        return "\n".join(f"{lhs} = {rhs};" for lhs, rhs in fanin.items())
 
-        if indexer is None:
-            return f"{base}[N_{node.inst_name.upper()}S]"
-        return f"{base}[{indexer}]"
+    def readback(self, node: AddressableNode | None = None) -> str:
+        fanin: dict[str, str] = {}
+        if node is None:
+            fanin["cpuif_rd_data"] = "'0"
+        else:
+            fanin["cpuif_rd_data"] = self.signal("RDATA", node, "i")
+
+        return "\n".join(f"{lhs} = {rhs};" for lhs, rhs in fanin.items())
