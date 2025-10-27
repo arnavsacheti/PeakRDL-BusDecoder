@@ -40,7 +40,7 @@ class Interface(ABC):
         self,
         signal: str,
         node: AddressableNode | None = None,
-        indexer: str | None = None,
+        indexer: str | int | None = None,
     ) -> str:
         """
         Generate signal reference.
@@ -48,7 +48,7 @@ class Interface(ABC):
         Args:
             signal: Signal name
             node: Optional addressable node for master signals
-            indexer: Optional indexer for arrays
+            indexer: Optional indexer for arrays (str for SV interfaces, str or int for flat)
 
         Returns:
             Signal reference as a string
@@ -88,7 +88,7 @@ class SVInterface(Interface):
         self,
         signal: str,
         node: AddressableNode | None = None,
-        indexer: str | None = None,
+        indexer: str | int | None = None,
     ) -> str:
         """Generate SystemVerilog interface signal reference."""
         from ..utils import get_indexed_path
