@@ -116,7 +116,9 @@ class Exporter(ExporterSubcommandPlugin):
             type=int,
             default=1,
             help="""Maximum depth for address decoder to descend into nested
-            addressable components. Default is 1.
+            addressable components. Value of 0 decodes all levels (infinite depth).
+            Value of 1 decodes only top-level children. Value of 2 decodes top-level
+            and one level deeper, etc. Default is 1.
             """,
         )
 
