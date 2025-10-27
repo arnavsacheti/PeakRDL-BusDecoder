@@ -47,16 +47,16 @@ class APB4FlatInterface(FlatInterface):
         self, child: AddressableNode, master_prefix: str
     ) -> list[str]:
         return [
-            f"input  logic {self.signal('PCLK', child)}",
-            f"input  logic {self.signal('PRESETn', child)}",
-            f"input  logic {self.signal('PSELx', child)}",
-            f"input  logic {self.signal('PENABLE', child)}",
-            f"input  logic {self.signal('PWRITE', child)}",
-            f"input  logic [{self.cpuif.addr_width - 1}:0] {self.signal('PADDR', child)}",
-            f"input  logic [2:0] {self.signal('PPROT', child)}",
-            f"input  logic [{self.cpuif.data_width - 1}:0] {self.signal('PWDATA', child)}",
-            f"input  logic [{self.cpuif.data_width // 8 - 1}:0] {self.signal('PSTRB', child)}",
-            f"output logic [{self.cpuif.data_width - 1}:0] {self.signal('PRDATA', child)}",
-            f"output logic {self.signal('PREADY', child)}",
-            f"output logic {self.signal('PSLVERR', child)}",
+            f"output logic {self.signal('PCLK', child)}",
+            f"output logic {self.signal('PRESETn', child)}",
+            f"output logic {self.signal('PSELx', child)}",
+            f"output logic {self.signal('PENABLE', child)}",
+            f"output logic {self.signal('PWRITE', child)}",
+            f"output logic [{self.cpuif.addr_width - 1}:0] {self.signal('PADDR', child)}",
+            f"output logic [2:0] {self.signal('PPROT', child)}",
+            f"output logic [{self.cpuif.data_width - 1}:0] {self.signal('PWDATA', child)}",
+            f"output logic [{self.cpuif.data_width // 8 - 1}:0] {self.signal('PSTRB', child)}",
+            f"input  logic [{self.cpuif.data_width - 1}:0] {self.signal('PRDATA', child)}",
+            f"input  logic {self.signal('PREADY', child)}",
+            f"input  logic {self.signal('PSLVERR', child)}",
         ]

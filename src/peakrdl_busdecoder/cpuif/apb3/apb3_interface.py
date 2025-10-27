@@ -29,13 +29,13 @@ class APB3FlatInterface(FlatInterface):
 
     def _get_slave_port_declarations(self, slave_prefix: str) -> list[str]:
         return [
-            f"input logic {slave_prefix}PCLK",
-            f"input logic {slave_prefix}PRESETn",
-            f"input logic {slave_prefix}PSELx",
-            f"input logic {slave_prefix}PENABLE",
-            f"input logic {slave_prefix}PWRITE",
-            f"input logic [{self.cpuif.addr_width - 1}:0] {slave_prefix}PADDR",
-            f"input logic [{self.cpuif.data_width - 1}:0] {slave_prefix}PWDATA",
+            f"input  logic {slave_prefix}PCLK",
+            f"input  logic {slave_prefix}PRESETn",
+            f"input  logic {slave_prefix}PSELx",
+            f"input  logic {slave_prefix}PENABLE",
+            f"input  logic {slave_prefix}PWRITE",
+            f"input  logic [{self.cpuif.addr_width - 1}:0] {slave_prefix}PADDR",
+            f"input  logic [{self.cpuif.data_width - 1}:0] {slave_prefix}PWDATA",
             f"output logic [{self.cpuif.data_width - 1}:0] {slave_prefix}PRDATA",
             f"output logic {slave_prefix}PREADY",
             f"output logic {slave_prefix}PSLVERR",
@@ -45,14 +45,14 @@ class APB3FlatInterface(FlatInterface):
         self, child: AddressableNode, master_prefix: str
     ) -> list[str]:
         return [
-            f"input logic {self.signal('PCLK', child)}",
-            f"input logic {self.signal('PRESETn', child)}",
-            f"input logic {self.signal('PSELx', child)}",
-            f"input logic {self.signal('PENABLE', child)}",
-            f"input logic {self.signal('PWRITE', child)}",
-            f"input logic [{self.cpuif.addr_width - 1}:0] {self.signal('PADDR', child)}",
-            f"input logic [{self.cpuif.data_width - 1}:0] {self.signal('PWDATA', child)}",
-            f"output logic [{self.cpuif.data_width - 1}:0] {self.signal('PRDATA', child)}",
-            f"output logic {self.signal('PREADY', child)}",
-            f"output logic {self.signal('PSLVERR', child)}",
+            f"output logic {self.signal('PCLK', child)}",
+            f"output logic {self.signal('PRESETn', child)}",
+            f"output logic {self.signal('PSELx', child)}",
+            f"output logic {self.signal('PENABLE', child)}",
+            f"output logic {self.signal('PWRITE', child)}",
+            f"output logic [{self.cpuif.addr_width - 1}:0] {self.signal('PADDR', child)}",
+            f"output logic [{self.cpuif.data_width - 1}:0] {self.signal('PWDATA', child)}",
+            f"input  logic [{self.cpuif.data_width - 1}:0] {self.signal('PRDATA', child)}",
+            f"input  logic {self.signal('PREADY', child)}",
+            f"input  logic {self.signal('PSLVERR', child)}",
         ]
