@@ -15,7 +15,12 @@ class BusDecoderListener(RDLListener):
     def should_skip_node(self, node: AddressableNode) -> bool:
         """Check if this node should be skipped (not decoded)."""
         # Check if current depth exceeds max depth
-        if self._depth > self._ds.max_decode_depth:
+        # max_decode_depth semantics:
+        # - 0 means decode all levels (infinite)
+        # - 1 means decode only top level (depth 0)
+        # - 2 means decode top + 1 level (depth 0 and 1)
+        # - N means decode down to depth N-1
+        if self._ds.max_decode_depth > 0 and self._depth >= self._ds.max_decode_depth:
             return True
 
         # Check if this node only contains external addressable children

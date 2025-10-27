@@ -85,6 +85,11 @@ class DecodeLogicGenerator(BusDecoderListener):
     def enter_AddressableComponent(self, node: AddressableNode) -> WalkerAction | None:
         action = super().enter_AddressableComponent(node)
 
+        # Only generate select logic if we're at a node that will be skipped
+        # (i.e., at the decode boundary)
+        if action != WalkerAction.SkipDescendants:
+            return action
+
         conditions: list[str] = []
         conditions.extend(self.cpuif_addr_predicate(node))
         conditions.extend(self.cpuif_prot_predicate(node))

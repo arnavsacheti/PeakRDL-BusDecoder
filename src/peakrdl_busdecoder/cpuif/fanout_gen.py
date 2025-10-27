@@ -23,6 +23,10 @@ class FanoutGenerator(BusDecoderListener):
     def enter_AddressableComponent(self, node: AddressableNode) -> WalkerAction | None:
         action = super().enter_AddressableComponent(node)
 
+        # Only generate fanout for nodes at the decode boundary (being skipped)
+        if action != WalkerAction.SkipDescendants:
+            return action
+
         if node.array_dimensions:
             for i, dim in enumerate(node.array_dimensions):
                 fb = ForLoopBody(

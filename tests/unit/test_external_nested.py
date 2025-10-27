@@ -101,7 +101,8 @@ def test_non_external_nested_components_are_descended(compile_rdl: Callable[...,
     
     with TemporaryDirectory() as tmpdir:
         exporter = BusDecoderExporter()
-        exporter.export(top, tmpdir, cpuif_cls=APB4Cpuif)
+        # Use depth=0 to descend all the way down to registers
+        exporter.export(top, tmpdir, cpuif_cls=APB4Cpuif, max_decode_depth=0)
         
         # Read the generated module
         module_file = Path(tmpdir) / "outer_block.sv"
