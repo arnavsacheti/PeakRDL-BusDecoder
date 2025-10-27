@@ -193,3 +193,90 @@ class TestBusDecoderExporter:
         assert "reg1" in module_content
         assert "reg2" in module_content
         assert "reg3" in module_content
+
+    def test_master_address_widths_export(
+        self, compile_rdl: Callable[..., AddrmapNode], tmp_path: Path
+    ) -> None:
+        """Test exporting master address width parameters for child addrmaps."""
+        rdl_source = """
+        addrmap child1 {
+            reg {
+                field {
+                    sw=rw;
+                    hw=r;
+                } data[31:0];
+            } reg1 @ 0x0;
+            reg {
+                field {
+                    sw=rw;
+                    hw=r;
+                } data[31:0];
+            } reg2 @ 0x4;
+        };
+        
+        addrmap child2 {
+            reg {
+                field {
+                    sw=rw;
+                    hw=r;
+                } data[15:0];
+            } reg2 @ 0x0;
+        };
+        
+        addrmap parent {
+            external child1 c1 @ 0x0000;
+            external child2 c2 @ 0x1000;
+        };
+        """
+        top = compile_rdl(rdl_source, top="parent")
+
+        exporter = BusDecoderExporter()
+        output_dir = str(tmp_path)
+        exporter.export(top, output_dir, cpuif_cls=APB4Cpuif)
+
+        package_file = tmp_path / "parent_pkg.sv"
+        assert package_file.exists()
+
+        package_content = package_file.read_text()
+        assert "package parent_pkg" in package_content
+        # Check for master address width parameters
+        assert "localparam PARENT_C1_ADDR_WIDTH = 3" in package_content
+        assert "localparam PARENT_C2_ADDR_WIDTH = 2" in package_content
+
+    def test_master_address_widths_with_arrays(
+        self, compile_rdl: Callable[..., AddrmapNode], tmp_path: Path
+    ) -> None:
+        """Test exporting master address width parameters for arrayed child addrmaps."""
+        rdl_source = """
+        addrmap child {
+            reg {
+                field {
+                    sw=rw;
+                    hw=r;
+                } data[31:0];
+            } reg1 @ 0x0;
+            reg {
+                field {
+                    sw=rw;
+                    hw=r;
+                } data[31:0];
+            } reg2 @ 0x4;
+        };
+        
+        addrmap parent {
+            external child children[4] @ 0x0 += 0x100;
+        };
+        """
+        top = compile_rdl(rdl_source, top="parent")
+
+        exporter = BusDecoderExporter()
+        output_dir = str(tmp_path)
+        exporter.export(top, output_dir, cpuif_cls=APB4Cpuif)
+
+        package_file = tmp_path / "parent_pkg.sv"
+        assert package_file.exists()
+
+        package_content = package_file.read_text()
+        assert "package parent_pkg" in package_content
+        # Check for master address width parameter - array should have a single parameter
+        assert "localparam PARENT_CHILDREN_ADDR_WIDTH = 3" in package_content
