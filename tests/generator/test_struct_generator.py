@@ -96,3 +96,10 @@ class TestStructGenerator:
         assert "[" in result and "]" in result
         # Should reference the register
         assert "my_regs" in result
+        # Should use unpacked array syntax (name[size]), not packed bit-vector ([size:0]name)
+        assert "my_regs[4]" in result
+        # Should NOT use packed bit-vector syntax
+        assert "[3:0]my_regs" not in result
+        # Should be unpacked struct, not packed
+        assert "typedef struct {" in result
+        assert "typedef struct packed" not in result
