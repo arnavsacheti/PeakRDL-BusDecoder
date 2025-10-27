@@ -101,7 +101,6 @@ class SVInterface(Interface):
 
         if node is None or indexer is None:
             # Node is none, so this is a slave signal
-            master_prefix = self.get_master_prefix()
             slave_name = self.get_slave_name()
             return f"{slave_name}.{signal}"
 
