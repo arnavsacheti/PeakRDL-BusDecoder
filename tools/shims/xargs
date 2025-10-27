@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+
+"""Minimal xargs replacement for environments where /usr/bin/xargs is unavailable.
+
+Supports the subset of functionality exercised by Verilator's generated makefiles:
+optional -0 (NUL-delimited input) and -t (echo command) flags, followed by a command
+invocation constructed from stdin tokens.
+"""
+
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+
+
+def main() -> int:
+    args = sys.argv[1:]
+    show_cmd = False
+    null_delimited = False
+
+    while args and args[0].startswith("-") and args[0] != "-":
+        opt = args.pop(0)
+        if opt == "-0":
+            null_delimited = True
+        elif opt == "-t":
+            show_cmd = True
+        else:
+            sys.stderr.write(f"xargs shim: unsupported option {opt}\n")
+            return 1
+
+    if not args:
+        args = ["echo"]
+
+    data = sys.stdin.buffer.read()
+    if not data.strip():
+        return 0
+
+    if null_delimited:
+        items = [chunk.decode() for chunk in data.split(b"\0") if chunk]
+    else:
+        items = data.decode().split()
+
+    if not items:
+        return 0
+
+    cmd = args + items
+    if show_cmd:
+        print(" ".join(cmd))
+
+    try:
+        subprocess.check_call(cmd)
+    except FileNotFoundError:
+        return 127
+    except subprocess.CalledProcessError as exc:
+        return exc.returncode
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

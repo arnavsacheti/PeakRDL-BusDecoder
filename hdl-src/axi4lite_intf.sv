@@ -2,6 +2,9 @@ interface axi4lite_intf #(
     parameter DATA_WIDTH = 32,
     parameter ADDR_WIDTH = 32
 );
+    logic ACLK;
+    logic ARESETn;
+
     logic AWREADY;
     logic AWVALID;
     logic [ADDR_WIDTH-1:0] AWADDR;
@@ -27,6 +30,9 @@ interface axi4lite_intf #(
     logic [1:0] RRESP;
 
     modport master (
+        input ACLK,
+        input ARESETn,
+
         input AWREADY,
         output AWVALID,
         output AWADDR,
@@ -53,15 +59,18 @@ interface axi4lite_intf #(
     );
 
     modport slave (
+        input ACLK,
+        input ARESETn,
+
         output AWREADY,
-        // input AWVALID,
-        // input AWADDR,
+        input AWVALID,
+        input AWADDR,
         input AWPROT,
 
         output WREADY,
-        // input WVALID,
-        // input WDATA,
-        // input WSTRB,
+        input WVALID,
+        input WDATA,
+        input WSTRB,
 
         input BREADY,
         output BVALID,
@@ -73,8 +82,8 @@ interface axi4lite_intf #(
         input ARPROT,
 
         input RREADY,
-        // output RVALID,
-        // output RDATA,
-        // output RRESP
+        output RVALID,
+        output RDATA,
+        output RRESP
     );
 endinterface

@@ -63,11 +63,16 @@ class DecodeLogicGenerator(BusDecoderListener):
             l_bound_comp.append(f"({addr_width}'(i{i})*{SVInt(stride, addr_width)})")
             u_bound_comp.append(f"({addr_width}'(i{i})*{SVInt(stride, addr_width)})")
 
-        # Generate Conditions
-        return [
-            f"{self._flavor.cpuif_address} >= ({'+'.join(l_bound_comp)})",
-            f"{self._flavor.cpuif_address} < ({'+'.join(u_bound_comp)})",
-        ]
+        lower_expr = f"{self._flavor.cpuif_address} >= ({'+'.join(l_bound_comp)})"
+        upper_expr = f"{self._flavor.cpuif_address} < ({'+'.join(u_bound_comp)})"
+
+        predicates: list[str] = []
+        # Avoid generating a redundant >= 0 comparison, which triggers Verilator warnings.
+        if not (l_bound.value == 0 and len(l_bound_comp) == 1):
+            predicates.append(lower_expr)
+        predicates.append(upper_expr)
+
+        return predicates
 
     def cpuif_prot_predicate(self, node: AddressableNode) -> list[str]:
         if self._flavor == DecodeLogicFlavor.READ:

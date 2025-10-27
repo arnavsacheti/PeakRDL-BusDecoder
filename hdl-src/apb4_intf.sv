@@ -2,6 +2,10 @@ interface apb4_intf #(
     parameter DATA_WIDTH = 32,
     parameter ADDR_WIDTH = 32
 );
+    // Clocking
+    logic PCLK;
+    logic PRESETn;
+
     // Command
     logic PSEL;
     logic PENABLE;
@@ -17,6 +21,9 @@ interface apb4_intf #(
     logic PSLVERR;
 
     modport master (
+        input PCLK,
+        input PRESETn,
+
         output PSEL,
         output PENABLE,
         output PWRITE,
@@ -31,6 +38,9 @@ interface apb4_intf #(
     );
 
     modport slave (
+        input PCLK,
+        input PRESETn,
+
         input PSEL,
         input PENABLE,
         input PWRITE,

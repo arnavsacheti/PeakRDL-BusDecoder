@@ -5,52 +5,71 @@
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Iterable, Mapping, Optional
+from collections.abc import Callable
 
 import pytest
-from systemrdl import RDLCompileError, RDLCompiler
+from systemrdl.node import AddrmapNode
 
 
 @pytest.fixture
-def compile_rdl(tmp_path: Path):
-    """Compile inline SystemRDL source and return the elaborated root node.
+def external_nested_rdl(compile_rdl: Callable[..., AddrmapNode]) -> AddrmapNode:
+    """Create an RDL design with external nested addressable components.
 
-    Parameters
-    ----------
-    tmp_path:
-        Temporary directory provided by pytest.
+    This tests the scenario where an addrmap contains external children
+    that themselves have external addressable children.
+    The decoder should only generate select signals for the top-level
+    external children, not their internal structure.
     """
+    rdl_source = """
+    mem queue_t {
+        name = "Queue";
+        mementries = 1024;
+        memwidth = 64;
+    };
 
-    def _compile(
-        source: str,
-        *,
-        top: Optional[str] = None,
-        defines: Optional[Mapping[str, object]] = None,
-        include_paths: Optional[Iterable[Path | str]] = None,
-    ):
-        compiler = RDLCompiler()
+    addrmap port_t {
+        name = "Port";
+        desc = "";
 
-        for key, value in (defines or {}).items():
-            compiler.define(key, value)
+        external queue_t common[3] @ 0x0 += 0x2000;
+        external queue_t response  @ 0x6000;
+    };
 
-        for include_path in include_paths or ():
-            compiler.add_include_path(str(include_path))
+    addrmap buffer_t {
+        name = "Buffer";
+        desc = "";
 
-        # Use delete=False to keep the file around after closing
-        with NamedTemporaryFile("w", suffix=".rdl", dir=tmp_path, delete=False) as tmp_file:
-            tmp_file.write(source)
-            tmp_file.flush()
+        port_t multicast      @ 0x0;
+        port_t port      [16] @ 0x8000 += 0x8000;
+    };
+    """
+    return compile_rdl(rdl_source, top="buffer_t")
 
-            try:
-                compiler.compile_file(tmp_file.name)
-                if top is not None:
-                    root = compiler.elaborate(top)
-                    return root.top
-                root = compiler.elaborate()
-                return root.top
-            except RDLCompileError:
-                # Print error messages if available
-                if hasattr(compiler, "print_messages"):
-                    compiler.print_messages()
-                raise
 
-    return _compile
+@pytest.fixture
+def nested_addrmap_rdl(compile_rdl: Callable[..., AddrmapNode]) -> AddrmapNode:
+    """Create an RDL design with nested non-external addrmaps for testing depth control."""
+    rdl_source = """
+    addrmap level2 {
+        reg {
+            field { sw=rw; hw=r; } data2[31:0];
+        } reg2 @ 0x0;
+        
+        reg {
+            field { sw=rw; hw=r; } data2b[31:0];
+        } reg2b @ 0x4;
+    };
+
+    addrmap level1 {
+        reg {
+            field { sw=rw; hw=r; } data1[31:0];
+        } reg1 @ 0x0;
+        
+        level2 inner2 @ 0x10;
+    };
+
+    addrmap level0 {
+        level1 inner1 @ 0x0;
+    };
+    """
+    return compile_rdl(rdl_source, top="level0")
