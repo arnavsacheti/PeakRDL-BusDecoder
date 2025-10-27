@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+collect_ignore_glob = ["cocotb/*/smoke/test_register_access.py"]
+
+import os
 from collections.abc import Callable
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -9,6 +12,9 @@ from tempfile import NamedTemporaryFile
 import pytest
 from systemrdl import RDLCompileError, RDLCompiler  # type:ignore
 from systemrdl.node import AddrmapNode
+
+_SHIM_DIR = Path(__file__).resolve().parents[1] / "tools" / "shims"
+os.environ["PATH"] = f"{_SHIM_DIR}{os.pathsep}{os.environ.get('PATH', '')}"
 
 
 @pytest.fixture

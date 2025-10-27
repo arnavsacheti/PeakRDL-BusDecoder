@@ -72,16 +72,28 @@ Run examples to see generated code for different configurations:
 python tests/cocotb/examples.py
 ```
 
+#### Simulation layout
+
+Simulation-oriented tests are grouped by CPU interface under
+`tests/cocotb/<cpuif>/<group>/`. For example, the APB4 smoke test lives in
+`tests/cocotb/apb4/smoke/` alongside its pytest runner module. Each runner
+compiles the appropriate SystemRDL design, adds the interface wrapper from
+`hdl-src/`, and invokes cocotb via Verilator.
+
 #### Full simulation tests (requires simulator)
 
-To run the full cocotb simulation tests:
+To execute the smoke tests for every supported interface:
 
 ```bash
-# Run all cocotb simulation tests
-pytest tests/cocotb/testbenches/test_*_runner.py -v
+pytest tests/cocotb/*/smoke/test_runner.py -v
+```
 
-# Run specific interface tests
-pytest tests/cocotb/testbenches/test_apb4_runner.py -v
+To target a single interface, point pytest at that runner module:
+
+```bash
+pytest tests/cocotb/apb3/smoke/test_runner.py -v
+pytest tests/cocotb/apb4/smoke/test_runner.py -v
+pytest tests/cocotb/axi4lite/smoke/test_runner.py -v
 ```
 
 For more information about cocotb tests, see [`tests/cocotb/README.md`](cocotb/README.md).

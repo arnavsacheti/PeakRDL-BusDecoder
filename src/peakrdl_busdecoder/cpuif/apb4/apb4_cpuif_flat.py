@@ -12,16 +12,16 @@ class APB4CpuifFlat(BaseCpuif):
         return [
             f"input  logic {self.signal('PCLK', child)}",
             f"input  logic {self.signal('PRESETn', child)}",
-            f"input  logic {self.signal('PSELx', child)}",
-            f"input  logic {self.signal('PENABLE', child)}",
-            f"input  logic {self.signal('PWRITE', child)}",
-            f"input  logic [{self.addr_width - 1}:0] {self.signal('PADDR', child)}",
-            f"input  logic [2:0] {self.signal('PPROT', child)}",
-            f"input  logic [{self.data_width - 1}:0] {self.signal('PWDATA', child)}",
-            f"input  logic [{self.data_width // 8 - 1}:0] {self.signal('PSTRB', child)}",
-            f"output logic [{self.data_width - 1}:0] {self.signal('PRDATA', child)}",
-            f"output logic {self.signal('PREADY', child)}",
-            f"output logic {self.signal('PSLVERR', child)}",
+            f"output logic {self.signal('PSELx', child)}",
+            f"output logic {self.signal('PENABLE', child)}",
+            f"output logic {self.signal('PWRITE', child)}",
+            f"output logic [{self.addr_width - 1}:0] {self.signal('PADDR', child)}",
+            f"output logic [2:0] {self.signal('PPROT', child)}",
+            f"output logic [{self.data_width - 1}:0] {self.signal('PWDATA', child)}",
+            f"output logic [{self.data_width // 8 - 1}:0] {self.signal('PSTRB', child)}",
+            f"input  logic [{self.data_width - 1}:0] {self.signal('PRDATA', child)}",
+            f"input  logic {self.signal('PREADY', child)}",
+            f"input  logic {self.signal('PSLVERR', child)}",
         ]
 
     @property
@@ -52,9 +52,10 @@ class APB4CpuifFlat(BaseCpuif):
         node: AddressableNode | None = None,
         idx: str | int | None = None,
     ) -> str:
+        mapped_signal = "PSELx" if signal == "PSEL" else signal
         if node is None:
             # Node is none, so this is a slave signal
-            return f"s_apb_{signal}"
+            return f"s_apb_{mapped_signal}"
 
         # Master signal
         base = f"m_apb_{node.inst_name}"
@@ -62,12 +63,12 @@ class APB4CpuifFlat(BaseCpuif):
             # Not an array or an unrolled element
             if node.current_idx is not None:
                 # This is a specific instance of an unrolled array
-                return f"{base}_{signal}_{'_'.join(map(str, node.current_idx))}"
-            return f"{base}_{signal}"
+                return f"{base}_{mapped_signal}_{'_'.join(map(str, node.current_idx))}"
+            return f"{base}_{mapped_signal}"
         # Is an array
         if idx is not None:
-            return f"{base}_{signal}[{idx}]"
-        return f"{base}_{signal}[N_{node.inst_name.upper()}S]"
+            return f"{base}_{mapped_signal}[{idx}]"
+        return f"{base}_{mapped_signal}[N_{node.inst_name.upper()}S]"
 
     def fanout(self, node: AddressableNode) -> str:
         fanout: dict[str, str] = {}
