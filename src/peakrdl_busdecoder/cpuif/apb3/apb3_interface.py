@@ -31,7 +31,7 @@ class APB3FlatInterface(FlatInterface):
         return [
             f"input  logic {slave_prefix}PCLK",
             f"input  logic {slave_prefix}PRESETn",
-            f"input  logic {slave_prefix}PSELx",
+            f"input  logic {slave_prefix}PSEL",
             f"input  logic {slave_prefix}PENABLE",
             f"input  logic {slave_prefix}PWRITE",
             f"input  logic [{self.cpuif.addr_width - 1}:0] {slave_prefix}PADDR",
@@ -45,7 +45,7 @@ class APB3FlatInterface(FlatInterface):
         return [
             f"output logic {self.signal('PCLK', child)}",
             f"output logic {self.signal('PRESETn', child)}",
-            f"output logic {self.signal('PSELx', child)}",
+            f"output logic {self.signal('PSEL', child)}",
             f"output logic {self.signal('PENABLE', child)}",
             f"output logic {self.signal('PWRITE', child)}",
             f"output logic [{self.cpuif.addr_width - 1}:0] {self.signal('PADDR', child)}",

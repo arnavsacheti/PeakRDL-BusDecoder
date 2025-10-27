@@ -35,7 +35,7 @@ class APB4CpuifFlat(BaseCpuif):
 
     def fanout(self, node: AddressableNode) -> str:
         fanout: dict[str, str] = {}
-        fanout[self.signal("PSELx", node)] = (
+        fanout[self.signal("PSEL", node)] = (
             f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'i')}|cpuif_rd_sel.{get_indexed_path(self.exp.ds.top_node, node, 'i')}"
         )
         fanout[self.signal("PENABLE", node)] = self.signal("PENABLE")
