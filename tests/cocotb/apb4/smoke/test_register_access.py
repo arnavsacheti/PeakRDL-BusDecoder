@@ -12,7 +12,7 @@ READ_DATA = 0x89AB_CDEF
 class _Apb4SlaveShim:
     def __init__(self, dut):
         prefix = "s_apb"
-        self.PSEL = getattr(dut, f"{prefix}_PSELx")
+        self.PSEL = getattr(dut, f"{prefix}_PSEL")
         self.PENABLE = getattr(dut, f"{prefix}_PENABLE")
         self.PWRITE = getattr(dut, f"{prefix}_PWRITE")
         self.PADDR = getattr(dut, f"{prefix}_PADDR")
@@ -26,7 +26,7 @@ class _Apb4SlaveShim:
 
 class _Apb4MasterShim:
     def __init__(self, dut, base: str):
-        self.PSEL = getattr(dut, f"{base}_PSELx")
+        self.PSEL = getattr(dut, f"{base}_PSEL")
         self.PENABLE = getattr(dut, f"{base}_PENABLE")
         self.PWRITE = getattr(dut, f"{base}_PWRITE")
         self.PADDR = getattr(dut, f"{base}_PADDR")

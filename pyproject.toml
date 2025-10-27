@@ -67,7 +67,7 @@ tools = ["pyrefly>=0.37.0", "ruff>=0.14.0"]
 [project.entry-points."peakrdl.exporters"]
 busdecoder = "peakrdl_busdecoder.__peakrdl__:Exporter"
 
-
+# ---------------------- RUFF ----------------------
 [tool.ruff]
 line-length = 110
 target-version = "py310"
@@ -106,3 +106,11 @@ untyped-def-behavior = "check-and-infer-return-type"
 
 project-includes = ["src/**/*"]
 project-excludes = ["**/__pycache__", "**/*venv/**/*"]
+
+# ---------------------- PYTEST ----------------------
+[tool.pytest.ini_options]
+python_files = ["test_*.py", "*_test.py"]
+markers = [
+    "simulation: marks tests as requiring cocotb simulation (deselect with '-m \"not simulation\"')",
+    "verilator: marks tests as requiring verilator simulator (deselect with '-m \"not verilator\"')",
+]
