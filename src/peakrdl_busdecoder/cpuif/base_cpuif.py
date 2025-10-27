@@ -7,6 +7,7 @@ from systemrdl.node import AddressableNode
 
 from ..utils import clog2, get_indexed_path, is_pow2, roundup_pow2
 from .fanin_gen import FaninGenerator
+from .fanin_intermediate_gen import FaninIntermediateGenerator
 from .fanout_gen import FanoutGenerator
 
 if TYPE_CHECKING:
@@ -97,6 +98,7 @@ class BaseCpuif:
             "ds": self.exp.ds,
             "fanout": FanoutGenerator,
             "fanin": FaninGenerator,
+            "fanin_intermediate": FaninIntermediateGenerator,
         }
 
         template = jj_env.get_template(self.template_path)

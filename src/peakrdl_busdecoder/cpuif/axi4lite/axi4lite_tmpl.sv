@@ -53,6 +53,13 @@ assign {{cpuif.signal("BRESP")}}  = (cpuif_wr_err | cpuif_wr_sel.cpuif_err | cpu
 // Fanout CPU Bus interface signals
 //--------------------------------------------------------------------------
 {{fanout|walk(cpuif=cpuif)}}
+{%- if cpuif.is_interface %}
+
+//--------------------------------------------------------------------------
+// Intermediate signals for interface array fanin
+//--------------------------------------------------------------------------
+{{fanin_intermediate|walk(cpuif=cpuif)}}
+{%- endif %}
 
 //--------------------------------------------------------------------------
 // Fanin CPU Bus interface signals
