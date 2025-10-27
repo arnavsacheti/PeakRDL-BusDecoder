@@ -48,7 +48,9 @@ class Interface(ABC):
         Args:
             signal: Signal name
             node: Optional addressable node for master signals
-            indexer: Optional indexer for arrays (str for SV interfaces, str or int for flat)
+            indexer: Optional indexer for arrays.
+                     For SVInterface: str like "i" or "gi" for loop indices
+                     For FlatInterface: str or int for array subscript
 
         Returns:
             Signal reference as a string
@@ -92,6 +94,10 @@ class SVInterface(Interface):
     ) -> str:
         """Generate SystemVerilog interface signal reference."""
         from ..utils import get_indexed_path
+
+        # SVInterface only supports string indexers (loop variable names like "i", "gi")
+        if indexer is not None and not isinstance(indexer, str):
+            raise TypeError(f"SVInterface.signal() requires string indexer, got {type(indexer).__name__}")
 
         if node is None or indexer is None:
             # Node is none, so this is a slave signal
