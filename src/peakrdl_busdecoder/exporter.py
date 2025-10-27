@@ -17,6 +17,7 @@ from .identifier_filter import kw_filter as kwf
 from .listener import BusDecoderListener
 from .struct_gen import StructGenerator
 from .sv_int import SVInt
+from .utils import clog2
 from .validate_design import DesignValidator
 
 
@@ -60,6 +61,7 @@ class BusDecoderExporter:
         )
         self.jj_env.filters["kwf"] = kwf  # type: ignore
         self.jj_env.filters["walk"] = self.walk  # type: ignore
+        self.jj_env.filters["clog2"] = clog2  # type: ignore
 
     def export(self, node: RootNode | AddrmapNode, output_dir: str, **kwargs: Unpack[ExporterKwargs]) -> None:
         """
