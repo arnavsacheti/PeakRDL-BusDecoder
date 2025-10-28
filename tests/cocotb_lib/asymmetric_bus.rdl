@@ -1,0 +1,105 @@
+regfile port_rf {
+    reg {
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } port_enable[0:0];
+
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } port_speed[3:1];
+
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } port_width[8:4];
+    } control @ 0x0;
+
+    reg {
+        field {
+            sw = r;
+            hw = w;
+            reset = 0x0;
+        } error_count[15:0];
+
+        field {
+            sw = r;
+            hw = w;
+            reset = 0x0;
+        } retry_count[31:16];
+    } counters @ 0x4;
+
+    reg {
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } qos[7:0];
+
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } virtual_channel[9:8];
+    } qos @ 0x8;
+};
+
+addrmap asymmetric_bus {
+    reg {
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } control[3:0];
+
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } id[15:4];
+    } control @ 0x0;
+
+    reg {
+        field {
+            sw = r;
+            hw = w;
+            reset = 0x0;
+        } status_flags[19:0];
+    } status @ 0x4;
+
+    reg {
+        regwidth = 64;
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x00abcdef;
+        } timestamp_low[31:0];
+
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x00123456;
+        } timestamp_high[55:32];
+    } timestamp @ 0x8;
+
+    reg {
+        regwidth = 128;
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } extended_id[63:0];
+
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x1;
+        } parity[64:64];
+    } extended @ 0x10;
+
+    port_rf port[6] @ 0x40 += 0x20;
+};

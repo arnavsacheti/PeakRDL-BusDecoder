@@ -1,15 +1,18 @@
-"""AXI4-Lite smoke test ensuring address decode fanout works."""
+"""AXI4-Lite smoke test driven from SystemRDL-generated register maps."""
+
+from __future__ import annotations
+
+import json
+import os
+from typing import Any, Iterable
 
 import cocotb
 from cocotb.triggers import Timer
 
-WRITE_ADDR = 0x4
-READ_ADDR = 0x8
-WRITE_DATA = 0x1357_9BDF
-READ_DATA = 0x2468_ACED
-
 
 class _AxilSlaveShim:
+    """Accessor for AXI4-Lite slave ports on the DUT."""
+
     def __init__(self, dut):
         prefix = "s_axil"
         self.AWREADY = getattr(dut, f"{prefix}_AWREADY")
@@ -33,129 +36,180 @@ class _AxilSlaveShim:
         self.RRESP = getattr(dut, f"{prefix}_RRESP")
 
 
-class _AxilMasterShim:
-    def __init__(self, dut, base: str):
-        self.AWREADY = getattr(dut, f"{base}_AWREADY")
-        self.AWVALID = getattr(dut, f"{base}_AWVALID")
-        self.AWADDR = getattr(dut, f"{base}_AWADDR")
-        self.AWPROT = getattr(dut, f"{base}_AWPROT")
-        self.WREADY = getattr(dut, f"{base}_WREADY")
-        self.WVALID = getattr(dut, f"{base}_WVALID")
-        self.WDATA = getattr(dut, f"{base}_WDATA")
-        self.WSTRB = getattr(dut, f"{base}_WSTRB")
-        self.BREADY = getattr(dut, f"{base}_BREADY")
-        self.BVALID = getattr(dut, f"{base}_BVALID")
-        self.BRESP = getattr(dut, f"{base}_BRESP")
-        self.ARREADY = getattr(dut, f"{base}_ARREADY")
-        self.ARVALID = getattr(dut, f"{base}_ARVALID")
-        self.ARADDR = getattr(dut, f"{base}_ARADDR")
-        self.ARPROT = getattr(dut, f"{base}_ARPROT")
-        self.RREADY = getattr(dut, f"{base}_RREADY")
-        self.RVALID = getattr(dut, f"{base}_RVALID")
-        self.RDATA = getattr(dut, f"{base}_RDATA")
-        self.RRESP = getattr(dut, f"{base}_RRESP")
+def _load_config() -> dict[str, Any]:
+    payload = os.environ.get("RDL_TEST_CONFIG")
+    if payload is None:
+        raise RuntimeError("RDL_TEST_CONFIG environment variable was not provided")
+    return json.loads(payload)
 
 
-def _axil_slave(dut):
-    return getattr(dut, "s_axil", None) or _AxilSlaveShim(dut)
+def _resolve(handle, indices: Iterable[int]):
+    ref = handle
+    for idx in indices:
+        ref = ref[idx]
+    return ref
 
 
-def _axil_master(dut, base: str):
-    return getattr(dut, base, None) or _AxilMasterShim(dut, base)
+def _set_value(handle, indices: Iterable[int], value: int) -> None:
+    _resolve(handle, indices).value = value
+
+
+def _get_int(handle, indices: Iterable[int]) -> int:
+    return int(_resolve(handle, indices).value)
+
+
+def _build_master_table(dut, masters_cfg: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    table: dict[str, dict[str, Any]] = {}
+    for master in masters_cfg:
+        prefix = master["port_prefix"]
+        entry = {
+            "indices": [tuple(idx) for idx in master["indices"]] or [tuple()],
+            "outputs": {
+                "AWVALID": getattr(dut, f"{prefix}_AWVALID"),
+                "AWADDR": getattr(dut, f"{prefix}_AWADDR"),
+                "AWPROT": getattr(dut, f"{prefix}_AWPROT"),
+                "WVALID": getattr(dut, f"{prefix}_WVALID"),
+                "WDATA": getattr(dut, f"{prefix}_WDATA"),
+                "WSTRB": getattr(dut, f"{prefix}_WSTRB"),
+                "ARVALID": getattr(dut, f"{prefix}_ARVALID"),
+                "ARADDR": getattr(dut, f"{prefix}_ARADDR"),
+                "ARPROT": getattr(dut, f"{prefix}_ARPROT"),
+            },
+            "inputs": {
+                "AWREADY": getattr(dut, f"{prefix}_AWREADY"),
+                "WREADY": getattr(dut, f"{prefix}_WREADY"),
+                "BVALID": getattr(dut, f"{prefix}_BVALID"),
+                "BRESP": getattr(dut, f"{prefix}_BRESP"),
+                "ARREADY": getattr(dut, f"{prefix}_ARREADY"),
+                "RVALID": getattr(dut, f"{prefix}_RVALID"),
+                "RDATA": getattr(dut, f"{prefix}_RDATA"),
+                "RRESP": getattr(dut, f"{prefix}_RRESP"),
+            },
+        }
+        table[master["inst_name"]] = entry
+    return table
+
+
+def _all_index_pairs(table: dict[str, dict[str, Any]]):
+    for name, entry in table.items():
+        for idx in entry["indices"]:
+            yield name, idx
+
+
+def _write_pattern(address: int, width: int) -> int:
+    mask = (1 << width) - 1
+    return ((address * 0x3105) ^ 0x1357_9BDF) & mask
+
+
+def _read_pattern(address: int, width: int) -> int:
+    mask = (1 << width) - 1
+    return ((address ^ 0x2468_ACED) + width) & mask
 
 
 @cocotb.test()
-async def test_axi4lite_read_write_paths(dut):
-    """Drive AXI4-Lite slave channels and validate master side wiring."""
-    s_axil = _axil_slave(dut)
-    masters = {
-        "reg1": _axil_master(dut, "m_axil_reg1"),
-        "reg2": _axil_master(dut, "m_axil_reg2"),
-        "reg3": _axil_master(dut, "m_axil_reg3"),
-    }
+async def test_axi4lite_address_decoding(dut) -> None:
+    """Stimulate AXI4-Lite slave channels and verify master port selection."""
+    config = _load_config()
+    slave = _AxilSlaveShim(dut)
+    masters = _build_master_table(dut, config["masters"])
 
-    # Default slave-side inputs
-    s_axil.AWVALID.value = 0
-    s_axil.AWADDR.value = 0
-    s_axil.AWPROT.value = 0
-    s_axil.WVALID.value = 0
-    s_axil.WDATA.value = 0
-    s_axil.WSTRB.value = 0
-    s_axil.BREADY.value = 0
-    s_axil.ARVALID.value = 0
-    s_axil.ARADDR.value = 0
-    s_axil.ARPROT.value = 0
-    s_axil.RREADY.value = 0
+    slave.AWVALID.value = 0
+    slave.AWADDR.value = 0
+    slave.AWPROT.value = 0
+    slave.WVALID.value = 0
+    slave.WDATA.value = 0
+    slave.WSTRB.value = 0
+    slave.BREADY.value = 0
+    slave.ARVALID.value = 0
+    slave.ARADDR.value = 0
+    slave.ARPROT.value = 0
+    slave.RREADY.value = 0
 
-    for master in masters.values():
-        master.AWREADY.value = 0
-        master.WREADY.value = 0
-        master.BVALID.value = 0
-        master.BRESP.value = 0
-        master.ARREADY.value = 0
-        master.RVALID.value = 0
-        master.RDATA.value = 0
-        master.RRESP.value = 0
+    for master_name, idx in _all_index_pairs(masters):
+        entry = masters[master_name]
+        _set_value(entry["inputs"]["AWREADY"], idx, 0)
+        _set_value(entry["inputs"]["WREADY"], idx, 0)
+        _set_value(entry["inputs"]["BVALID"], idx, 0)
+        _set_value(entry["inputs"]["BRESP"], idx, 0)
+        _set_value(entry["inputs"]["ARREADY"], idx, 0)
+        _set_value(entry["inputs"]["RVALID"], idx, 0)
+        _set_value(entry["inputs"]["RDATA"], idx, 0)
+        _set_value(entry["inputs"]["RRESP"], idx, 0)
 
     await Timer(1, units="ns")
 
-    # --------------------------------------------------------------
-    # Write transaction targeting reg2
-    # --------------------------------------------------------------
-    s_axil.AWADDR.value = WRITE_ADDR
-    s_axil.AWPROT.value = 0
-    s_axil.AWVALID.value = 1
-    s_axil.WDATA.value = WRITE_DATA
-    s_axil.WSTRB.value = 0xF
-    s_axil.WVALID.value = 1
-    s_axil.BREADY.value = 1
+    addr_mask = (1 << config["address_width"]) - 1
+    strobe_mask = (1 << config["byte_width"]) - 1
 
-    await Timer(1, units="ns")
+    for txn in config["transactions"]:
+        master_name = txn["master"]
+        index = tuple(txn["index"])
+        entry = masters[master_name]
 
-    assert int(masters["reg2"].AWVALID.value) == 1, "reg2 AWVALID should follow slave"
-    assert int(masters["reg2"].WVALID.value) == 1, "reg2 WVALID should follow slave"
-    assert int(masters["reg2"].AWADDR.value) == WRITE_ADDR, "AWADDR should fan out"
-    assert int(masters["reg2"].WDATA.value) == WRITE_DATA, "WDATA should fan out"
-    assert int(masters["reg2"].WSTRB.value) == 0xF, "WSTRB should propagate"
+        address = txn["address"] & addr_mask
+        write_data = _write_pattern(address, config["data_width"])
 
-    for name, master in masters.items():
-        if name != "reg2":
-            assert int(master.AWVALID.value) == 0, f"{name} AWVALID should stay low"
-            assert int(master.WVALID.value) == 0, f"{name} WVALID should stay low"
+        slave.AWADDR.value = address
+        slave.AWPROT.value = 0
+        slave.AWVALID.value = 1
+        slave.WDATA.value = write_data
+        slave.WSTRB.value = strobe_mask
+        slave.WVALID.value = 1
+        slave.BREADY.value = 1
 
-    # Release write channel
-    s_axil.AWVALID.value = 0
-    s_axil.WVALID.value = 0
-    s_axil.BREADY.value = 0
-    await Timer(1, units="ns")
+        await Timer(1, units="ns")
 
-    # --------------------------------------------------------------
-    # Read transaction targeting reg3
-    # --------------------------------------------------------------
-    masters["reg3"].RVALID.value = 1
-    masters["reg3"].RDATA.value = READ_DATA
-    masters["reg3"].RRESP.value = 0
+        assert _get_int(entry["outputs"]["AWVALID"], index) == 1, f"{master_name} should see AWVALID asserted"
+        assert _get_int(entry["outputs"]["AWADDR"], index) == address, f"{master_name} must receive AWADDR"
+        assert _get_int(entry["outputs"]["WVALID"], index) == 1, f"{master_name} should see WVALID asserted"
+        assert _get_int(entry["outputs"]["WDATA"], index) == write_data, f"{master_name} must receive WDATA"
+        assert _get_int(entry["outputs"]["WSTRB"], index) == strobe_mask, f"{master_name} must receive WSTRB"
 
-    s_axil.ARADDR.value = READ_ADDR
-    s_axil.ARPROT.value = 0
-    s_axil.ARVALID.value = 1
-    s_axil.RREADY.value = 1
+        for other_name, other_idx in _all_index_pairs(masters):
+            if other_name == master_name and other_idx == index:
+                continue
+            other_entry = masters[other_name]
+            assert (
+                _get_int(other_entry["outputs"]["AWVALID"], other_idx) == 0
+            ), f"{other_name}{other_idx} AWVALID should remain low during {txn['label']}"
+            assert (
+                _get_int(other_entry["outputs"]["WVALID"], other_idx) == 0
+            ), f"{other_name}{other_idx} WVALID should remain low during {txn['label']}"
 
-    await Timer(1, units="ns")
+        slave.AWVALID.value = 0
+        slave.WVALID.value = 0
+        slave.BREADY.value = 0
+        await Timer(1, units="ns")
 
-    assert int(masters["reg3"].ARVALID.value) == 1, "reg3 ARVALID should follow slave"
-    assert int(masters["reg3"].ARADDR.value) == READ_ADDR, "ARADDR should fan out"
+        read_data = _read_pattern(address, config["data_width"])
+        _set_value(entry["inputs"]["RVALID"], index, 1)
+        _set_value(entry["inputs"]["RDATA"], index, read_data)
+        _set_value(entry["inputs"]["RRESP"], index, 0)
 
-    for name, master in masters.items():
-        if name != "reg3":
-            assert int(master.ARVALID.value) == 0, f"{name} ARVALID should stay low"
+        slave.ARADDR.value = address
+        slave.ARPROT.value = 0
+        slave.ARVALID.value = 1
+        slave.RREADY.value = 1
 
-    assert int(s_axil.RVALID.value) == 1, "Slave should raise RVALID when master responds"
-    assert int(s_axil.RDATA.value) == READ_DATA, "Read data should return to slave"
-    assert int(s_axil.RRESP.value) == 0, "No error expected for read"
+        await Timer(1, units="ns")
 
-    # Return to idle
-    s_axil.ARVALID.value = 0
-    s_axil.RREADY.value = 0
-    masters["reg3"].RVALID.value = 0
-    await Timer(1, units="ns")
+        assert _get_int(entry["outputs"]["ARVALID"], index) == 1, f"{master_name} should assert ARVALID"
+        assert _get_int(entry["outputs"]["ARADDR"], index) == address, f"{master_name} must receive ARADDR"
+
+        for other_name, other_idx in _all_index_pairs(masters):
+            if other_name == master_name and other_idx == index:
+                continue
+            other_entry = masters[other_name]
+            assert (
+                _get_int(other_entry["outputs"]["ARVALID"], other_idx) == 0
+            ), f"{other_name}{other_idx} ARVALID should remain low during read of {txn['label']}"
+
+        assert int(slave.RVALID.value) == 1, "Slave should observe RVALID when master responds"
+        assert int(slave.RDATA.value) == read_data, "Read data must fold back to slave"
+        assert int(slave.RRESP.value) == 0, "Read response should indicate success"
+
+        slave.ARVALID.value = 0
+        slave.RREADY.value = 0
+        _set_value(entry["inputs"]["RVALID"], index, 0)
+        _set_value(entry["inputs"]["RDATA"], index, 0)
+        await Timer(1, units="ns")

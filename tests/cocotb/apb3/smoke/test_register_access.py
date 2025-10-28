@@ -1,15 +1,18 @@
-"""APB3 smoke tests for generated multi-register design."""
+"""APB3 smoke tests generated from SystemRDL sources."""
+
+from __future__ import annotations
+
+import json
+import os
+from typing import Any, Iterable
 
 import cocotb
 from cocotb.triggers import Timer
 
-WRITE_ADDR = 0x0
-READ_ADDR = 0x8
-WRITE_DATA = 0xCAFEBABE
-READ_DATA = 0x0BAD_F00D
-
 
 class _Apb3SlaveShim:
+    """Accessor for the APB3 slave signals on the DUT."""
+
     def __init__(self, dut):
         prefix = "s_apb"
         self.PSEL = getattr(dut, f"{prefix}_PSEL")
@@ -22,102 +25,164 @@ class _Apb3SlaveShim:
         self.PSLVERR = getattr(dut, f"{prefix}_PSLVERR")
 
 
-class _Apb3MasterShim:
-    def __init__(self, dut, base: str):
-        self.PSEL = getattr(dut, f"{base}_PSEL")
-        self.PENABLE = getattr(dut, f"{base}_PENABLE")
-        self.PWRITE = getattr(dut, f"{base}_PWRITE")
-        self.PADDR = getattr(dut, f"{base}_PADDR")
-        self.PWDATA = getattr(dut, f"{base}_PWDATA")
-        self.PRDATA = getattr(dut, f"{base}_PRDATA")
-        self.PREADY = getattr(dut, f"{base}_PREADY")
-        self.PSLVERR = getattr(dut, f"{base}_PSLVERR")
+def _load_config() -> dict[str, Any]:
+    payload = os.environ.get("RDL_TEST_CONFIG")
+    if payload is None:
+        raise RuntimeError("RDL_TEST_CONFIG environment variable was not provided")
+    return json.loads(payload)
 
 
-def _apb3_slave(dut):
-    return getattr(dut, "s_apb", None) or _Apb3SlaveShim(dut)
+def _resolve(handle, indices: Iterable[int]):
+    ref = handle
+    for idx in indices:
+        ref = ref[idx]
+    return ref
 
 
-def _apb3_master(dut, base: str):
-    return getattr(dut, base, None) or _Apb3MasterShim(dut, base)
+def _set_value(handle, indices: Iterable[int], value: int) -> None:
+    _resolve(handle, indices).value = value
+
+
+def _get_int(handle, indices: Iterable[int]) -> int:
+    return int(_resolve(handle, indices).value)
+
+
+def _build_master_table(dut, masters_cfg: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    table: dict[str, dict[str, Any]] = {}
+    for master in masters_cfg:
+        prefix = master["port_prefix"]
+        entry = {
+            "indices": [tuple(idx) for idx in master["indices"]] or [tuple()],
+            "outputs": {
+                "PSEL": getattr(dut, f"{prefix}_PSEL"),
+                "PENABLE": getattr(dut, f"{prefix}_PENABLE"),
+                "PWRITE": getattr(dut, f"{prefix}_PWRITE"),
+                "PADDR": getattr(dut, f"{prefix}_PADDR"),
+                "PWDATA": getattr(dut, f"{prefix}_PWDATA"),
+            },
+            "inputs": {
+                "PRDATA": getattr(dut, f"{prefix}_PRDATA"),
+                "PREADY": getattr(dut, f"{prefix}_PREADY"),
+                "PSLVERR": getattr(dut, f"{prefix}_PSLVERR"),
+            },
+        }
+        table[master["inst_name"]] = entry
+    return table
+
+
+def _all_index_pairs(table: dict[str, dict[str, Any]]):
+    for name, entry in table.items():
+        for idx in entry["indices"]:
+            yield name, idx
+
+
+def _write_pattern(address: int, width: int) -> int:
+    mask = (1 << width) - 1
+    return ((address * 0x2041) ^ 0xCAFEBABE) & mask
+
+
+def _read_pattern(address: int, width: int) -> int:
+    mask = (1 << width) - 1
+    return ((address ^ 0x0BAD_F00D) + width) & mask
 
 
 @cocotb.test()
-async def test_apb3_read_write_paths(dut):
-    """Exercise APB3 slave interface and observe master fanout."""
-    s_apb = _apb3_slave(dut)
-    masters = {
-        "reg1": _apb3_master(dut, "m_apb_reg1"),
-        "reg2": _apb3_master(dut, "m_apb_reg2"),
-        "reg3": _apb3_master(dut, "m_apb_reg3"),
-    }
+async def test_apb3_address_decoding(dut) -> None:
+    """Exercise the APB3 slave interface against sampled register addresses."""
+    config = _load_config()
+    slave = _Apb3SlaveShim(dut)
+    masters = _build_master_table(dut, config["masters"])
 
-    s_apb.PSEL.value = 0
-    s_apb.PENABLE.value = 0
-    s_apb.PWRITE.value = 0
-    s_apb.PADDR.value = 0
-    s_apb.PWDATA.value = 0
+    slave.PSEL.value = 0
+    slave.PENABLE.value = 0
+    slave.PWRITE.value = 0
+    slave.PADDR.value = 0
+    slave.PWDATA.value = 0
 
-    for master in masters.values():
-        master.PRDATA.value = 0
-        master.PREADY.value = 0
-        master.PSLVERR.value = 0
+    for master_name, idx in _all_index_pairs(masters):
+        entry = masters[master_name]
+        _set_value(entry["inputs"]["PRDATA"], idx, 0)
+        _set_value(entry["inputs"]["PREADY"], idx, 0)
+        _set_value(entry["inputs"]["PSLVERR"], idx, 0)
 
     await Timer(1, units="ns")
 
-    # Write to reg1
-    masters["reg1"].PREADY.value = 1
-    s_apb.PADDR.value = WRITE_ADDR
-    s_apb.PWDATA.value = WRITE_DATA
-    s_apb.PWRITE.value = 1
-    s_apb.PSEL.value = 1
-    s_apb.PENABLE.value = 1
+    addr_mask = (1 << config["address_width"]) - 1
 
-    await Timer(1, units="ns")
+    for txn in config["transactions"]:
+        master_name = txn["master"]
+        index = tuple(txn["index"])
+        entry = masters[master_name]
 
-    assert int(masters["reg1"].PSEL.value) == 1, "reg1 should be selected for write"
-    assert int(masters["reg1"].PWRITE.value) == 1, "Write should propagate to master"
-    assert int(masters["reg1"].PADDR.value) == WRITE_ADDR, "Address should reach selected master"
-    assert int(masters["reg1"].PWDATA.value) == WRITE_DATA, "Write data should fan out"
+        address = txn["address"] & addr_mask
+        write_data = _write_pattern(address, config["data_width"])
 
-    for name, master in masters.items():
-        if name != "reg1":
-            assert int(master.PSEL.value) == 0, f"{name} must idle during reg1 write"
+        _set_value(entry["inputs"]["PREADY"], index, 1)
+        _set_value(entry["inputs"]["PSLVERR"], index, 0)
 
-    assert int(s_apb.PREADY.value) == 1, "Ready must reflect selected master"
-    assert int(s_apb.PSLVERR.value) == 0, "Write should not signal error"
+        slave.PADDR.value = address
+        slave.PWDATA.value = write_data
+        slave.PWRITE.value = 1
+        slave.PSEL.value = 1
+        slave.PENABLE.value = 1
 
-    s_apb.PSEL.value = 0
-    s_apb.PENABLE.value = 0
-    s_apb.PWRITE.value = 0
-    masters["reg1"].PREADY.value = 0
-    await Timer(1, units="ns")
+        await Timer(1, units="ns")
 
-    # Read from reg3
-    masters["reg3"].PRDATA.value = READ_DATA
-    masters["reg3"].PREADY.value = 1
-    masters["reg3"].PSLVERR.value = 0
+        assert _get_int(entry["outputs"]["PSEL"], index) == 1, f"{master_name} should assert PSEL for write"
+        assert _get_int(entry["outputs"]["PWRITE"], index) == 1, f"{master_name} should see write direction"
+        assert _get_int(entry["outputs"]["PADDR"], index) == address, f"{master_name} must receive write address"
+        assert _get_int(entry["outputs"]["PWDATA"], index) == write_data, f"{master_name} must receive write data"
 
-    s_apb.PADDR.value = READ_ADDR
-    s_apb.PSEL.value = 1
-    s_apb.PENABLE.value = 1
-    s_apb.PWRITE.value = 0
+        for other_name, other_idx in _all_index_pairs(masters):
+            if other_name == master_name and other_idx == index:
+                continue
+            other_entry = masters[other_name]
+            assert (
+                _get_int(other_entry["outputs"]["PSEL"], other_idx) == 0
+            ), f"{other_name}{other_idx} should remain idle during {txn['label']}"
 
-    await Timer(1, units="ns")
+        assert int(slave.PREADY.value) == 1, "Slave ready should mirror selected master"
+        assert int(slave.PSLVERR.value) == 0, "Write should complete without error"
 
-    assert int(masters["reg3"].PSEL.value) == 1, "reg3 should be selected for read"
-    assert int(masters["reg3"].PWRITE.value) == 0, "Read should clear write"
-    assert int(masters["reg3"].PADDR.value) == READ_ADDR, "Address should reach read target"
+        slave.PSEL.value = 0
+        slave.PENABLE.value = 0
+        slave.PWRITE.value = 0
+        _set_value(entry["inputs"]["PREADY"], index, 0)
+        await Timer(1, units="ns")
 
-    for name, master in masters.items():
-        if name != "reg3":
-            assert int(master.PSEL.value) == 0, f"{name} must idle during reg3 read"
+        # ------------------------------------------------------------------
+        # Read phase
+        # ------------------------------------------------------------------
+        read_data = _read_pattern(address, config["data_width"])
+        _set_value(entry["inputs"]["PRDATA"], index, read_data)
+        _set_value(entry["inputs"]["PREADY"], index, 1)
+        _set_value(entry["inputs"]["PSLVERR"], index, 0)
 
-    assert int(s_apb.PRDATA.value) == READ_DATA, "Read data should return to slave"
-    assert int(s_apb.PREADY.value) == 1, "Read should acknowledge"
-    assert int(s_apb.PSLVERR.value) == 0, "Read should not signal error"
+        slave.PADDR.value = address
+        slave.PWRITE.value = 0
+        slave.PSEL.value = 1
+        slave.PENABLE.value = 1
 
-    s_apb.PSEL.value = 0
-    s_apb.PENABLE.value = 0
-    masters["reg3"].PREADY.value = 0
-    await Timer(1, units="ns")
+        await Timer(1, units="ns")
+
+        assert _get_int(entry["outputs"]["PSEL"], index) == 1, f"{master_name} must assert PSEL for read"
+        assert _get_int(entry["outputs"]["PWRITE"], index) == 0, f"{master_name} should clear write during read"
+        assert _get_int(entry["outputs"]["PADDR"], index) == address, f"{master_name} must receive read address"
+
+        for other_name, other_idx in _all_index_pairs(masters):
+            if other_name == master_name and other_idx == index:
+                continue
+            other_entry = masters[other_name]
+            assert (
+                _get_int(other_entry["outputs"]["PSEL"], other_idx) == 0
+            ), f"{other_name}{other_idx} must stay idle during read of {txn['label']}"
+
+        assert int(slave.PRDATA.value) == read_data, "Read data should propagate back to the slave"
+        assert int(slave.PREADY.value) == 1, "Slave ready should acknowledge the read"
+        assert int(slave.PSLVERR.value) == 0, "Read should not signal an error"
+
+        slave.PSEL.value = 0
+        slave.PENABLE.value = 0
+        _set_value(entry["inputs"]["PREADY"], index, 0)
+        _set_value(entry["inputs"]["PRDATA"], index, 0)
+        await Timer(1, units="ns")

@@ -1,0 +1,156 @@
+reg ctrl_reg_t {
+    desc = "Control register shared across channels.";
+
+    field {
+        sw = rw;
+        hw = rw;
+        reset = 0x1;
+    } enable[0:0];
+
+    field {
+        sw = rw;
+        hw = rw;
+        reset = 0x2;
+    } mode[3:1];
+
+    field {
+        sw = rw;
+        hw = rw;
+        reset = 0x0;
+    } prescale[11:4];
+};
+
+regfile channel_rf {
+    ctrl_reg_t control @ 0x0;
+
+    reg {
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } gain[11:0];
+
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x200;
+        } offset[23:12];
+    } calibrate @ 0x4;
+
+    reg {
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } sample_count[15:0];
+
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } error_count[31:16];
+    } counters @ 0x8;
+};
+
+regfile slice_rf {
+    reg {
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } slope[15:0];
+
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } intercept[31:16];
+    } calibration @ 0x0;
+
+    reg {
+        regwidth = 64;
+        field {
+            sw = r;
+            hw = w;
+            reset = 0x0;
+        } min_val[31:0];
+
+        field {
+            sw = r;
+            hw = w;
+            reset = 0x0;
+        } max_val[63:32];
+    } range @ 0x4;
+};
+
+regfile tile_rf {
+    channel_rf channel[3] @ 0x0;
+
+    reg {
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } tile_mode[1:0];
+
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } tile_enable[2:2];
+    } tile_ctrl @ 0x100;
+
+    slice_rf slice[2] @ 0x200;
+};
+
+regfile summary_rf {
+    reg {
+        field {
+            sw = r;
+            hw = w;
+            reset = 0x0;
+        } total_errors[31:0];
+    } errors @ 0x0;
+
+    reg {
+        field {
+            sw = r;
+            hw = w;
+            reset = 0x0;
+        } total_samples[31:0];
+    } samples @ 0x4;
+
+    reg {
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } interrupt_enable[7:0];
+    } interrupt_enable @ 0x8;
+};
+
+addrmap variable_layout {
+    tile_rf tiles[2] @ 0x0;
+
+    reg {
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } watchdog_enable[0:0];
+
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x100;
+        } watchdog_timeout[16:1];
+
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } watchdog_mode[18:17];
+    } watchdog @ 0x2000;
+
+    summary_rf summary @ 0x3000;
+};
