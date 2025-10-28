@@ -1,0 +1,31 @@
+// Variable depth register hierarchy for testing max_decode_depth parameter
+addrmap level2 {
+    reg {
+        field {
+            sw=rw;
+            hw=r;
+        } data2[31:0];
+    } reg2 @ 0x0;
+    
+    reg {
+        field {
+            sw=rw;
+            hw=r;
+        } data2b[31:0];
+    } reg2b @ 0x4;
+};
+
+addrmap level1 {
+    reg {
+        field {
+            sw=rw;
+            hw=r;
+        } data1[31:0];
+    } reg1 @ 0x0;
+    
+    level2 inner2 @ 0x10;
+};
+
+addrmap variable_depth {
+    level1 inner1 @ 0x0;
+};
