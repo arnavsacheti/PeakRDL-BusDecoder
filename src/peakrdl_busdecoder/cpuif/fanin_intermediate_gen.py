@@ -35,7 +35,9 @@ class FaninIntermediateGenerator(BusDecoderListener):
         action = super().enter_AddressableComponent(node)
 
         # Only generate intermediates for interface arrays
-        if not self._cpuif.is_interface or not node.array_dimensions:
+        # Check if cpuif has is_interface attribute (some implementations don't)
+        is_interface = getattr(self._cpuif, "is_interface", False)
+        if not is_interface or not node.array_dimensions:
             return action
 
         # Generate intermediate signal declarations
@@ -57,7 +59,8 @@ class FaninIntermediateGenerator(BusDecoderListener):
         return action
 
     def exit_AddressableComponent(self, node: AddressableNode) -> None:
-        if self._cpuif.is_interface and node.array_dimensions:
+        is_interface = getattr(self._cpuif, "is_interface", False)
+        if is_interface and node.array_dimensions:
             for _ in node.array_dimensions:
                 b = self._stack.pop()
                 if not b:
@@ -69,66 +72,75 @@ class FaninIntermediateGenerator(BusDecoderListener):
     def _generate_intermediate_declarations(self, node: AddressableNode) -> None:
         """Generate intermediate signal declarations for a node."""
         inst_name = node.inst_name
-        
+
+        # Array dimensions should be checked before calling this function
+        if not node.array_dimensions:
+            return
+
         # Calculate total array size
         array_size = 1
         for dim in node.array_dimensions:
             array_size *= dim
-        
+
         # Create array dimension string
         array_str = "".join(f"[{dim}]" for dim in node.array_dimensions)
-        
+
         # Generate declarations for each fanin signal
         # For APB3/4: PREADY, PSLVERR, PRDATA
         # These are the signals read in fanin
         self._declarations.append(f"logic {inst_name}_fanin_ready{array_str};")
         self._declarations.append(f"logic {inst_name}_fanin_err{array_str};")
-        self._declarations.append(f"logic [{self._cpuif.data_width - 1}:0] {inst_name}_fanin_data{array_str};")
+        self._declarations.append(
+            f"logic [{self._cpuif.data_width - 1}:0] {inst_name}_fanin_data{array_str};"
+        )
 
     def _generate_intermediate_assignments(self, node: AddressableNode) -> str:
         """Generate assignments from interface array to intermediate signals."""
         inst_name = node.inst_name
         indexed_path = get_indexed_path(node.parent, node, "gi", skip_kw_filter=True)
-        master_prefix = self._cpuif._interface.get_master_prefix()
-        
+
+        # Get master prefix - use getattr to avoid type errors
+        interface = getattr(self._cpuif, "_interface", None)
+        if interface is None:
+            return ""
+        master_prefix = interface.get_master_prefix()
+
+        # Array dimensions should be checked before calling this function
+        if not node.array_dimensions:
+            return ""
+
         # Create indexed signal names for left-hand side
         array_idx = "".join(f"[gi{i}]" for i in range(len(node.array_dimensions)))
-        
+
         assignments = []
-        
+
         # Determine which signals to assign based on the cpuif type
         # Check if it's AXI4-Lite or APB by checking available methods
-        interface_type = self._cpuif._interface.get_interface_type()
-        
+        interface_type = interface.get_interface_type()
+
         if "axi4lite" in interface_type.lower():
             # AXI4-Lite signals: RVALID, RRESP, RDATA
             assignments.append(
-                f"assign {inst_name}_fanin_ready{array_idx} = "
-                f"{master_prefix}{indexed_path}.RVALID;"
+                f"assign {inst_name}_fanin_ready{array_idx} = {master_prefix}{indexed_path}.RVALID;"
             )
             assignments.append(
-                f"assign {inst_name}_fanin_err{array_idx} = "
-                f"{master_prefix}{indexed_path}.RRESP[1];"
+                f"assign {inst_name}_fanin_err{array_idx} = {master_prefix}{indexed_path}.RRESP[1];"
             )
             assignments.append(
-                f"assign {inst_name}_fanin_data{array_idx} = "
-                f"{master_prefix}{indexed_path}.RDATA;"
+                f"assign {inst_name}_fanin_data{array_idx} = {master_prefix}{indexed_path}.RDATA;"
             )
         else:
             # APB3/APB4 signals: PREADY, PSLVERR, PRDATA
             assignments.append(
-                f"assign {inst_name}_fanin_ready{array_idx} = "
-                f"{master_prefix}{indexed_path}.PREADY;"
+                f"assign {inst_name}_fanin_ready{array_idx} = {master_prefix}{indexed_path}.PREADY;"
             )
             assignments.append(
-                f"assign {inst_name}_fanin_err{array_idx} = "
-                f"{master_prefix}{indexed_path}.PSLVERR;"
+                f"assign {inst_name}_fanin_err{array_idx} = {master_prefix}{indexed_path}.PSLVERR;"
             )
             assignments.append(
-                f"assign {inst_name}_fanin_data{array_idx} = "
-                f"{master_prefix}{indexed_path}.PRDATA;"
+                f"assign {inst_name}_fanin_data{array_idx} = {master_prefix}{indexed_path}.PRDATA;"
             )
-        
+
         return "\n".join(assignments)
 
     def get_declarations(self) -> str:
@@ -141,14 +153,14 @@ class FaninIntermediateGenerator(BusDecoderListener):
         """Get all intermediate signal declarations and assignments."""
         if not self._declarations:
             return ""
-        
+
         # Output declarations first
         output = "\n".join(self._declarations)
         output += "\n\n"
-        
+
         # Then output assignments
         body_str = "\n".join(map(str, self._stack))
         if body_str and body_str.strip():
             output += body_str
-        
+
         return output

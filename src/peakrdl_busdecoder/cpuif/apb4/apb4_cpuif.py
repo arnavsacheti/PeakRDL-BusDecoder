@@ -57,7 +57,7 @@ class APB4Cpuif(BaseCpuif):
         else:
             # Use intermediate signals for interface arrays to avoid
             # non-constant indexing of interface arrays in procedural blocks
-            if self.is_interface and node.is_array:
+            if self.is_interface and node.is_array and node.array_dimensions:
                 # Generate array index string [i0][i1]... for the intermediate signal
                 array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
                 fanin["cpuif_rd_ack"] = f"{node.inst_name}_fanin_ready{array_idx}"
@@ -75,7 +75,7 @@ class APB4Cpuif(BaseCpuif):
         else:
             # Use intermediate signals for interface arrays to avoid
             # non-constant indexing of interface arrays in procedural blocks
-            if self.is_interface and node.is_array:
+            if self.is_interface and node.is_array and node.array_dimensions:
                 # Generate array index string [i0][i1]... for the intermediate signal
                 array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
                 fanin["cpuif_rd_data"] = f"{node.inst_name}_fanin_data{array_idx}"
