@@ -23,7 +23,7 @@ class StructGenerator(BusDecoderListener):
     def enter_AddressableComponent(self, node: AddressableNode) -> WalkerAction | None:
         action = super().enter_AddressableComponent(node)
 
-        skip = (action == WalkerAction.SkipDescendants)
+        skip = action == WalkerAction.SkipDescendants
 
         # Only create nested struct if we're not skipping and node has children
         if node.children() and not skip:
