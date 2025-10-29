@@ -2,13 +2,7 @@
 
 from __future__ import annotations
 
-# Skip cocotb tests when dependencies are not available
-try:
-    import cocotb  # noqa: F401
-except ImportError:
-    collect_ignore_glob = ["cocotb/**"]
-else:
-    collect_ignore_glob = ["cocotb/*/smoke/test_register_access.py"]
+collect_ignore_glob = ["cocotb/*/smoke/test_register_access.py"]
 
 import os
 from collections.abc import Callable
