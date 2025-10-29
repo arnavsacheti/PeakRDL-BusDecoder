@@ -51,7 +51,7 @@ module {{ds.module_name}}
     //--------------------------------------------------------------------------
     always_comb begin
         // Default all write select signals to 0
-        cpuif_wr_sel = '0;
+        cpuif_wr_sel = '{default: '0};
 
         if (cpuif_req && cpuif_wr_en) begin
             // A write request is pending
@@ -66,7 +66,7 @@ module {{ds.module_name}}
     //--------------------------------------------------------------------------
     always_comb begin
         // Default all read select signals to 0
-        cpuif_rd_sel = '0;
+        cpuif_rd_sel = '{default: '0};
 
         if (cpuif_req && cpuif_rd_en) begin
             // A read request is pending

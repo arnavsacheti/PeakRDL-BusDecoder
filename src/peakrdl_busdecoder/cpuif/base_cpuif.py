@@ -7,6 +7,7 @@ from systemrdl.node import AddressableNode
 
 from ..utils import clog2, get_indexed_path, is_pow2, roundup_pow2
 from .fanin_gen import FaninGenerator
+from .fanin_intermediate_gen import FaninIntermediateGenerator
 from .fanout_gen import FanoutGenerator
 
 if TYPE_CHECKING:
@@ -97,6 +98,7 @@ class BaseCpuif:
             "ds": self.exp.ds,
             "fanout": FanoutGenerator,
             "fanin": FaninGenerator,
+            "fanin_intermediate": FaninIntermediateGenerator,
         }
 
         template = jj_env.get_template(self.template_path)
@@ -116,3 +118,24 @@ class BaseCpuif:
 
     def readback(self, node: AddressableNode | None = None) -> str:
         raise NotImplementedError
+
+    def fanin_intermediate_assignments(
+        self, node: AddressableNode, inst_name: str, array_idx: str, master_prefix: str, indexed_path: str
+    ) -> list[str]:
+        """Generate intermediate signal assignments for interface array fanin.
+
+        This method should be implemented by cpuif classes that use interfaces.
+        It returns a list of assignment strings that copy signals from interface
+        arrays to intermediate unpacked arrays using constant (genvar) indexing.
+
+        Args:
+            node: The addressable node
+            inst_name: Instance name for the intermediate signals
+            array_idx: Array index string (e.g., "[gi0][gi1]")
+            master_prefix: Master interface prefix
+            indexed_path: Indexed path to the interface element
+
+        Returns:
+            List of assignment strings
+        """
+        return []  # Default: no intermediate assignments needed

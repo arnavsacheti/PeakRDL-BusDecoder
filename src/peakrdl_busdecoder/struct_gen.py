@@ -17,7 +17,7 @@ class StructGenerator(BusDecoderListener):
         super().__init__(ds)
 
         self._stack: deque[Body] = deque()
-        self._stack.append(StructBody("cpuif_sel_t", True, True))
+        self._stack.append(StructBody("cpuif_sel_t", True, False))
 
     def enter_AddressableComponent(self, node: AddressableNode) -> WalkerAction | None:
         action = super().enter_AddressableComponent(node)
@@ -28,7 +28,7 @@ class StructGenerator(BusDecoderListener):
 
         if node.children():
             # Push new body onto stack
-            body = StructBody(f"cpuif_sel_{node.inst_name}_t", True, True)
+            body = StructBody(f"cpuif_sel_{node.inst_name}_t", True, False)
             self._stack.append(body)
 
         return action
@@ -46,7 +46,7 @@ class StructGenerator(BusDecoderListener):
 
         if node.array_dimensions:
             for dim in node.array_dimensions:
-                name = f"[{dim - 1}:0]{name}"
+                name = f"{name}[{dim}]"
 
         self._stack[-1] += f"{type} {name};"
 

@@ -4,14 +4,14 @@ from systemrdl.node import AddressableNode
 
 from ...utils import get_indexed_path
 from ..base_cpuif import BaseCpuif
-from .axi4lite_interface import AXI4LiteSVInterface
+from .axi4_lite_interface import AXI4LiteSVInterface
 
 if TYPE_CHECKING:
     from ...exporter import BusDecoderExporter
 
 
 class AXI4LiteCpuif(BaseCpuif):
-    template_path = "axi4lite_tmpl.sv"
+    template_path = "axi4_lite_tmpl.sv"
 
     def __init__(self, exp: "BusDecoderExporter") -> None:
         super().__init__(exp)
@@ -68,9 +68,17 @@ class AXI4LiteCpuif(BaseCpuif):
             fanin["cpuif_rd_ack"] = "'0"
             fanin["cpuif_rd_err"] = "'0"
         else:
-            # Read side: ack comes from RVALID; err if RRESP[1] is set (SLVERR/DECERR)
-            fanin["cpuif_rd_ack"] = self.signal("RVALID", node, "i")
-            fanin["cpuif_rd_err"] = f"{self.signal('RRESP', node, 'i')}[1]"
+            # Use intermediate signals for interface arrays to avoid
+            # non-constant indexing of interface arrays in procedural blocks
+            if self.is_interface and node.is_array and node.array_dimensions:
+                # Generate array index string [i0][i1]... for the intermediate signal
+                array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
+                fanin["cpuif_rd_ack"] = f"{node.inst_name}_fanin_ready{array_idx}"
+                fanin["cpuif_rd_err"] = f"{node.inst_name}_fanin_err{array_idx}"
+            else:
+                # Read side: ack comes from RVALID; err if RRESP[1] is set (SLVERR/DECERR)
+                fanin["cpuif_rd_ack"] = self.signal("RVALID", node, "i")
+                fanin["cpuif_rd_err"] = f"{self.signal('RRESP', node, 'i')}[1]"
 
         return "\n".join(f"{lhs} = {rhs};" for lhs, rhs in fanin.items())
 
@@ -79,6 +87,23 @@ class AXI4LiteCpuif(BaseCpuif):
         if node is None:
             fanin["cpuif_rd_data"] = "'0"
         else:
-            fanin["cpuif_rd_data"] = self.signal("RDATA", node, "i")
+            # Use intermediate signals for interface arrays to avoid
+            # non-constant indexing of interface arrays in procedural blocks
+            if self.is_interface and node.is_array and node.array_dimensions:
+                # Generate array index string [i0][i1]... for the intermediate signal
+                array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
+                fanin["cpuif_rd_data"] = f"{node.inst_name}_fanin_data{array_idx}"
+            else:
+                fanin["cpuif_rd_data"] = self.signal("RDATA", node, "i")
 
         return "\n".join(f"{lhs} = {rhs};" for lhs, rhs in fanin.items())
+
+    def fanin_intermediate_assignments(
+        self, node: AddressableNode, inst_name: str, array_idx: str, master_prefix: str, indexed_path: str
+    ) -> list[str]:
+        """Generate intermediate signal assignments for AXI4-Lite interface arrays."""
+        return [
+            f"assign {inst_name}_fanin_ready{array_idx} = {master_prefix}{indexed_path}.RVALID;",
+            f"assign {inst_name}_fanin_err{array_idx} = {master_prefix}{indexed_path}.RRESP[1];",
+            f"assign {inst_name}_fanin_data{array_idx} = {master_prefix}{indexed_path}.RDATA;",
+        ]
