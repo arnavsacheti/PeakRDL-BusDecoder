@@ -87,8 +87,8 @@ class DecodeLogicGenerator(BusDecoderListener):
 
         should_decode = action == WalkerAction.SkipDescendants
 
-        if not should_decode:
-            # Leaf nodes (registers) don't expose addressable children, so treat them as decode boundary
+        if not should_decode and self._ds.max_decode_depth == 0:
+            # When decoding all levels, treat leaf registers as decode boundary
             for child in node.children():
                 if isinstance(child, AddressableNode):
                     break

@@ -24,7 +24,7 @@ class FanoutGenerator(BusDecoderListener):
         action = super().enter_AddressableComponent(node)
 
         should_generate = action == WalkerAction.SkipDescendants
-        if not should_generate:
+        if not should_generate and self._ds.max_decode_depth == 0:
             for child in node.children():
                 if isinstance(child, AddressableNode):
                     break
