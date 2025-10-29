@@ -4,14 +4,14 @@ from systemrdl.node import AddressableNode
 
 from ...utils import get_indexed_path
 from ..base_cpuif import BaseCpuif
-from .axi4lite_interface import AXI4LiteSVInterface
+from .axi4_lite_interface import AXI4LiteSVInterface
 
 if TYPE_CHECKING:
     from ...exporter import BusDecoderExporter
 
 
 class AXI4LiteCpuif(BaseCpuif):
-    template_path = "axi4lite_tmpl.sv"
+    template_path = "axi4_lite_tmpl.sv"
 
     def __init__(self, exp: "BusDecoderExporter") -> None:
         super().__init__(exp)
