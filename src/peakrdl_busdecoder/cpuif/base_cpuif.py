@@ -25,11 +25,7 @@ class BaseCpuif:
 
     @property
     def addressable_children(self) -> list[AddressableNode]:
-        return [
-            child
-            for child in self.exp.ds.top_node.children(unroll=self.unroll)
-            if isinstance(child, AddressableNode)
-        ]
+        return self.exp.ds.get_addressable_children_at_depth(unroll=self.unroll)
 
     @property
     def addr_width(self) -> int:

@@ -89,7 +89,9 @@ class BusDecoderExporter:
             interface. By default, arrayed nodes are kept as arrays.
         max_decode_depth: int
             Maximum depth for address decoder to descend into nested addressable
-            components. By default, the decoder descends 1 level deep.
+            components. A value of 0 decodes all levels (infinite depth). A value
+            of 1 decodes only top-level children. A value of 2 decodes top-level
+            and one level deeper, etc. By default, the decoder descends 1 level deep.
         """
         # If it is the root node, skip to top addrmap
         if isinstance(node, RootNode):

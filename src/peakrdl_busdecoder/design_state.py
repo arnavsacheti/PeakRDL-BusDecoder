@@ -1,6 +1,6 @@
 from typing import TypedDict
 
-from systemrdl.node import AddrmapNode
+from systemrdl.node import AddressableNode, AddrmapNode
 from systemrdl.rdltypes.user_enum import UserEnum
 
 from .design_scanner import DesignScanner
@@ -72,3 +72,56 @@ class DesignState:
         if user_addr_width < self.addr_width:
             msg.fatal(f"User-specified address width shall be greater than or equal to {self.addr_width}.")
         self.addr_width = user_addr_width
+
+    def get_addressable_children_at_depth(self, unroll: bool = False) -> list[AddressableNode]:
+        """
+        Get addressable children at the decode boundary based on max_decode_depth.
+
+        max_decode_depth semantics:
+        - 0: decode all levels (return leaf registers)
+        - 1: decode only top level (return children at depth 1)
+        - 2: decode top + 1 level (return children at depth 2)
+        - N: decode down to depth N (return children at depth N)
+
+        Args:
+            unroll: Whether to unroll arrayed nodes
+
+        Returns:
+            List of addressable nodes at the decode boundary
+        """
+        from systemrdl.node import RegNode
+
+        def collect_nodes(node: AddressableNode, current_depth: int) -> list[AddressableNode]:
+            """Recursively collect nodes at the decode boundary."""
+            result: list[AddressableNode] = []
+
+            # For depth 0, collect all leaf registers
+            if self.max_decode_depth == 0:
+                # If this is a register, it's a leaf
+                if isinstance(node, RegNode):
+                    result.append(node)
+                else:
+                    # Recurse into children
+                    for child in node.children(unroll=unroll):
+                        if isinstance(child, AddressableNode):
+                            result.extend(collect_nodes(child, current_depth + 1))
+            else:
+                # For depth N, collect children at depth N
+                if current_depth == self.max_decode_depth:
+                    # We're at the decode boundary - return this node
+                    result.append(node)
+                elif current_depth < self.max_decode_depth:
+                    # We haven't reached the boundary yet - recurse
+                    for child in node.children(unroll=unroll):
+                        if isinstance(child, AddressableNode):
+                            result.extend(collect_nodes(child, current_depth + 1))
+
+            return result
+
+        # Start collecting from top node's children
+        nodes: list[AddressableNode] = []
+        for child in self.top_node.children(unroll=unroll):
+            if isinstance(child, AddressableNode):
+                nodes.extend(collect_nodes(child, 1))
+
+        return nodes

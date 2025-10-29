@@ -27,6 +27,17 @@ class FaninGenerator(BusDecoderListener):
     def enter_AddressableComponent(self, node: AddressableNode) -> WalkerAction | None:
         action = super().enter_AddressableComponent(node)
 
+        should_generate = action == WalkerAction.SkipDescendants
+        if not should_generate and self._ds.max_decode_depth == 0:
+            for child in node.children():
+                if isinstance(child, AddressableNode):
+                    break
+            else:
+                should_generate = True
+
+        if not should_generate:
+            return action
+
         if node.array_dimensions:
             for i, dim in enumerate(node.array_dimensions):
                 fb = ForLoopBody(
