@@ -85,9 +85,18 @@ class DecodeLogicGenerator(BusDecoderListener):
     def enter_AddressableComponent(self, node: AddressableNode) -> WalkerAction | None:
         action = super().enter_AddressableComponent(node)
 
-        # Only generate select logic if we're at a node that will be skipped
-        # (i.e., at the decode boundary)
-        if action != WalkerAction.SkipDescendants:
+        should_decode = action == WalkerAction.SkipDescendants
+
+        if not should_decode:
+            # Leaf nodes (registers) don't expose addressable children, so treat them as decode boundary
+            for child in node.children():
+                if isinstance(child, AddressableNode):
+                    break
+            else:
+                should_decode = True
+
+        # Only generate select logic if we're at the decode boundary
+        if not should_decode:
             return action
 
         conditions: list[str] = []
@@ -151,6 +160,8 @@ class DecodeLogicGenerator(BusDecoderListener):
     def __str__(self) -> str:
         body = self._decode_stack[-1]
         if isinstance(body, IfBody):
+            if len(body) == 0:
+                return f"{self._flavor.cpuif_select}.cpuif_err = 1'b1;"
             with body.cm(...) as b:
                 b += f"{self._flavor.cpuif_select}.cpuif_err = 1'b1;"
 

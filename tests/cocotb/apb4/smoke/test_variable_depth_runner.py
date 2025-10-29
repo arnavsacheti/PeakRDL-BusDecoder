@@ -41,6 +41,7 @@ def test_apb4_variable_depth_1(tmp_path: Path) -> None:
         sources=sources,
         hdl_toplevel=module_path.stem,
         build_dir=build_dir,
+        log_file=str(tmp_path / "build_depth_1.log"),
     )
 
     runner.test(
@@ -79,13 +80,14 @@ def test_apb4_variable_depth_2(tmp_path: Path) -> None:
         sources=sources,
         hdl_toplevel=module_path.stem,
         build_dir=build_dir,
+        log_file=str(tmp_path / "build_depth_2.log"),
     )
 
     runner.test(
         hdl_toplevel=module_path.stem,
         test_module="tests.cocotb.apb4.smoke.test_variable_depth",
         build_dir=build_dir,
-        log_file=str(tmp_path / "sim_depth2.log"),
+        log_file=str(tmp_path / "sim_depth_2.log"),
         testcase="test_depth_2",
     )
 
@@ -117,12 +119,13 @@ def test_apb4_variable_depth_0(tmp_path: Path) -> None:
         sources=sources,
         hdl_toplevel=module_path.stem,
         build_dir=build_dir,
+        log_file=str(tmp_path / "build_depth_0.log"),
     )
 
     runner.test(
         hdl_toplevel=module_path.stem,
         test_module="tests.cocotb.apb4.smoke.test_variable_depth",
         build_dir=build_dir,
-        log_file=str(tmp_path / "sim_depth0.log"),
+        log_file=str(tmp_path / "sim_depth_0.log"),
         testcase="test_depth_0",
     )
