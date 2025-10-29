@@ -112,34 +112,10 @@ class FaninIntermediateGenerator(BusDecoderListener):
         # Create indexed signal names for left-hand side
         array_idx = "".join(f"[gi{i}]" for i in range(len(node.array_dimensions)))
 
-        assignments = []
-
-        # Determine which signals to assign based on the cpuif type
-        # Check if it's AXI4-Lite or APB by checking available methods
-        interface_type = interface.get_interface_type()
-
-        if "axi4lite" in interface_type.lower():
-            # AXI4-Lite signals: RVALID, RRESP, RDATA
-            assignments.append(
-                f"assign {inst_name}_fanin_ready{array_idx} = {master_prefix}{indexed_path}.RVALID;"
-            )
-            assignments.append(
-                f"assign {inst_name}_fanin_err{array_idx} = {master_prefix}{indexed_path}.RRESP[1];"
-            )
-            assignments.append(
-                f"assign {inst_name}_fanin_data{array_idx} = {master_prefix}{indexed_path}.RDATA;"
-            )
-        else:
-            # APB3/APB4 signals: PREADY, PSLVERR, PRDATA
-            assignments.append(
-                f"assign {inst_name}_fanin_ready{array_idx} = {master_prefix}{indexed_path}.PREADY;"
-            )
-            assignments.append(
-                f"assign {inst_name}_fanin_err{array_idx} = {master_prefix}{indexed_path}.PSLVERR;"
-            )
-            assignments.append(
-                f"assign {inst_name}_fanin_data{array_idx} = {master_prefix}{indexed_path}.PRDATA;"
-            )
+        # Delegate to cpuif to get the appropriate assignments for this interface type
+        assignments = self._cpuif.fanin_intermediate_assignments(
+            node, inst_name, array_idx, master_prefix, indexed_path
+        )
 
         return "\n".join(assignments)
 

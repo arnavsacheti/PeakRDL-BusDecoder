@@ -80,3 +80,13 @@ class APB3Cpuif(BaseCpuif):
                 fanin["cpuif_rd_data"] = self.signal("PRDATA", node, "i")
 
         return "\n".join(map(lambda kv: f"{kv[0]} = {kv[1]};", fanin.items()))
+
+    def fanin_intermediate_assignments(
+        self, node: AddressableNode, inst_name: str, array_idx: str, master_prefix: str, indexed_path: str
+    ) -> list[str]:
+        """Generate intermediate signal assignments for APB3 interface arrays."""
+        return [
+            f"assign {inst_name}_fanin_ready{array_idx} = {master_prefix}{indexed_path}.PREADY;",
+            f"assign {inst_name}_fanin_err{array_idx} = {master_prefix}{indexed_path}.PSLVERR;",
+            f"assign {inst_name}_fanin_data{array_idx} = {master_prefix}{indexed_path}.PRDATA;",
+        ]

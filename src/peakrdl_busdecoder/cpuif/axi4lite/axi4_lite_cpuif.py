@@ -97,3 +97,13 @@ class AXI4LiteCpuif(BaseCpuif):
                 fanin["cpuif_rd_data"] = self.signal("RDATA", node, "i")
 
         return "\n".join(f"{lhs} = {rhs};" for lhs, rhs in fanin.items())
+
+    def fanin_intermediate_assignments(
+        self, node: AddressableNode, inst_name: str, array_idx: str, master_prefix: str, indexed_path: str
+    ) -> list[str]:
+        """Generate intermediate signal assignments for AXI4-Lite interface arrays."""
+        return [
+            f"assign {inst_name}_fanin_ready{array_idx} = {master_prefix}{indexed_path}.RVALID;",
+            f"assign {inst_name}_fanin_err{array_idx} = {master_prefix}{indexed_path}.RRESP[1];",
+            f"assign {inst_name}_fanin_data{array_idx} = {master_prefix}{indexed_path}.RDATA;",
+        ]
