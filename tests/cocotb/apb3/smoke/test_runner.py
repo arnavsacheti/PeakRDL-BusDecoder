@@ -24,7 +24,7 @@ from tests.cocotb_lib.utils import get_verilog_sources, prepare_cpuif_case
 def test_apb3_smoke(tmp_path: Path, rdl_file: str, top_name: str) -> None:
     """Compile each APB3 design variant and execute the cocotb smoke test."""
     repo_root = Path(__file__).resolve().parents[4]
-    rdl_path = repo_root / "tests" / "cocotb_lib" / rdl_file
+    rdl_path = repo_root / "tests" / "cocotb_lib" / "rdl" / rdl_file
     build_root = tmp_path / top_name
 
     module_path, package_path, config = prepare_cpuif_case(
