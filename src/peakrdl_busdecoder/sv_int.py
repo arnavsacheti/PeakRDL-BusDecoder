@@ -6,10 +6,6 @@ class SVInt:
         self.value = value
         self.width = width
 
-        if width is not None:
-            self.width = width
-        # assert (width is None) or (self.value.bit_length() <= width), "Value does not fit in specified width"
-
     def __str__(self) -> str:
         if self.width is not None:
             # Explicit width
