@@ -7,7 +7,7 @@ class SVInt:
         self.width = width
 
         if width is not None:
-            self.width = max(width, self.value.bit_length())
+            self.width = width
         # assert (width is None) or (self.value.bit_length() <= width), "Value does not fit in specified width"
 
     def __str__(self) -> str:
@@ -46,7 +46,7 @@ class SVInt:
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, SVInt):
             return NotImplemented
-        return self.value == other.value and self.width == other.width 
-    
+        return self.value == other.value and self.width == other.width
+
     def __hash__(self) -> int:
-        return hash((self.value, self.width))   
+        return hash((self.value, self.width))

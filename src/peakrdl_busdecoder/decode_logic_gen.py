@@ -70,7 +70,9 @@ class DecodeLogicGenerator(BusDecoderListener):
         # Avoid generating a redundant >= 0 comparison, which triggers Verilator warnings.
         if not (l_bound.value == 0 and len(l_bound_comp) == 1):
             predicates.append(lower_expr)
-        predicates.append(upper_expr)
+        # Avoid generating a redundant full-width < max comparison, which triggers Verilator warnings.
+        if not (u_bound.value == (1 << addr_width) and len(u_bound_comp) == 1):
+            predicates.append(upper_expr)
 
         return predicates
 
