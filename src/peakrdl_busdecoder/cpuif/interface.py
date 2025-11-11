@@ -1,9 +1,12 @@
 """Interface abstraction for handling flat and non-flat signal declarations."""
 
+import re
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 from systemrdl.node import AddressableNode
+
+from ..utils import get_indexed_path
 
 if TYPE_CHECKING:
     from .base_cpuif import BaseCpuif
@@ -93,7 +96,6 @@ class SVInterface(Interface):
         indexer: str | int | None = None,
     ) -> str:
         """Generate SystemVerilog interface signal reference."""
-        from ..utils import get_indexed_path
 
         # SVInterface only supports string indexers (loop variable names like "i", "gi")
         if indexer is not None and not isinstance(indexer, str):
@@ -166,6 +168,13 @@ class FlatInterface(Interface):
 
         # Is an array
         if indexer is not None:
+            if isinstance(indexer, str):
+                indexed_path = get_indexed_path(node.parent, node, indexer, skip_kw_filter=True)
+                pattern = r"\[.*?\]"
+                indexes = re.findall(pattern, indexed_path)
+
+                return f"{base}_{signal}{''.join(indexes)}"
+
             return f"{base}_{signal}[{indexer}]"
         return f"{base}_{signal}[N_{node.inst_name.upper()}S]"
 

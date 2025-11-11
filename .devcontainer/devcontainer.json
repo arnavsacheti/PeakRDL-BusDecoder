@@ -1,0 +1,33 @@
+{
+    "name": "PeakRDL BusDecoder",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    "runArgs": [
+        "--init"
+    ],
+    "features": {
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "username": "vscode",
+            "uid": "1000",
+            "gid": "1000",
+            "installZsh": "false",
+            "installOhMyZsh": "false"
+        }
+    },
+    "remoteUser": "vscode",
+    "postCreateCommand": "uv sync --frozen --all-extras --group tools --group test",
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "python.defaultInterpreterPath": ".venv/bin/python",
+                "terminal.integrated.shell.linux": "/bin/bash"
+            },
+            "extensions": [
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "ms-vscode.cpptools"
+            ]
+        }
+    }
+}

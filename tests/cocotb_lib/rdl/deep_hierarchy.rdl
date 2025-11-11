@@ -1,0 +1,115 @@
+addrmap deep_hierarchy {
+    regfile context_rf {
+        reg {
+            field {
+                sw = rw;
+                hw = r;
+                reset = 0x1;
+            } enable[7:0];
+
+            field {
+                sw = r;
+                hw = w;
+                onread = rclr;
+                reset = 0x0;
+            } status[15:8];
+
+            field {
+                sw = rw;
+                hw = rw;
+                reset = 0x55;
+            } mode[23:16];
+        } command @ 0x0;
+
+        reg {
+            field {
+                sw = rw;
+                hw = rw;
+                reset = 0x1234;
+            } threshold[15:0];
+        } threshold @ 0x4;
+
+        reg {
+            field {
+                sw = rw;
+                hw = rw;
+                reset = 0x0;
+            } counter[31:0];
+        } counter @ 0x8;
+    };
+
+    regfile engine_rf {
+        context_rf context[3] @ 0x0;
+
+        reg {
+            field {
+                sw = rw;
+                hw = rw;
+                reset = 0x0;
+            } timeout[15:0];
+
+            field {
+                sw = rw;
+                hw = rw;
+                reset = 0x1;
+            } priority[19:16];
+        } config @ 0x30;
+
+        reg {
+            field {
+                sw = r;
+                hw = w;
+                onread = rclr;
+                reset = 0x0;
+            } error[31:0];
+        } error_log @ 0x34;
+    };
+
+    addrmap fabric_slice {
+        engine_rf engines[4] @ 0x0;
+
+        regfile monitor_rf {
+            reg {
+                field {
+                    sw = r;
+                    hw = w;
+                    reset = 0x0;
+                } perf_count[31:0];
+            } perf @ 0x0;
+
+            reg {
+                field {
+                    sw = r;
+                    hw = w;
+                    reset = 0x0;
+                } last_error[31:0];
+            } last_error @ 0x4;
+        };
+
+        monitor_rf monitor @ 0x400;
+
+        reg {
+            field {
+                sw = rw;
+                hw = rw;
+                reset = 0xdeadbeef;
+            } fabric_ctrl[31:0];
+        } fabric_ctrl @ 0x500;
+    };
+
+    fabric_slice slices[2] @ 0x0 += 0x800;
+
+    reg {
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x1;
+        } global_enable[0:0];
+
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x4;
+        } debug_level[3:1];
+    } global_control @ 0x1000;
+};

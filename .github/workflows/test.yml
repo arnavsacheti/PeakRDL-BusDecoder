@@ -14,6 +14,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    container:
+      image: verilator/verilator:latest
     permissions:
       contents: read
     strategy:
@@ -27,19 +29,21 @@ jobs:
         uses: astral-sh/setup-uv@v3
         with:
           python-version: ${{ matrix.python-version }}
+          enable-cache: true
 
-      - name: Install Verilator
+      - name: Check Verilator version
+        run: verilator --version
+      
+      - name: Install Python development packages
         run: |
-          sudo apt-get update
-          sudo apt-get install -y verilator
-          verilator --version
+          apt-get update && apt-get install -y python3-dev libpython3-dev
       
       - name: Install dependencies
         run: |
           uv sync --all-extras --group test
       
       - name: Run tests
-        run: uv run pytest tests/ -v --cov=peakrdl_busdecoder --cov-report=xml --cov-report=term
+        run: uv run pytest tests/ --cov=peakrdl_busdecoder --cov-report=xml --cov-report=term
       
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4

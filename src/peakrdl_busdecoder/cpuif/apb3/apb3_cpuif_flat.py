@@ -35,15 +35,15 @@ class APB3CpuifFlat(BaseCpuif):
 
     def fanout(self, node: AddressableNode) -> str:
         fanout: dict[str, str] = {}
-        fanout[self.signal("PSEL", node)] = (
-            f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'i')}|cpuif_rd_sel.{get_indexed_path(self.exp.ds.top_node, node, 'i')}"
+        fanout[self.signal("PSEL", node, "gi")] = (
+            f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}|cpuif_rd_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
         )
-        fanout[self.signal("PENABLE", node)] = self.signal("PENABLE")
-        fanout[self.signal("PWRITE", node)] = (
-            f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'i')}"
+        fanout[self.signal("PENABLE", node, "gi")] = self.signal("PENABLE")
+        fanout[self.signal("PWRITE", node, "gi")] = (
+            f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
         )
-        fanout[self.signal("PADDR", node)] = self.signal("PADDR")
-        fanout[self.signal("PWDATA", node)] = "cpuif_wr_data"
+        fanout[self.signal("PADDR", node, "gi")] = self.signal("PADDR")
+        fanout[self.signal("PWDATA", node, "gi")] = "cpuif_wr_data"
 
         return "\n".join(map(lambda kv: f"assign {kv[0]} = {kv[1]};", fanout.items()))
 
@@ -53,8 +53,8 @@ class APB3CpuifFlat(BaseCpuif):
             fanin["cpuif_rd_ack"] = "'0"
             fanin["cpuif_rd_err"] = "'0"
         else:
-            fanin["cpuif_rd_ack"] = self.signal("PREADY", node)
-            fanin["cpuif_rd_err"] = self.signal("PSLVERR", node)
+            fanin["cpuif_rd_ack"] = self.signal("PREADY", node, "i")
+            fanin["cpuif_rd_err"] = self.signal("PSLVERR", node, "i")
 
         return "\n".join(map(lambda kv: f"{kv[0]} = {kv[1]};", fanin.items()))
 
@@ -63,6 +63,6 @@ class APB3CpuifFlat(BaseCpuif):
         if node is None:
             fanin["cpuif_rd_data"] = "'0"
         else:
-            fanin["cpuif_rd_data"] = self.signal("PRDATA", node)
+            fanin["cpuif_rd_data"] = self.signal("PRDATA", node, "i")
 
         return "\n".join(map(lambda kv: f"{kv[0]} = {kv[1]};", fanin.items()))

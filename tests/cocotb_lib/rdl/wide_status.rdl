@@ -1,0 +1,69 @@
+reg status_reg_t {
+    regwidth = 64;
+    desc = "Status register capturing wide flags and sticky bits.";
+
+    field {
+        sw = r;
+        hw = w;
+        onread = rclr;
+        reset = 0x0;
+    } flags[62:0];
+
+    field {
+        sw = rw;
+        hw = r;
+        reset = 0x1;
+    } sticky_bit[63:63];
+};
+
+reg metrics_reg_t {
+    regwidth = 64;
+    desc = "Metrics register pairing counters with thresholds.";
+
+    field {
+        sw = r;
+        hw = w;
+        reset = 0x0;
+    } count[31:0];
+
+    field {
+        sw = rw;
+        hw = rw;
+        reset = 0x0;
+    } threshold[63:32];
+};
+
+addrmap wide_status {
+    status_reg_t status_blocks[16] @ 0x0;
+
+    metrics_reg_t metrics[4] @ 0x400;
+
+    reg {
+        regwidth = 128;
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } configuration[127:0];
+    } configuration @ 0x800;
+
+    reg {
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } version_major[7:0];
+
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x1;
+        } version_minor[15:8];
+
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0100;
+        } build[31:16];
+    } version @ 0x900;
+};
