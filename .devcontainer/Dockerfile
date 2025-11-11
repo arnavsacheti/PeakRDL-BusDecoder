@@ -15,6 +15,8 @@ RUN apt-get update && \
         ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
+ENV UV_INSTALL_DIR=/usr/local/bin
+ENV UV_LINK_MODE=copy
 # Install uv globally so both VS Code and terminals can use it
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh -s -- --install-dir /usr/local/bin && \
-    uv --version
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+RUN uv --version

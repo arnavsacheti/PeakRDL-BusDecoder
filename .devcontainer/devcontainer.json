@@ -16,7 +16,7 @@
         }
     },
     "remoteUser": "vscode",
-    "postCreateCommand": "uv sync --frozen --all-extras --group dev --group test",
+    "postCreateCommand": "uv sync --frozen --all-extras --group tools --group test",
     "customizations": {
         "vscode": {
             "settings": {
