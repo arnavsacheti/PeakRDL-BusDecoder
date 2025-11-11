@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-
+import logging
 import pytest
 
 from peakrdl_busdecoder.cpuif.apb4.apb4_cpuif_flat import APB4CpuifFlat
@@ -43,17 +43,38 @@ def test_apb4_smoke(tmp_path: Path, rdl_file: str, top_name: str) -> None:
 
     runner = get_runner("verilator")
     sim_build = build_root / "sim_build"
+    
+    try:
+        runner.build(
+            sources=sources,
+            hdl_toplevel=module_path.stem,
+            build_dir=sim_build,
+            log_file=str(build_root / "build.log"),
+        )
+    except SystemExit as e:
+        # Print build log on failure for easier debugging
+        log_path = build_root / "build.log"
+        if log_path.exists():
+            logging.error("\n\n=== Build Log ===\n")
+            logging.error(log_path.read_text())
+            logging.error("\n=== End Build Log ===\n")
+        if e.code != 0:
+            raise
 
-    runner.build(
-        sources=sources,
-        hdl_toplevel=module_path.stem,
-        build_dir=sim_build,
-    )
-
-    runner.test(
-        hdl_toplevel=module_path.stem,
-        test_module="tests.cocotb.apb4.smoke.test_register_access",
-        build_dir=sim_build,
-        log_file=str(build_root / "simulation.log"),
-        extra_env={"RDL_TEST_CONFIG": json.dumps(config)},
-    )
+    try:
+        runner.test(
+            hdl_toplevel=module_path.stem,
+            test_module="tests.cocotb.apb4.smoke.test_register_access",
+            build_dir=sim_build,
+            log_file=str(build_root / "simulation.log"),
+            extra_env={"RDL_TEST_CONFIG": json.dumps(config)},
+        )
+    except SystemExit as e:
+        # Print simulation log on failure for easier debugging
+        log_path = build_root / "simulation.log"
+        if log_path.exists():
+            logging.error("\n\n=== Simulation Log ===\n")
+            logging.error(log_path.read_text())
+            logging.error("\n=== End Simulation Log ===\n")
+        if e.code != 0:
+            raise
