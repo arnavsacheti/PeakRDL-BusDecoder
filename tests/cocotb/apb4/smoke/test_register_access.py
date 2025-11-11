@@ -9,6 +9,7 @@ from typing import Any, Iterable
 import cocotb
 from cocotb.triggers import Timer
 
+from tests.cocotb_lib.handle_utils import SignalHandle, resolve_handle
 
 class _Apb4SlaveShim:
     """Lightweight accessor for the APB4 slave side of the DUT."""
@@ -37,10 +38,7 @@ def _load_config() -> dict[str, Any]:
 
 def _resolve(handle, indices: Iterable[int]):
     """Index into hierarchical cocotb handles."""
-    ref = handle
-    for idx in indices:
-        ref = ref[idx]
-    return ref
+    return resolve_handle(handle, indices)
 
 
 def _set_value(handle, indices: Iterable[int], value: int) -> None:
@@ -59,18 +57,18 @@ def _build_master_table(dut, masters_cfg: list[dict[str, Any]]) -> dict[str, dic
             "port_prefix": port_prefix,
             "indices": [tuple(idx) for idx in master["indices"]] or [tuple()],
             "outputs": {
-                "PSEL": getattr(dut, f"{port_prefix}_PSEL"),
-                "PENABLE": getattr(dut, f"{port_prefix}_PENABLE"),
-                "PWRITE": getattr(dut, f"{port_prefix}_PWRITE"),
-                "PADDR": getattr(dut, f"{port_prefix}_PADDR"),
-                "PPROT": getattr(dut, f"{port_prefix}_PPROT"),
-                "PWDATA": getattr(dut, f"{port_prefix}_PWDATA"),
-                "PSTRB": getattr(dut, f"{port_prefix}_PSTRB"),
+                "PSEL": SignalHandle(dut, f"{port_prefix}_PSEL"),
+                "PENABLE": SignalHandle(dut, f"{port_prefix}_PENABLE"),
+                "PWRITE": SignalHandle(dut, f"{port_prefix}_PWRITE"),
+                "PADDR": SignalHandle(dut, f"{port_prefix}_PADDR"),
+                "PPROT": SignalHandle(dut, f"{port_prefix}_PPROT"),
+                "PWDATA": SignalHandle(dut, f"{port_prefix}_PWDATA"),
+                "PSTRB": SignalHandle(dut, f"{port_prefix}_PSTRB"),
             },
             "inputs": {
-                "PRDATA": getattr(dut, f"{port_prefix}_PRDATA"),
-                "PREADY": getattr(dut, f"{port_prefix}_PREADY"),
-                "PSLVERR": getattr(dut, f"{port_prefix}_PSLVERR"),
+                "PRDATA": SignalHandle(dut, f"{port_prefix}_PRDATA"),
+                "PREADY": SignalHandle(dut, f"{port_prefix}_PREADY"),
+                "PSLVERR": SignalHandle(dut, f"{port_prefix}_PSLVERR"),
             },
         }
         table[master["inst_name"]] = entry

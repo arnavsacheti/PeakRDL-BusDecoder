@@ -9,6 +9,7 @@ from typing import Any, Iterable
 import cocotb
 from cocotb.triggers import Timer
 
+from tests.cocotb_lib.handle_utils import SignalHandle, resolve_handle
 
 class _AxilSlaveShim:
     """Accessor for AXI4-Lite slave ports on the DUT."""
@@ -44,10 +45,7 @@ def _load_config() -> dict[str, Any]:
 
 
 def _resolve(handle, indices: Iterable[int]):
-    ref = handle
-    for idx in indices:
-        ref = ref[idx]
-    return ref
+    return resolve_handle(handle, indices)
 
 
 def _set_value(handle, indices: Iterable[int], value: int) -> None:
@@ -65,25 +63,25 @@ def _build_master_table(dut, masters_cfg: list[dict[str, Any]]) -> dict[str, dic
         entry = {
             "indices": [tuple(idx) for idx in master["indices"]] or [tuple()],
             "outputs": {
-                "AWVALID": getattr(dut, f"{prefix}_AWVALID"),
-                "AWADDR": getattr(dut, f"{prefix}_AWADDR"),
-                "AWPROT": getattr(dut, f"{prefix}_AWPROT"),
-                "WVALID": getattr(dut, f"{prefix}_WVALID"),
-                "WDATA": getattr(dut, f"{prefix}_WDATA"),
-                "WSTRB": getattr(dut, f"{prefix}_WSTRB"),
-                "ARVALID": getattr(dut, f"{prefix}_ARVALID"),
-                "ARADDR": getattr(dut, f"{prefix}_ARADDR"),
-                "ARPROT": getattr(dut, f"{prefix}_ARPROT"),
+                "AWVALID": SignalHandle(dut, f"{prefix}_AWVALID"),
+                "AWADDR": SignalHandle(dut, f"{prefix}_AWADDR"),
+                "AWPROT": SignalHandle(dut, f"{prefix}_AWPROT"),
+                "WVALID": SignalHandle(dut, f"{prefix}_WVALID"),
+                "WDATA": SignalHandle(dut, f"{prefix}_WDATA"),
+                "WSTRB": SignalHandle(dut, f"{prefix}_WSTRB"),
+                "ARVALID": SignalHandle(dut, f"{prefix}_ARVALID"),
+                "ARADDR": SignalHandle(dut, f"{prefix}_ARADDR"),
+                "ARPROT": SignalHandle(dut, f"{prefix}_ARPROT"),
             },
             "inputs": {
-                "AWREADY": getattr(dut, f"{prefix}_AWREADY"),
-                "WREADY": getattr(dut, f"{prefix}_WREADY"),
-                "BVALID": getattr(dut, f"{prefix}_BVALID"),
-                "BRESP": getattr(dut, f"{prefix}_BRESP"),
-                "ARREADY": getattr(dut, f"{prefix}_ARREADY"),
-                "RVALID": getattr(dut, f"{prefix}_RVALID"),
-                "RDATA": getattr(dut, f"{prefix}_RDATA"),
-                "RRESP": getattr(dut, f"{prefix}_RRESP"),
+                "AWREADY": SignalHandle(dut, f"{prefix}_AWREADY"),
+                "WREADY": SignalHandle(dut, f"{prefix}_WREADY"),
+                "BVALID": SignalHandle(dut, f"{prefix}_BVALID"),
+                "BRESP": SignalHandle(dut, f"{prefix}_BRESP"),
+                "ARREADY": SignalHandle(dut, f"{prefix}_ARREADY"),
+                "RVALID": SignalHandle(dut, f"{prefix}_RVALID"),
+                "RDATA": SignalHandle(dut, f"{prefix}_RDATA"),
+                "RRESP": SignalHandle(dut, f"{prefix}_RRESP"),
             },
         }
         table[master["inst_name"]] = entry

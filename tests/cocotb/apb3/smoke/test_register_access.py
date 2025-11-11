@@ -9,6 +9,7 @@ from typing import Any, Iterable
 import cocotb
 from cocotb.triggers import Timer
 
+from tests.cocotb_lib.handle_utils import SignalHandle, resolve_handle
 
 class _Apb3SlaveShim:
     """Accessor for the APB3 slave signals on the DUT."""
@@ -33,10 +34,7 @@ def _load_config() -> dict[str, Any]:
 
 
 def _resolve(handle, indices: Iterable[int]):
-    ref = handle
-    for idx in indices:
-        ref = ref[idx]
-    return ref
+    return resolve_handle(handle, indices)
 
 
 def _set_value(handle, indices: Iterable[int], value: int) -> None:
@@ -54,16 +52,16 @@ def _build_master_table(dut, masters_cfg: list[dict[str, Any]]) -> dict[str, dic
         entry = {
             "indices": [tuple(idx) for idx in master["indices"]] or [tuple()],
             "outputs": {
-                "PSEL": getattr(dut, f"{prefix}_PSEL"),
-                "PENABLE": getattr(dut, f"{prefix}_PENABLE"),
-                "PWRITE": getattr(dut, f"{prefix}_PWRITE"),
-                "PADDR": getattr(dut, f"{prefix}_PADDR"),
-                "PWDATA": getattr(dut, f"{prefix}_PWDATA"),
+                "PSEL": SignalHandle(dut, f"{prefix}_PSEL"),
+                "PENABLE": SignalHandle(dut, f"{prefix}_PENABLE"),
+                "PWRITE": SignalHandle(dut, f"{prefix}_PWRITE"),
+                "PADDR": SignalHandle(dut, f"{prefix}_PADDR"),
+                "PWDATA": SignalHandle(dut, f"{prefix}_PWDATA"),
             },
             "inputs": {
-                "PRDATA": getattr(dut, f"{prefix}_PRDATA"),
-                "PREADY": getattr(dut, f"{prefix}_PREADY"),
-                "PSLVERR": getattr(dut, f"{prefix}_PSLVERR"),
+                "PRDATA": SignalHandle(dut, f"{prefix}_PRDATA"),
+                "PREADY": SignalHandle(dut, f"{prefix}_PREADY"),
+                "PSLVERR": SignalHandle(dut, f"{prefix}_PSLVERR"),
             },
         }
         table[master["inst_name"]] = entry
