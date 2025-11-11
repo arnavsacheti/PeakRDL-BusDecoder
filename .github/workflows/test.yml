@@ -34,6 +34,10 @@ jobs:
       - name: Check Verilator version
         run: verilator --version
       
+      - name: Install Python development packages
+        run: |
+          apt-get update && apt-get install -y python3-dev libpython3-dev
+      
       - name: Install dependencies
         run: |
           uv sync --all-extras --group test
