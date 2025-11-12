@@ -26,7 +26,10 @@
             "extensions": [
                 "ms-python.python",
                 "ms-python.vscode-pylance",
-                "ms-vscode.cpptools"
+                "ms-vscode.cpptools",
+                "charliermarsh.ruff",
+                "astral-sh.ty",
+                "meta.pyrefly"
             ]
         }
     }
