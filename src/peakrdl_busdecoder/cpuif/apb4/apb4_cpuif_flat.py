@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 from systemrdl.node import AddressableNode
 
-from ...utils import get_indexed_path
+from ...utils import clog2, get_indexed_path
 from ..base_cpuif import BaseCpuif
 from .apb4_interface import APB4FlatInterface
 
@@ -42,7 +42,7 @@ class APB4CpuifFlat(BaseCpuif):
         fanout[self.signal("PWRITE", node, "gi")] = (
             f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
         )
-        fanout[self.signal("PADDR", node, "gi")] = self.signal("PADDR")
+        fanout[self.signal("PADDR", node, "gi")] = f"{self.signal('PADDR')}[{clog2(node.size) - 1}:0]"
         fanout[self.signal("PPROT", node, "gi")] = self.signal("PPROT")
         fanout[self.signal("PWDATA", node, "gi")] = "cpuif_wr_data"
         fanout[self.signal("PSTRB", node, "gi")] = "cpuif_wr_byte_en"
