@@ -7,7 +7,7 @@ from peakrdl.config import schema
 from peakrdl.plugins.entry_points import get_entry_points
 from peakrdl.plugins.exporter import ExporterSubcommandPlugin
 
-from .cpuif import BaseCpuif, apb3, apb4, axi4lite
+from .cpuif import BaseCpuif, apb3, apb4, axi4lite, taxi_apb
 from .exporter import BusDecoderExporter
 from .udps import ALL_UDPS
 
@@ -26,6 +26,7 @@ def get_cpuifs(config: list[tuple[str, Any]]) -> dict[str, type[BaseCpuif]]:
         "apb3-flat": apb3.APB3CpuifFlat,
         "apb4": apb4.APB4Cpuif,
         "apb4-flat": apb4.APB4CpuifFlat,
+        "taxi-apb": taxi_apb.TaxiAPBCpuif,
         "axi4-lite": axi4lite.AXI4LiteCpuif,
         "axi4-lite-flat": axi4lite.AXI4LiteCpuifFlat,
     }
