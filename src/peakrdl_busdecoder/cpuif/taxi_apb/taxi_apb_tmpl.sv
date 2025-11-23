@@ -6,8 +6,10 @@
         assert_bad_data_width: assert($bits({{cpuif.signal("pwdata")}}) == {{ds.package_name}}::{{ds.module_name|upper}}_DATA_WIDTH)
             else $error("Interface data width of %0d is incorrect. Shall be %0d bits", $bits({{cpuif.signal("pwdata")}}), {{ds.package_name}}::{{ds.module_name|upper}}_DATA_WIDTH);
     end
+    `ifdef PEAKRDL_ASSERTIONS
     assert_wr_sel: assert property (@(posedge {{cpuif.signal("PCLK")}}) {{cpuif.signal("psel")}} && {{cpuif.signal("pwrite")}} |-> ##1 ({{cpuif.signal("pready")}} || {{cpuif.signal("pslverr")}}))
         else $error("APB4 Slave port SEL implies that cpuif_wr_sel must be one-hot encoded");
+    `endif
 `endif
 {%- endif %}
 

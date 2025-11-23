@@ -15,6 +15,7 @@
                         $bits({{cpuif.signal("WDATA")}}), {{ds.package_name}}::{{ds.module_name|upper}}_DATA_WIDTH);
     end
 
+    `ifdef PEAKRDL_ASSERTIONS
     // Simple handshake sanity (one-cycle implication; relax/adjust as needed)
     assert_rd_resp_enc: assert property (@(posedge {{cpuif.signal("ACLK")}})
         {{cpuif.signal("RVALID")}} |-> (^{{cpuif.signal("RRESP")}} !== 1'bx))
@@ -23,6 +24,7 @@
     assert_wr_resp_enc: assert property (@(posedge {{cpuif.signal("ACLK")}})
         {{cpuif.signal("BVALID")}} |-> (^{{cpuif.signal("BRESP")}} !== 1'bx))
             else $error("BRESP must be a legal AXI response when BVALID is high");
+    `endif
 `endif
 {% endif -%}
 
