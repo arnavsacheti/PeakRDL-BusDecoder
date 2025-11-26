@@ -11,6 +11,7 @@ from cocotb.triggers import Timer
 
 from tests.cocotb_lib.handle_utils import SignalHandle, resolve_handle
 
+
 class _AxilSlaveShim:
     """Accessor for AXI4-Lite slave ports on the DUT."""
 
@@ -167,12 +168,12 @@ async def test_axi4lite_address_decoding(dut) -> None:
             if other_name == master_name and other_idx == index:
                 continue
             other_entry = masters[other_name]
-            assert (
-                _get_int(other_entry["outputs"]["AWVALID"], other_idx) == 0
-            ), f"{other_name}{other_idx} AWVALID should remain low during {txn['label']}"
-            assert (
-                _get_int(other_entry["outputs"]["WVALID"], other_idx) == 0
-            ), f"{other_name}{other_idx} WVALID should remain low during {txn['label']}"
+            assert _get_int(other_entry["outputs"]["AWVALID"], other_idx) == 0, (
+                f"{other_name}{other_idx} AWVALID should remain low during {txn['label']}"
+            )
+            assert _get_int(other_entry["outputs"]["WVALID"], other_idx) == 0, (
+                f"{other_name}{other_idx} WVALID should remain low during {txn['label']}"
+            )
 
         slave.AWVALID.value = 0
         slave.WVALID.value = 0
@@ -198,9 +199,9 @@ async def test_axi4lite_address_decoding(dut) -> None:
             if other_name == master_name and other_idx == index:
                 continue
             other_entry = masters[other_name]
-            assert (
-                _get_int(other_entry["outputs"]["ARVALID"], other_idx) == 0
-            ), f"{other_name}{other_idx} ARVALID should remain low during read of {txn['label']}"
+            assert _get_int(other_entry["outputs"]["ARVALID"], other_idx) == 0, (
+                f"{other_name}{other_idx} ARVALID should remain low during read of {txn['label']}"
+            )
 
         assert int(slave.RVALID.value) == 1, "Slave should observe RVALID when master responds"
         assert int(slave.RDATA.value) == read_data, "Read data must fold back to slave"

@@ -11,6 +11,7 @@ from cocotb.triggers import Timer
 
 from tests.cocotb_lib.handle_utils import SignalHandle, resolve_handle
 
+
 class _Apb4SlaveShim:
     """Lightweight accessor for the APB4 slave side of the DUT."""
 
@@ -141,17 +142,23 @@ async def test_apb4_address_decoding(dut) -> None:
 
         assert _get_int(entry["outputs"]["PSEL"], index) == 1, f"{master_name} should assert PSEL for write"
         assert _get_int(entry["outputs"]["PWRITE"], index) == 1, f"{master_name} should see write intent"
-        assert _get_int(entry["outputs"]["PADDR"], index) == address, f"{master_name} must receive write address"
-        assert _get_int(entry["outputs"]["PWDATA"], index) == write_data, f"{master_name} must receive write data"
-        assert _get_int(entry["outputs"]["PSTRB"], index) == strobe_mask, f"{master_name} must receive full strobes"
+        assert _get_int(entry["outputs"]["PADDR"], index) == address, (
+            f"{master_name} must receive write address"
+        )
+        assert _get_int(entry["outputs"]["PWDATA"], index) == write_data, (
+            f"{master_name} must receive write data"
+        )
+        assert _get_int(entry["outputs"]["PSTRB"], index) == strobe_mask, (
+            f"{master_name} must receive full strobes"
+        )
 
         for other_name, other_idx in _all_index_pairs(masters):
             if other_name == master_name and other_idx == index:
                 continue
             other_entry = masters[other_name]
-            assert (
-                _get_int(other_entry["outputs"]["PSEL"], other_idx) == 0
-            ), f"{other_name}{other_idx} should remain idle during {txn['label']}"
+            assert _get_int(other_entry["outputs"]["PSEL"], other_idx) == 0, (
+                f"{other_name}{other_idx} should remain idle during {txn['label']}"
+            )
 
         assert int(slave.PREADY.value) == 1, "Slave ready should reflect selected master"
         assert int(slave.PSLVERR.value) == 0, "No error expected during write"
@@ -179,16 +186,20 @@ async def test_apb4_address_decoding(dut) -> None:
         await Timer(1, units="ns")
 
         assert _get_int(entry["outputs"]["PSEL"], index) == 1, f"{master_name} must assert PSEL for read"
-        assert _get_int(entry["outputs"]["PWRITE"], index) == 0, f"{master_name} should deassert write for reads"
-        assert _get_int(entry["outputs"]["PADDR"], index) == address, f"{master_name} must receive read address"
+        assert _get_int(entry["outputs"]["PWRITE"], index) == 0, (
+            f"{master_name} should deassert write for reads"
+        )
+        assert _get_int(entry["outputs"]["PADDR"], index) == address, (
+            f"{master_name} must receive read address"
+        )
 
         for other_name, other_idx in _all_index_pairs(masters):
             if other_name == master_name and other_idx == index:
                 continue
             other_entry = masters[other_name]
-            assert (
-                _get_int(other_entry["outputs"]["PSEL"], other_idx) == 0
-            ), f"{other_name}{other_idx} must stay idle during read of {txn['label']}"
+            assert _get_int(other_entry["outputs"]["PSEL"], other_idx) == 0, (
+                f"{other_name}{other_idx} must stay idle during read of {txn['label']}"
+            )
 
         assert int(slave.PRDATA.value) == read_data, "Slave should observe readback data from master"
         assert int(slave.PREADY.value) == 1, "Slave ready should follow responding master"

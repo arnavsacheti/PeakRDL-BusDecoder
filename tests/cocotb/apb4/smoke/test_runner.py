@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import logging
+
 import pytest
 
 from peakrdl_busdecoder.cpuif.apb4.apb4_cpuif_flat import APB4CpuifFlat
@@ -15,7 +16,7 @@ except ImportError:  # pragma: no cover
     from cocotb_tools.runner import get_runner
 
 from tests.cocotb_lib import RDL_CASES
-from tests.cocotb_lib.utils import get_verilog_sources, prepare_cpuif_case
+from tests.cocotb_lib.utils import get_verilog_sources, prepare_cpuif_case, colorize_cocotb_log
 
 
 @pytest.mark.simulation
@@ -43,21 +44,25 @@ def test_apb4_smoke(tmp_path: Path, rdl_file: str, top_name: str) -> None:
 
     runner = get_runner("verilator")
     sim_build = build_root / "sim_build"
-    
+
+    build_log_file = build_root / "build.log"
+    sim_log_file = build_root / "simulation.log"
+
     try:
         runner.build(
             sources=sources,
             hdl_toplevel=module_path.stem,
             build_dir=sim_build,
-            log_file=str(build_root / "build.log"),
+            log_file=str(build_log_file),
         )
     except SystemExit as e:
         # Print build log on failure for easier debugging
-        log_path = build_root / "build.log"
-        if log_path.exists():
-            logging.error("\n\n=== Build Log ===\n")
-            logging.error(log_path.read_text())
-            logging.error("\n=== End Build Log ===\n")
+        if build_log_file.exists():
+            logging.error(f"""
+=== Build Log ===
+{colorize_cocotb_log(build_log_file.read_text())}
+=== End Build Log ===
+""")
         if e.code != 0:
             raise
 
@@ -66,15 +71,16 @@ def test_apb4_smoke(tmp_path: Path, rdl_file: str, top_name: str) -> None:
             hdl_toplevel=module_path.stem,
             test_module="tests.cocotb.apb4.smoke.test_register_access",
             build_dir=sim_build,
-            log_file=str(build_root / "simulation.log"),
+            log_file=str(sim_log_file),
             extra_env={"RDL_TEST_CONFIG": json.dumps(config)},
         )
     except SystemExit as e:
         # Print simulation log on failure for easier debugging
-        log_path = build_root / "simulation.log"
-        if log_path.exists():
-            logging.error("\n\n=== Simulation Log ===\n")
-            logging.error(log_path.read_text())
-            logging.error("\n=== End Simulation Log ===\n")
+        if sim_log_file.exists():
+            logging.error(f"""
+=== Simulation Log ===
+{colorize_cocotb_log(sim_log_file.read_text())}
+=== End Simulation Log ===
+""")
         if e.code != 0:
             raise
