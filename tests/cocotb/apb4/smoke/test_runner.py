@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 import logging
 
@@ -27,6 +28,9 @@ def test_apb4_smoke(tmp_path: Path, rdl_file: str, top_name: str) -> None:
     repo_root = Path(__file__).resolve().parents[4]
     rdl_path = repo_root / "tests" / "cocotb_lib" / "rdl" / rdl_file
     build_root = tmp_path / top_name
+
+    logging.info(f"Running APB4 smoke test for {rdl_path} with top {top_name}")
+    logging.info(f"Build root: {build_root}")
 
     module_path, package_path, config = prepare_cpuif_case(
         str(rdl_path),
@@ -83,4 +87,4 @@ def test_apb4_smoke(tmp_path: Path, rdl_file: str, top_name: str) -> None:
 === End Simulation Log ===
 """)
         if e.code != 0:
-            raise
+            raise e

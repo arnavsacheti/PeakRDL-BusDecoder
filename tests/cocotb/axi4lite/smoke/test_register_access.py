@@ -156,10 +156,17 @@ async def test_axi4lite_address_decoding(dut) -> None:
         slave.WVALID.value = 1
         slave.BREADY.value = 1
 
+        dut._log.info(
+            f"Starting transaction {txn['label']} to {master_name}{index} at address 0x{address:08X}"
+        )
+        master_address = (address - entry["inst_address"]) % entry["inst_size"]
+
         await Timer(1, units="ns")
 
         assert _get_int(entry["outputs"]["AWVALID"], index) == 1, f"{master_name} should see AWVALID asserted"
-        assert _get_int(entry["outputs"]["AWADDR"], index) == address, f"{master_name} must receive AWADDR"
+        assert _get_int(entry["outputs"]["AWADDR"], index) == master_address, (
+            f"{master_name} must receive AWADDR"
+        )
         assert _get_int(entry["outputs"]["WVALID"], index) == 1, f"{master_name} should see WVALID asserted"
         assert _get_int(entry["outputs"]["WDATA"], index) == write_data, f"{master_name} must receive WDATA"
         assert _get_int(entry["outputs"]["WSTRB"], index) == strobe_mask, f"{master_name} must receive WSTRB"
@@ -193,7 +200,9 @@ async def test_axi4lite_address_decoding(dut) -> None:
         await Timer(1, units="ns")
 
         assert _get_int(entry["outputs"]["ARVALID"], index) == 1, f"{master_name} should assert ARVALID"
-        assert _get_int(entry["outputs"]["ARADDR"], index) == address, f"{master_name} must receive ARADDR"
+        assert _get_int(entry["outputs"]["ARADDR"], index) == master_address, (
+            f"{master_name} must receive ARADDR"
+        )
 
         for other_name, other_idx in _all_index_pairs(masters):
             if other_name == master_name and other_idx == index:
