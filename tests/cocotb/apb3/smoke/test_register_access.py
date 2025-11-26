@@ -64,6 +64,8 @@ def _build_master_table(dut, masters_cfg: list[dict[str, Any]]) -> dict[str, dic
                 "PREADY": SignalHandle(dut, f"{prefix}_PREADY"),
                 "PSLVERR": SignalHandle(dut, f"{prefix}_PSLVERR"),
             },
+            "inst_size": master["inst_size"],
+            "inst_address": master["inst_address"],
         }
         table[master["inst_name"]] = entry
     return table

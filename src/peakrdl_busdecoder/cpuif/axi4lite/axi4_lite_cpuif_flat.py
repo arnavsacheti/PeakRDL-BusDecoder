@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, overload
 
 from systemrdl.node import AddressableNode
 
-from ...utils import get_indexed_path
+from ...utils import clog2, get_indexed_path
 from ..base_cpuif import BaseCpuif
 from .axi4_lite_interface import AXI4LiteFlatInterface
 
@@ -43,7 +43,7 @@ class AXI4LiteCpuifFlat(BaseCpuif):
 
         # Write address channel
         fanout[self.signal("AWVALID", node, "gi")] = wr_sel
-        fanout[self.signal("AWADDR", node, "gi")] = self.signal("AWADDR")
+        fanout[self.signal("AWADDR", node, "gi")] = f"{self.signal('AWADDR')}[{clog2(node.size) - 1}:0]"
         fanout[self.signal("AWPROT", node, "gi")] = self.signal("AWPROT")
 
         # Write data channel
@@ -56,7 +56,7 @@ class AXI4LiteCpuifFlat(BaseCpuif):
 
         # Read address channel
         fanout[self.signal("ARVALID", node, "gi")] = rd_sel
-        fanout[self.signal("ARADDR", node, "gi")] = self.signal("ARADDR")
+        fanout[self.signal("ARADDR", node, "gi")] = f"{self.signal('ARADDR')}[{clog2(node.size) - 1}:0]"
         fanout[self.signal("ARPROT", node, "gi")] = self.signal("ARPROT")
 
         # Read data channel (master -> slave)
