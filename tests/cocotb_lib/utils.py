@@ -36,6 +36,19 @@ LINE_RE = re.compile(
 
 
 def colorize_cocotb_log(text: str) -> str:
+    """
+    Colorizes cocotb log lines for improved readability in terminal output.
+
+    Each log line is parsed to identify the timestamp and log level, which are then
+    colorized using ANSI escape codes. The timestamp is dimmed, and the log level
+    is colored according to its severity (e.g., INFO, WARNING, ERROR).
+
+    Args:
+        text: The input string containing cocotb log lines.
+
+    Returns:
+        A string with colorized log lines.
+    """
     def _color_line(match: re.Match) -> str:
         prefix = match.group("prefix")
         time = match.group("time")
