@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from pathlib import Path
+import re
 from typing import Any
 
 from systemrdl import RDLCompiler
@@ -11,6 +12,64 @@ from systemrdl.node import AddressableNode, AddrmapNode, RegNode
 
 from peakrdl_busdecoder.cpuif.base_cpuif import BaseCpuif
 from peakrdl_busdecoder.exporter import BusDecoderExporter
+
+RESET = "\x1b[0m"
+DIM = "\x1b[2m"
+
+LEVEL_COLORS = {
+    "DEBUG": "\x1b[35m",  # magenta
+    "INFO": "\x1b[36m",  # cyan
+    "WARNING": "\x1b[33m",  # yellow
+    "ERROR": "\x1b[31m",  # red
+    "CRITICAL": "\x1b[1;31m",  # bold red
+}
+
+# Matches lines like:
+# "  0.00ns INFO     cocotb   ..." or "-.--ns INFO gpi ..."
+LINE_RE = re.compile(
+    r"^(?P<prefix>\s*)"  # leading spaces
+    r"(?P<time>[-0-9\.]+[a-zA-Z]+)"  # timestamp (e.g. 0.00ns, -.--ns)
+    r"\s+"
+    r"(?P<level>[A-Z]+)"  # log level
+    r"(?P<rest>.*)$"  # the rest of the line
+)
+
+
+def colorize_cocotb_log(text: str) -> str:
+    """
+    Colorizes cocotb log lines for improved readability in terminal output.
+
+    Each log line is parsed to identify the timestamp and log level, which are then
+    colorized using ANSI escape codes. The timestamp is dimmed, and the log level
+    is colored according to its severity (e.g., INFO, WARNING, ERROR).
+
+    Args:
+        text: The input string containing cocotb log lines.
+
+    Returns:
+        A string with colorized log lines.
+    """
+    def _color_line(match: re.Match) -> str:
+        prefix = match.group("prefix")
+        time = match.group("time")
+        level = match.group("level")
+        rest = match.group("rest")
+
+        level_color = LEVEL_COLORS.get(level, "")
+        # dim timestamp, color level
+        time_colored = f"{DIM}{time}{RESET}"
+        level_colored = f"{level_color}{level}{RESET}" if level_color else level
+
+        return f"{prefix}{time_colored} {level_colored}{rest}"
+
+    lines = []
+    for line in text.splitlines():
+        m = LINE_RE.match(line)
+        if m:
+            lines.append(_color_line(m))
+        else:
+            lines.append(line)
+    return "\n".join(lines)
 
 
 def compile_rdl_and_export(

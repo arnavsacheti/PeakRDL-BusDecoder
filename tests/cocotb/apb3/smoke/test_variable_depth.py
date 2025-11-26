@@ -41,23 +41,23 @@ def _apb3_master(dut, base: str):
 async def test_depth_1(dut):
     """Test max_decode_depth=1 - should have interface for inner1 only."""
     s_apb = _apb3_slave(dut)
-    
+
     # At depth 1, we should have m_apb_inner1 but not deeper interfaces
     inner1 = _apb3_master(dut, "m_apb_inner1")
-    
+
     # Default slave side inputs
     s_apb.PSEL.value = 0
     s_apb.PENABLE.value = 0
     s_apb.PWRITE.value = 0
     s_apb.PADDR.value = 0
     s_apb.PWDATA.value = 0
-    
+
     inner1.PRDATA.value = 0
     inner1.PREADY.value = 0
     inner1.PSLVERR.value = 0
-    
+
     await Timer(1, units="ns")
-    
+
     # Write to address 0x0 (should select inner1)
     inner1.PREADY.value = 1
     s_apb.PADDR.value = 0x0
@@ -65,9 +65,9 @@ async def test_depth_1(dut):
     s_apb.PWRITE.value = 1
     s_apb.PSEL.value = 1
     s_apb.PENABLE.value = 1
-    
+
     await Timer(1, units="ns")
-    
+
     assert int(inner1.PSEL.value) == 1, "inner1 must be selected"
     assert int(inner1.PWRITE.value) == 1, "Write should propagate"
     assert int(s_apb.PREADY.value) == 1, "Ready should mirror master"
@@ -77,28 +77,28 @@ async def test_depth_1(dut):
 async def test_depth_2(dut):
     """Test max_decode_depth=2 - should have interfaces for reg1 and inner2."""
     s_apb = _apb3_slave(dut)
-    
+
     # At depth 2, we should have m_apb_reg1 and m_apb_inner2
     reg1 = _apb3_master(dut, "m_apb_reg1")
     inner2 = _apb3_master(dut, "m_apb_inner2")
-    
+
     # Default slave side inputs
     s_apb.PSEL.value = 0
     s_apb.PENABLE.value = 0
     s_apb.PWRITE.value = 0
     s_apb.PADDR.value = 0
     s_apb.PWDATA.value = 0
-    
+
     reg1.PRDATA.value = 0
     reg1.PREADY.value = 0
     reg1.PSLVERR.value = 0
-    
+
     inner2.PRDATA.value = 0
     inner2.PREADY.value = 0
     inner2.PSLVERR.value = 0
-    
+
     await Timer(1, units="ns")
-    
+
     # Write to address 0x0 (should select reg1)
     reg1.PREADY.value = 1
     s_apb.PADDR.value = 0x0
@@ -106,18 +106,18 @@ async def test_depth_2(dut):
     s_apb.PWRITE.value = 1
     s_apb.PSEL.value = 1
     s_apb.PENABLE.value = 1
-    
+
     await Timer(1, units="ns")
-    
+
     assert int(reg1.PSEL.value) == 1, "reg1 must be selected for address 0x0"
     assert int(inner2.PSEL.value) == 0, "inner2 should not be selected"
-    
+
     # Reset
     s_apb.PSEL.value = 0
     s_apb.PENABLE.value = 0
     reg1.PREADY.value = 0
     await Timer(1, units="ns")
-    
+
     # Write to address 0x10 (should select inner2)
     inner2.PREADY.value = 1
     s_apb.PADDR.value = 0x10
@@ -125,9 +125,9 @@ async def test_depth_2(dut):
     s_apb.PWRITE.value = 1
     s_apb.PSEL.value = 1
     s_apb.PENABLE.value = 1
-    
+
     await Timer(1, units="ns")
-    
+
     assert int(inner2.PSEL.value) == 1, "inner2 must be selected for address 0x10"
     assert int(reg1.PSEL.value) == 0, "reg1 should not be selected"
 
@@ -136,26 +136,26 @@ async def test_depth_2(dut):
 async def test_depth_0(dut):
     """Test max_decode_depth=0 - should have interfaces for all leaf registers."""
     s_apb = _apb3_slave(dut)
-    
+
     # At depth 0, we should have all leaf registers: reg1, reg2, reg2b
     reg1 = _apb3_master(dut, "m_apb_reg1")
     reg2 = _apb3_master(dut, "m_apb_reg2")
     reg2b = _apb3_master(dut, "m_apb_reg2b")
-    
+
     # Default slave side inputs
     s_apb.PSEL.value = 0
     s_apb.PENABLE.value = 0
     s_apb.PWRITE.value = 0
     s_apb.PADDR.value = 0
     s_apb.PWDATA.value = 0
-    
+
     for master in [reg1, reg2, reg2b]:
         master.PRDATA.value = 0
         master.PREADY.value = 0
         master.PSLVERR.value = 0
-    
+
     await Timer(1, units="ns")
-    
+
     # Write to address 0x0 (should select reg1)
     reg1.PREADY.value = 1
     s_apb.PADDR.value = 0x0
@@ -163,19 +163,19 @@ async def test_depth_0(dut):
     s_apb.PWRITE.value = 1
     s_apb.PSEL.value = 1
     s_apb.PENABLE.value = 1
-    
+
     await Timer(1, units="ns")
-    
+
     assert int(reg1.PSEL.value) == 1, "reg1 must be selected for address 0x0"
     assert int(reg2.PSEL.value) == 0, "reg2 should not be selected"
     assert int(reg2b.PSEL.value) == 0, "reg2b should not be selected"
-    
+
     # Reset
     s_apb.PSEL.value = 0
     s_apb.PENABLE.value = 0
     reg1.PREADY.value = 0
     await Timer(1, units="ns")
-    
+
     # Write to address 0x10 (should select reg2)
     reg2.PREADY.value = 1
     s_apb.PADDR.value = 0x10
@@ -183,19 +183,19 @@ async def test_depth_0(dut):
     s_apb.PWRITE.value = 1
     s_apb.PSEL.value = 1
     s_apb.PENABLE.value = 1
-    
+
     await Timer(1, units="ns")
-    
+
     assert int(reg2.PSEL.value) == 1, "reg2 must be selected for address 0x10"
     assert int(reg1.PSEL.value) == 0, "reg1 should not be selected"
     assert int(reg2b.PSEL.value) == 0, "reg2b should not be selected"
-    
+
     # Reset
     s_apb.PSEL.value = 0
     s_apb.PENABLE.value = 0
     reg2.PREADY.value = 0
     await Timer(1, units="ns")
-    
+
     # Write to address 0x14 (should select reg2b)
     reg2b.PREADY.value = 1
     s_apb.PADDR.value = 0x14
@@ -203,9 +203,9 @@ async def test_depth_0(dut):
     s_apb.PWRITE.value = 1
     s_apb.PSEL.value = 1
     s_apb.PENABLE.value = 1
-    
+
     await Timer(1, units="ns")
-    
+
     assert int(reg2b.PSEL.value) == 1, "reg2b must be selected for address 0x14"
     assert int(reg1.PSEL.value) == 0, "reg1 should not be selected"
     assert int(reg2.PSEL.value) == 0, "reg2 should not be selected"

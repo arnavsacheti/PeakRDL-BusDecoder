@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import logging
 
 import pytest
 
@@ -15,7 +16,7 @@ except ImportError:  # pragma: no cover
     from cocotb_tools.runner import get_runner
 
 from tests.cocotb_lib import RDL_CASES
-from tests.cocotb_lib.utils import get_verilog_sources, prepare_cpuif_case
+from tests.cocotb_lib.utils import get_verilog_sources, prepare_cpuif_case, colorize_cocotb_log
 
 
 @pytest.mark.simulation
@@ -44,16 +45,42 @@ def test_apb3_smoke(tmp_path: Path, rdl_file: str, top_name: str) -> None:
     runner = get_runner("verilator")
     sim_build = build_root / "sim_build"
 
-    runner.build(
-        sources=sources,
-        hdl_toplevel=module_path.stem,
-        build_dir=sim_build,
-    )
+    build_log_file = build_root / "build.log"
+    sim_log_file = build_root / "simulation.log"
 
-    runner.test(
-        hdl_toplevel=module_path.stem,
-        test_module="tests.cocotb.apb3.smoke.test_register_access",
-        build_dir=sim_build,
-        log_file=str(build_root / "simulation.log"),
-        extra_env={"RDL_TEST_CONFIG": json.dumps(config)},
-    )
+    try:
+        runner.build(
+            sources=sources,
+            hdl_toplevel=module_path.stem,
+            build_dir=sim_build,
+            log_file=str(build_log_file),
+        )
+    except SystemExit as e:
+        # Print build log on failure for easier debugging
+        if build_log_file.exists():
+            logging.error(f"""
+=== Build Log ===
+{colorize_cocotb_log(build_log_file.read_text())}
+=== End Build Log ===
+""")
+        if e.code != 0:
+            raise
+
+    try:
+        runner.test(
+            hdl_toplevel=module_path.stem,
+            test_module="tests.cocotb.apb3.smoke.test_register_access",
+            build_dir=sim_build,
+            log_file=str(sim_log_file),
+            extra_env={"RDL_TEST_CONFIG": json.dumps(config)},
+        )
+    except SystemExit as e:
+        # Print simulation log on failure for easier debugging
+        if sim_log_file.exists():
+            logging.error(f"""
+=== Simulation Log ===
+{colorize_cocotb_log(sim_log_file.read_text())}
+=== End Simulation Log ===
+""")
+        if e.code != 0:
+            raise
