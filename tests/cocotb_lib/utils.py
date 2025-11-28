@@ -223,6 +223,8 @@ def _build_case_config(
             "is_array": bool(child.is_array),
             "dimensions": list(child.array_dimensions or []),
             "indices": set(),
+            "inst_size": child.array_stride if child.is_array else child.size,
+            "inst_address": child.raw_absolute_address,
         }
 
     # Map each register to its top-level master and collect addresses
@@ -252,6 +254,8 @@ def _build_case_config(
                     "is_array": bool(master.is_array),
                     "dimensions": list(master.array_dimensions or []),
                     "indices": set(),
+                    "inst_size": master.array_stride if master.is_array else master.size,
+                    "inst_address": master.raw_absolute_address,
                 }
 
             idx_tuple = tuple(master.current_idx or [])
@@ -279,6 +283,8 @@ def _build_case_config(
                 "is_array": entry["is_array"],
                 "dimensions": entry["dimensions"],
                 "indices": entry["indices"],
+                "inst_size": entry["inst_size"],
+                "inst_address": entry["inst_address"],
             }
         )
 

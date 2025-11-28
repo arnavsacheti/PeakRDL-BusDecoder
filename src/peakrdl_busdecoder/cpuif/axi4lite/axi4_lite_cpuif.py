@@ -1,3 +1,4 @@
+from collections import deque
 from typing import TYPE_CHECKING, overload
 
 from systemrdl.node import AddressableNode
@@ -33,7 +34,7 @@ class AXI4LiteCpuif(BaseCpuif):
     def signal(self, signal: str, node: AddressableNode | None = None, indexer: str | None = None) -> str:
         return self._interface.signal(signal, node, indexer)
 
-    def fanout(self, node: AddressableNode) -> str:
+    def fanout(self, node: AddressableNode, array_stack: deque[int]) -> str:
         fanout: dict[str, str] = {}
 
         wr_sel = f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"

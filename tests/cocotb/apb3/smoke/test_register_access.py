@@ -64,6 +64,8 @@ def _build_master_table(dut, masters_cfg: list[dict[str, Any]]) -> dict[str, dic
                 "PREADY": SignalHandle(dut, f"{prefix}_PREADY"),
                 "PSLVERR": SignalHandle(dut, f"{prefix}_PSLVERR"),
             },
+            "inst_size": master["inst_size"],
+            "inst_address": master["inst_address"],
         }
         table[master["inst_name"]] = entry
     return table
@@ -125,11 +127,16 @@ async def test_apb3_address_decoding(dut) -> None:
         slave.PSEL.value = 1
         slave.PENABLE.value = 1
 
+        dut._log.info(
+            f"Starting transaction {txn['label']} to {master_name}{index} at address 0x{address:08X}"
+        )
+        master_address = (address - entry["inst_address"]) % entry["inst_size"]
+
         await Timer(1, units="ns")
 
         assert _get_int(entry["outputs"]["PSEL"], index) == 1, f"{master_name} should assert PSEL for write"
         assert _get_int(entry["outputs"]["PWRITE"], index) == 1, f"{master_name} should see write direction"
-        assert _get_int(entry["outputs"]["PADDR"], index) == address, (
+        assert _get_int(entry["outputs"]["PADDR"], index) == master_address, (
             f"{master_name} must receive write address"
         )
         assert _get_int(entry["outputs"]["PWDATA"], index) == write_data, (
@@ -172,7 +179,7 @@ async def test_apb3_address_decoding(dut) -> None:
         assert _get_int(entry["outputs"]["PWRITE"], index) == 0, (
             f"{master_name} should clear write during read"
         )
-        assert _get_int(entry["outputs"]["PADDR"], index) == address, (
+        assert _get_int(entry["outputs"]["PADDR"], index) == master_address, (
             f"{master_name} must receive read address"
         )
 

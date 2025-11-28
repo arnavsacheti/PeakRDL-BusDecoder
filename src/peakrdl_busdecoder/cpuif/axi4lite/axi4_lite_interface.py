@@ -2,6 +2,7 @@
 
 from systemrdl.node import AddressableNode
 
+from ...utils import clog2
 from ..interface import FlatInterface, SVInterface
 
 
@@ -60,7 +61,7 @@ class AXI4LiteFlatInterface(FlatInterface):
             # Write address channel
             f"output logic {self.signal('AWVALID', child)}",
             f"input  logic {self.signal('AWREADY', child)}",
-            f"output logic [{self.cpuif.addr_width - 1}:0] {self.signal('AWADDR', child)}",
+            f"output logic [{clog2(child.size) - 1}:0] {self.signal('AWADDR', child)}",
             f"output logic [2:0] {self.signal('AWPROT', child)}",
             # Write data channel
             f"output logic {self.signal('WVALID', child)}",
@@ -74,7 +75,7 @@ class AXI4LiteFlatInterface(FlatInterface):
             # Read address channel
             f"output logic {self.signal('ARVALID', child)}",
             f"input  logic {self.signal('ARREADY', child)}",
-            f"output logic [{self.cpuif.addr_width - 1}:0] {self.signal('ARADDR', child)}",
+            f"output logic [{clog2(child.size) - 1}:0] {self.signal('ARADDR', child)}",
             f"output logic [2:0] {self.signal('ARPROT', child)}",
             # Read data channel
             f"input  logic {self.signal('RVALID', child)}",

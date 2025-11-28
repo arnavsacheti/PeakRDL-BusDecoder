@@ -43,7 +43,7 @@ class FanoutGenerator(BusDecoderListener):
                 )
                 self._stack.append(fb)
 
-        self._stack[-1] += self._cpuif.fanout(node)
+        self._stack[-1] += self._cpuif.fanout(node, self._array_stride_stack)
 
         return action
 
