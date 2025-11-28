@@ -1,5 +1,6 @@
 import inspect
 import os
+from collections import deque
 from typing import TYPE_CHECKING
 
 import jinja2 as jj
@@ -106,7 +107,7 @@ class BaseCpuif:
 
         return f"({cpuif_addr} - 'h{addr:x})[{clog2(size) - 1}:0]"
 
-    def fanout(self, node: AddressableNode) -> str:
+    def fanout(self, node: AddressableNode, array_stack: deque[int]) -> str:
         raise NotImplementedError
 
     def fanin(self, node: AddressableNode | None = None) -> str:
