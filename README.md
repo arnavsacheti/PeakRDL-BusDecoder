@@ -1,5 +1,6 @@
-[![Documentation Status](https://readthedocs.org/projects/peakrdl-busdecoder/badge/?version=latest)](http://peakrdl-busdecoder.readthedocs.io)
-[![build](https://github.com/arnavsacheti/PeakRDL-BusDecoder/workflows/build/badge.svg)](https://github.com/arnavsacheti/PeakRDL-BusDecoder/actions?query=workflow%3Abuild+branch%3Amain)
+[![Build](https://github.com/arnavsacheti/PeakRDL-BusDecoder/actions/workflows/build.yml/badge.svg)](https://github.com/arnavsacheti/PeakRDL-BusDecoder/actions/workflows/build.yml)
+[![Test](https://github.com/arnavsacheti/PeakRDL-BusDecoder/actions/workflows/test.yml/badge.svg)](https://github.com/arnavsacheti/PeakRDL-BusDecoder/actions/workflows/test.yml)
+[![Documentation](https://github.com/arnavsacheti/PeakRDL-BusDecoder/actions/workflows/docs.yml/badge.svg)](https://github.com/arnavsacheti/PeakRDL-BusDecoder/actions/workflows/docs.yml)
 [![Coverage Status](https://coveralls.io/repos/github/arnavsacheti/PeakRDL-BusDecoder/badge.svg?branch=main)](https://coveralls.io/github/arnavsacheti/PeakRDL-BusDecoder?branch=main)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/peakrdl-busdecoder.svg)](https://pypi.org/project/peakrdl-busdecoder)
 
