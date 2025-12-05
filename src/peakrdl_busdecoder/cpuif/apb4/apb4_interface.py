@@ -2,6 +2,7 @@
 
 from systemrdl.node import AddressableNode
 
+from ...utils import clog2
 from ..interface import FlatInterface, SVInterface
 
 
@@ -50,7 +51,7 @@ class APB4FlatInterface(FlatInterface):
             f"output logic {self.signal('PSEL', child)}",
             f"output logic {self.signal('PENABLE', child)}",
             f"output logic {self.signal('PWRITE', child)}",
-            f"output logic [{self.cpuif.addr_width - 1}:0] {self.signal('PADDR', child)}",
+            f"output logic [{clog2(child.size) - 1}:0] {self.signal('PADDR', child)}",
             f"output logic [2:0] {self.signal('PPROT', child)}",
             f"output logic [{self.cpuif.data_width - 1}:0] {self.signal('PWDATA', child)}",
             f"output logic [{self.cpuif.data_width // 8 - 1}:0] {self.signal('PSTRB', child)}",

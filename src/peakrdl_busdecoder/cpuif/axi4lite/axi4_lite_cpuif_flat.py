@@ -1,8 +1,10 @@
+from collections import deque
 from typing import TYPE_CHECKING, overload
 
 from systemrdl.node import AddressableNode
 
-from ...utils import get_indexed_path
+from ...sv_int import SVInt
+from ...utils import clog2, get_indexed_path
 from ..base_cpuif import BaseCpuif
 from .axi4_lite_interface import AXI4LiteFlatInterface
 
@@ -35,15 +37,21 @@ class AXI4LiteCpuifFlat(BaseCpuif):
     def signal(self, signal: str, node: AddressableNode | None = None, indexer: str | None = None) -> str:
         return self._interface.signal(signal, node, indexer)
 
-    def fanout(self, node: AddressableNode) -> str:
+    def fanout(self, node: AddressableNode, array_stack: deque[int]) -> str:
         fanout: dict[str, str] = {}
+        waddr_comp = [f"{self.signal('AWADDR')}"]
+        raddr_comp = [f"{self.signal('ARADDR')}"]
+        for i, stride in enumerate(array_stack):
+            offset = f"(gi{i}*{SVInt(stride, self.addr_width)})"
+            waddr_comp.append(offset)
+            raddr_comp.append(offset)
 
         wr_sel = f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
         rd_sel = f"cpuif_rd_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
 
         # Write address channel
         fanout[self.signal("AWVALID", node, "gi")] = wr_sel
-        fanout[self.signal("AWADDR", node, "gi")] = self.signal("AWADDR")
+        fanout[self.signal("AWADDR", node, "gi")] = f"{{{'-'.join(waddr_comp)}}}[{clog2(node.size) - 1}:0]"
         fanout[self.signal("AWPROT", node, "gi")] = self.signal("AWPROT")
 
         # Write data channel
@@ -56,7 +64,7 @@ class AXI4LiteCpuifFlat(BaseCpuif):
 
         # Read address channel
         fanout[self.signal("ARVALID", node, "gi")] = rd_sel
-        fanout[self.signal("ARADDR", node, "gi")] = self.signal("ARADDR")
+        fanout[self.signal("ARADDR", node, "gi")] = f"{{{'-'.join(raddr_comp)}}}[{clog2(node.size) - 1}:0]"
         fanout[self.signal("ARPROT", node, "gi")] = self.signal("ARPROT")
 
         # Read data channel (master -> slave)
