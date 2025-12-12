@@ -138,3 +138,115 @@ def test_max_decode_depth_parameter_exists(compile_rdl: Callable[..., AddrmapNod
         module_file = Path(tmpdir) / "simple.sv"
         assert module_file.exists()
 
+
+def test_unaligned_external_component_supported(compile_rdl: Callable[..., AddrmapNode]) -> None:
+    """Test that external components can be at unaligned addresses.
+    
+    This test verifies that external components don't need to be aligned
+    to a power-of-2 multiple of their size, as the busdecoder supports
+    unaligned access.
+    """
+    rdl_source = """
+    mem queue_t {
+        name = "Queue";
+        mementries = 1024;
+        memwidth = 64;
+    };
+
+    addrmap buffer_t {
+        name = "Buffer";
+        desc = "";
+        
+        external queue_t multicast @ 0x100;  // Not power-of-2 aligned
+    };
+    """
+    top = compile_rdl(rdl_source, top="buffer_t")
+    
+    with TemporaryDirectory() as tmpdir:
+        exporter = BusDecoderExporter()
+        # Should not raise an alignment error
+        exporter.export(top, tmpdir, cpuif_cls=APB4Cpuif)
+        
+        # Verify output was generated
+        module_file = Path(tmpdir) / "buffer_t.sv"
+        assert module_file.exists()
+        
+        content = module_file.read_text()
+        # Verify the external component is in the generated code
+        assert "multicast" in content
+
+
+def test_unaligned_external_component_array_supported(compile_rdl: Callable[..., AddrmapNode]) -> None:
+    """Test that external component arrays with non-power-of-2 strides are supported.
+    
+    This test verifies that external component arrays can have arbitrary strides,
+    not just power-of-2 strides.
+    """
+    rdl_source = """
+    mem queue_t {
+        name = "Queue";
+        mementries = 256;
+        memwidth = 32;
+    };
+
+    addrmap buffer_t {
+        name = "Buffer";
+        desc = "";
+        
+        external queue_t port[4] @ 0x0 += 0x600;  // Stride of 0x600 (not power-of-2) to test unaligned support
+    };
+    """
+    top = compile_rdl(rdl_source, top="buffer_t")
+    
+    with TemporaryDirectory() as tmpdir:
+        exporter = BusDecoderExporter()
+        # Should not raise an alignment error
+        exporter.export(top, tmpdir, cpuif_cls=APB4Cpuif)
+        
+        # Verify output was generated
+        module_file = Path(tmpdir) / "buffer_t.sv"
+        assert module_file.exists()
+        
+        content = module_file.read_text()
+        # Verify the external component array is in the generated code
+        assert "port" in content
+
+
+def test_unaligned_external_nested_in_addrmap(compile_rdl: Callable[..., AddrmapNode]) -> None:
+    """Test that addrmaps containing external components can be at unaligned addresses.
+    
+    This verifies that not just external components themselves, but also
+    non-external addrmaps/regfiles that contain external components can be
+    at unaligned addresses.
+    """
+    rdl_source = """
+    mem queue_t {
+        name = "Queue";
+        mementries = 512;
+        memwidth = 32;
+    };
+
+    addrmap inner_block {
+        external queue_t ext_queue @ 0x0;
+    };
+
+    addrmap outer_block {
+        inner_block inner @ 0x150;  // Not power-of-2 aligned
+    };
+    """
+    top = compile_rdl(rdl_source, top="outer_block")
+    
+    with TemporaryDirectory() as tmpdir:
+        exporter = BusDecoderExporter()
+        # Should not raise an alignment error
+        exporter.export(top, tmpdir, cpuif_cls=APB4Cpuif)
+        
+        # Verify output was generated
+        module_file = Path(tmpdir) / "outer_block.sv"
+        assert module_file.exists()
+        
+        content = module_file.read_text()
+        # Verify the nested components are in the generated code
+        assert "inner" in content
+
+
