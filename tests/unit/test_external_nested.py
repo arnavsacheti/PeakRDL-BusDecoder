@@ -193,7 +193,7 @@ def test_unaligned_external_component_array_supported(compile_rdl: Callable[...,
         name = "Buffer";
         desc = "";
         
-        external queue_t port[4] @ 0x0 += 0x600;  // Stride of 0x600 is not power-of-2, but large enough
+        external queue_t port[4] @ 0x0 += 0x600;  // Stride of 0x600 (not power-of-2) to test unaligned support
     };
     """
     top = compile_rdl(rdl_source, top="buffer_t")
