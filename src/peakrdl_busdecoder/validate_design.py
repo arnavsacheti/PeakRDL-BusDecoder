@@ -4,7 +4,7 @@ from systemrdl.node import AddressableNode, AddrmapNode, FieldNode, Node, Regfil
 from systemrdl.rdltypes.references import PropertyReference
 from systemrdl.walker import RDLListener, RDLWalker, WalkerAction
 
-from .utils import is_pow2, ref_is_internal, roundup_pow2
+from .utils import ref_is_internal
 
 if TYPE_CHECKING:
     from .exporter import BusDecoderExporter
@@ -159,27 +159,3 @@ class DesignValidator(RDLListener):
             else:
                 # Exiting top addrmap. Resolve final answer
                 self.contains_external_block = contains_external_block
-
-            if contains_external_block:
-                # Check that addressing follows strict alignment rules to allow
-                # for simplified address bit-pruning
-                if node.external:
-                    err_suffix = "is external"
-                else:
-                    err_suffix = "contains an external addrmap/regfile/mem"
-
-                req_align = roundup_pow2(node.size)
-                if (node.raw_address_offset % req_align) != 0:
-                    self.msg.error(
-                        f"Address offset +0x{node.raw_address_offset:x} of instance '{node.inst_name}' is not a power of 2 multiple of its size 0x{node.size:x}. "
-                        f"This is required by the busdecoder exporter if a component {err_suffix}.",
-                        node.inst.inst_src_ref,
-                    )
-                if node.is_array:
-                    assert node.array_stride is not None
-                    if not is_pow2(node.array_stride):
-                        self.msg.error(
-                            f"Address stride of instance array '{node.inst_name}' is not a power of 2"
-                            f"This is required by the busdecoder exporter if a component {err_suffix}.",
-                            node.inst.inst_src_ref,
-                        )
