@@ -1,0 +1,36 @@
+{
+  "name": "peakrdl-busdecoder",
+  "displayName": "PeakRDL BusDecoder",
+  "description": "VS Code extension scaffold for PeakRDL BusDecoder.",
+  "version": "0.0.1",
+  "publisher": "peakrdl",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "dist/extension.js",
+  "activationEvents": [
+    "onCommand:peakrdl-busdecoder.hello"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "peakrdl-busdecoder.hello",
+        "title": "PeakRDL BusDecoder: Hello"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "webpack --mode production",
+    "watch": "webpack --mode development --watch"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "ts-loader": "^9.5.0",
+    "typescript": "^5.4.0",
+    "webpack": "^5.90.0",
+    "webpack-cli": "^5.1.4"
+  }
+}
