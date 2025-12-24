@@ -18,7 +18,6 @@ jobs:
       image: verilator/verilator:latest
     permissions:
       contents: read
-      statuses: write
     strategy:
       matrix:
         python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
