@@ -122,6 +122,13 @@ class Exporter(ExporterSubcommandPlugin):
             """,
         )
 
+        arg_group.add_argument(
+            "--omit-intf-clk-reset",
+            action="store_true",
+            default=False,
+            help="Skip propagating CPUIF clock/reset onto generated master ports (use when downstream IP lacks them)",
+        )
+
     def do_export(self, top_node: "AddrmapNode", options: "argparse.Namespace") -> None:
         cpuifs = self.get_cpuifs()
 
@@ -135,4 +142,5 @@ class Exporter(ExporterSubcommandPlugin):
             address_width=options.addr_width,
             cpuif_unroll=options.unroll,
             max_decode_depth=options.max_decode_depth,
+            omit_intf_clk_reset=options.omit_intf_clk_reset,
         )

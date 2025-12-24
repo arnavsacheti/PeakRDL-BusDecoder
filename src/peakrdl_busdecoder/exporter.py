@@ -29,6 +29,7 @@ class ExporterKwargs(TypedDict, total=False):
     cpuif_unroll: bool
     reuse_hwif_typedefs: bool
     max_decode_depth: int
+    omit_intf_clk_reset: bool
 
 
 if TYPE_CHECKING:
@@ -40,6 +41,7 @@ class BusDecoderExporter:
     ds: DesignState
 
     def __init__(self, **kwargs: Unpack[ExporterKwargs]) -> None:
+        self.omit_intf_clk_reset = False
         # Check for stray kwargs
         if kwargs:
             raise TypeError(f"got an unexpected keyword argument '{next(iter(kwargs.keys()))}'")
@@ -102,6 +104,7 @@ class BusDecoderExporter:
         self.ds = DesignState(top_node, kwargs)
 
         cpuif_cls: type[BaseCpuif] = kwargs.pop("cpuif_cls", None) or APB4Cpuif
+        self.omit_intf_clk_reset = kwargs.pop("omit_intf_clk_reset", False)
 
         # Check for stray kwargs
         if kwargs:

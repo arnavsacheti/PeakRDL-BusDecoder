@@ -35,6 +35,10 @@ class APB3Cpuif(BaseCpuif):
 
     def fanout(self, node: AddressableNode, array_stack: deque[int]) -> str:
         fanout: dict[str, str] = {}
+        # Clock and reset fanout
+        if not self.omit_intf_clk_reset:
+            fanout[self.signal("PCLK", node, "gi")] = self.signal("PCLK")
+            fanout[self.signal("PRESETn", node, "gi")] = self.signal("PRESETn")
         fanout[self.signal("PSEL", node, "gi")] = (
             f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}|cpuif_rd_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
         )

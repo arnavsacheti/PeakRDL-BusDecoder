@@ -43,15 +43,24 @@ class APB3FlatInterface(FlatInterface):
         ]
 
     def _get_master_port_declarations(self, child: AddressableNode, master_prefix: str) -> list[str]:
-        return [
-            f"output logic {self.signal('PCLK', child)}",
-            f"output logic {self.signal('PRESETn', child)}",
-            f"output logic {self.signal('PSEL', child)}",
-            f"output logic {self.signal('PENABLE', child)}",
-            f"output logic {self.signal('PWRITE', child)}",
-            f"output logic [{clog2(child.size) - 1}:0] {self.signal('PADDR', child)}",
-            f"output logic [{self.cpuif.data_width - 1}:0] {self.signal('PWDATA', child)}",
-            f"input  logic [{self.cpuif.data_width - 1}:0] {self.signal('PRDATA', child)}",
-            f"input  logic {self.signal('PREADY', child)}",
-            f"input  logic {self.signal('PSLVERR', child)}",
-        ]
+        ports: list[str] = []
+        if not self.cpuif.omit_intf_clk_reset:
+            ports.extend(
+                [
+                    f"output logic {self.signal('PCLK', child)}",
+                    f"output logic {self.signal('PRESETn', child)}",
+                ]
+            )
+        ports.extend(
+            [
+                f"output logic {self.signal('PSEL', child)}",
+                f"output logic {self.signal('PENABLE', child)}",
+                f"output logic {self.signal('PWRITE', child)}",
+                f"output logic [{clog2(child.size) - 1}:0] {self.signal('PADDR', child)}",
+                f"output logic [{self.cpuif.data_width - 1}:0] {self.signal('PWDATA', child)}",
+                f"input  logic [{self.cpuif.data_width - 1}:0] {self.signal('PRDATA', child)}",
+                f"input  logic {self.signal('PREADY', child)}",
+                f"input  logic {self.signal('PSLVERR', child)}",
+            ]
+        )
+        return ports

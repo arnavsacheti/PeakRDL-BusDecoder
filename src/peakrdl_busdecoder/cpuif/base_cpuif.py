@@ -22,6 +22,7 @@ class BaseCpuif:
     def __init__(self, exp: "BusDecoderExporter") -> None:
         self.exp = exp
         self.reset = exp.ds.top_node.cpuif_reset
+        self.omit_intf_clk_reset = getattr(exp, "omit_intf_clk_reset", False)
         self.unroll = exp.ds.cpuif_unroll
 
     @property

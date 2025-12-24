@@ -41,6 +41,11 @@ class APB4CpuifFlat(BaseCpuif):
         for i, stride in enumerate(array_stack):
             addr_comp.append(f"(gi{i}*{SVInt(stride, self.addr_width)})")
 
+        # Clock and reset fanout
+        if not self.omit_intf_clk_reset:
+            fanout[self.signal("PCLK", node, "gi")] = self.signal("PCLK")
+            fanout[self.signal("PRESETn", node, "gi")] = self.signal("PRESETn")
+
         fanout[self.signal("PSEL", node, "gi")] = (
             f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}|cpuif_rd_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
         )
