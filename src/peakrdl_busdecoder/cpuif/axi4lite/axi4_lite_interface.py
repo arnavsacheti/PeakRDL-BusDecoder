@@ -30,6 +30,9 @@ class AXI4LiteFlatInterface(FlatInterface):
 
     def _get_slave_port_declarations(self, slave_prefix: str) -> list[str]:
         return [
+            # Clocking
+            f"input  logic {slave_prefix}ACLK",
+            f"input  logic {slave_prefix}ARESETn",
             # Write address channel
             f"input  logic {slave_prefix}AWVALID",
             f"output logic {slave_prefix}AWREADY",
@@ -57,29 +60,40 @@ class AXI4LiteFlatInterface(FlatInterface):
         ]
 
     def _get_master_port_declarations(self, child: AddressableNode, master_prefix: str) -> list[str]:
-        return [
-            # Write address channel
-            f"output logic {self.signal('AWVALID', child)}",
-            f"input  logic {self.signal('AWREADY', child)}",
-            f"output logic [{clog2(child.size) - 1}:0] {self.signal('AWADDR', child)}",
-            f"output logic [2:0] {self.signal('AWPROT', child)}",
-            # Write data channel
-            f"output logic {self.signal('WVALID', child)}",
-            f"input  logic {self.signal('WREADY', child)}",
-            f"output logic [{self.cpuif.data_width - 1}:0] {self.signal('WDATA', child)}",
-            f"output logic [{self.cpuif.data_width // 8 - 1}:0] {self.signal('WSTRB', child)}",
-            # Write response channel
-            f"input  logic {self.signal('BVALID', child)}",
-            f"output logic {self.signal('BREADY', child)}",
-            f"input  logic [1:0] {self.signal('BRESP', child)}",
-            # Read address channel
-            f"output logic {self.signal('ARVALID', child)}",
-            f"input  logic {self.signal('ARREADY', child)}",
-            f"output logic [{clog2(child.size) - 1}:0] {self.signal('ARADDR', child)}",
-            f"output logic [2:0] {self.signal('ARPROT', child)}",
-            # Read data channel
-            f"input  logic {self.signal('RVALID', child)}",
-            f"output logic {self.signal('RREADY', child)}",
-            f"input  logic [{self.cpuif.data_width - 1}:0] {self.signal('RDATA', child)}",
-            f"input  logic [1:0] {self.signal('RRESP', child)}",
-        ]
+        ports: list[str] = []
+        if not self.cpuif.omit_intf_clk_reset:
+            ports.extend(
+                [
+                    f"output logic {self.signal('ACLK', child)}",
+                    f"output logic {self.signal('ARESETn', child)}",
+                ]
+            )
+        ports.extend(
+            [
+                # Write address channel
+                f"output logic {self.signal('AWVALID', child)}",
+                f"input  logic {self.signal('AWREADY', child)}",
+                f"output logic [{clog2(child.size) - 1}:0] {self.signal('AWADDR', child)}",
+                f"output logic [2:0] {self.signal('AWPROT', child)}",
+                # Write data channel
+                f"output logic {self.signal('WVALID', child)}",
+                f"input  logic {self.signal('WREADY', child)}",
+                f"output logic [{self.cpuif.data_width - 1}:0] {self.signal('WDATA', child)}",
+                f"output logic [{self.cpuif.data_width // 8 - 1}:0] {self.signal('WSTRB', child)}",
+                # Write response channel
+                f"input  logic {self.signal('BVALID', child)}",
+                f"output logic {self.signal('BREADY', child)}",
+                f"input  logic [1:0] {self.signal('BRESP', child)}",
+                # Read address channel
+                f"output logic {self.signal('ARVALID', child)}",
+                f"input  logic {self.signal('ARREADY', child)}",
+                f"output logic [{clog2(child.size) - 1}:0] {self.signal('ARADDR', child)}",
+                f"output logic [2:0] {self.signal('ARPROT', child)}",
+                # Read data channel
+                f"input  logic {self.signal('RVALID', child)}",
+                f"output logic {self.signal('RREADY', child)}",
+                f"input  logic [{self.cpuif.data_width - 1}:0] {self.signal('RDATA', child)}",
+                f"input  logic [1:0] {self.signal('RRESP', child)}",
+            ]
+        )
+        return ports
