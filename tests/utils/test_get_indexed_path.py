@@ -159,22 +159,21 @@ class TestGetIndexedPath:
         addrmap my_addrmap {
             reg {
                 field {} data;
-            } always_reg;
+            } always;
         };
         """
         top = compile_rdl(rdl_source, top="my_addrmap")
         reg_node = None
         for child in top.children():
-            if child.inst_name == "always_reg":
+            if child.inst_name == "always":
                 reg_node = child
                 break
         assert reg_node is not None
 
         # With keyword filter (default) - SystemRDL identifiers can use keywords but SV can't
         path = get_indexed_path(top, reg_node)
-        # The path should contain always_reg
-        assert "always_reg" in path
+        assert path == "always_"
 
         # Without keyword filter
         path = get_indexed_path(top, reg_node, skip_kw_filter=True)
-        assert path == "always_reg"
+        assert path == "always"
