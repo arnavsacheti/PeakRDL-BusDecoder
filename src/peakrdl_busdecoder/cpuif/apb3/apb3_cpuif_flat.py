@@ -51,7 +51,7 @@ class APB3CpuifFlat(BaseCpuif):
         fanout[self.signal("PADDR", node, "gi")] = f"{{{'-'.join(addr_comp)}}}[{clog2(node.size) - 1}:0]"
         fanout[self.signal("PWDATA", node, "gi")] = "cpuif_wr_data"
 
-        return "\n".join(map(lambda kv: f"assign {kv[0]} = {kv[1]};", fanout.items()))
+        return "\n".join(f"assign {kv[0]} = {kv[1]};" for kv in fanout.items())
 
     def fanin(self, node: AddressableNode | None = None) -> str:
         fanin: dict[str, str] = {}
@@ -62,7 +62,7 @@ class APB3CpuifFlat(BaseCpuif):
             fanin["cpuif_rd_ack"] = self.signal("PREADY", node, "i")
             fanin["cpuif_rd_err"] = self.signal("PSLVERR", node, "i")
 
-        return "\n".join(map(lambda kv: f"{kv[0]} = {kv[1]};", fanin.items()))
+        return "\n".join(f"{kv[0]} = {kv[1]};" for kv in fanin.items())
 
     def readback(self, node: AddressableNode | None = None) -> str:
         fanin: dict[str, str] = {}
@@ -71,4 +71,4 @@ class APB3CpuifFlat(BaseCpuif):
         else:
             fanin["cpuif_rd_data"] = self.signal("PRDATA", node, "i")
 
-        return "\n".join(map(lambda kv: f"{kv[0]} = {kv[1]};", fanin.items()))
+        return "\n".join(f"{kv[0]} = {kv[1]};" for kv in fanin.items())

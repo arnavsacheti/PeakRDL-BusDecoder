@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import functools
 from typing import TYPE_CHECKING, Any
 
@@ -69,7 +71,7 @@ class Exporter(ExporterSubcommandPlugin):
     def get_cpuifs(self) -> dict[str, type[BaseCpuif]]:
         return get_cpuifs(map(tuple, self.cfg["cpuifs"].items()))
 
-    def add_exporter_arguments(self, arg_group: "argparse.ArgumentParser") -> None:  # type: ignore
+    def add_exporter_arguments(self, arg_group: argparse._ActionsContainer) -> None:
         cpuifs = self.get_cpuifs()
 
         arg_group.add_argument(
@@ -122,7 +124,7 @@ class Exporter(ExporterSubcommandPlugin):
             """,
         )
 
-    def do_export(self, top_node: "AddrmapNode", options: "argparse.Namespace") -> None:
+    def do_export(self, top_node: AddrmapNode, options: argparse.Namespace) -> None:
         cpuifs = self.get_cpuifs()
 
         x = BusDecoderExporter()

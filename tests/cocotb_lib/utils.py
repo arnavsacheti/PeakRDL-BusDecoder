@@ -170,7 +170,7 @@ def prepare_cpuif_case(
     compiler = RDLCompiler()
     compiler.compile_file(rdl_source)
     root = compiler.elaborate(top_name)
-    top_node = root.top  # type: ignore[assignment]
+    top_node = root.top  [assignment]
 
     export_kwargs: dict[str, Any] = {"cpuif_cls": cpuif_cls}
     if exporter_kwargs:

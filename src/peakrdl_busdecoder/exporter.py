@@ -58,9 +58,9 @@ class BusDecoderExporter:
             loader=c_loader,
             undefined=jj.StrictUndefined,
         )
-        self.jj_env.filters["kwf"] = kwf  # type: ignore
-        self.jj_env.filters["walk"] = self.walk  # type: ignore
-        self.jj_env.filters["clog2"] = clog2  # type: ignore
+        self.jj_env.filters["kwf"] = kwf
+        self.jj_env.filters["walk"] = self.walk
+        self.jj_env.filters["clog2"] = clog2
 
     def export(self, node: RootNode | AddrmapNode, output_dir: str, **kwargs: Unpack[ExporterKwargs]) -> None:
         """
@@ -98,7 +98,7 @@ class BusDecoderExporter:
         else:
             top_node = node
 
-        self.ds = DesignState(top_node, kwargs)
+        self.ds = DesignState(top_node, kwargs)  # ty: ignore
 
         cpuif_cls: type[BaseCpuif] = kwargs.pop("cpuif_cls", None) or APB4Cpuif
 
@@ -113,7 +113,7 @@ class BusDecoderExporter:
         DesignValidator(self).do_validate()
 
         # Build Jinja template context
-        context = {  # type: ignore
+        context = {
             "version": version("peakrdl-busdecoder"),
             "cpuif": self.cpuif,
             "cpuif_decode": DecodeLogicGenerator,
