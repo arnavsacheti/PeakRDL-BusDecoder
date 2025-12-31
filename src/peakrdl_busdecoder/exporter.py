@@ -1,5 +1,4 @@
 import os
-from datetime import datetime
 from importlib.metadata import version
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict
@@ -115,7 +114,6 @@ class BusDecoderExporter:
 
         # Build Jinja template context
         context = {  # type: ignore
-            "current_date": datetime.now().strftime("%Y-%m-%d"),
             "version": version("peakrdl-busdecoder"),
             "cpuif": self.cpuif,
             "cpuif_decode": DecodeLogicGenerator,

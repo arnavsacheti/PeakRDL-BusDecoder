@@ -3,7 +3,6 @@
 //  Description: CPU Interface Bus Decoder
 //  Author: PeakRDL-BusDecoder
 //  License: LGPL-3.0
-//  Date: {{current_date}}
 //  Version: {{version}}
 //  Links:
 //    - https://github.com/arnavsacheti/PeakRDL-BusDecoder
