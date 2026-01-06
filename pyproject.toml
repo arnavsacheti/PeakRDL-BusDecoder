@@ -106,7 +106,6 @@ python-version = "3.10"
 
 [tool.ty.src]
 include = ["src"]
-exclude = ["**/__pycache__", "**/*venv/**/*"]
 
 # ---------------------- PYTEST ----------------------
 [tool.pytest.ini_options]
