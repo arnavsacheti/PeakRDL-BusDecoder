@@ -82,15 +82,15 @@ class BaseCpuif:
             loader=loader,
             undefined=jj.StrictUndefined,
         )
-        jj_env.tests["array"] = self.check_is_array  # type: ignore
-        jj_env.filters["clog2"] = clog2  # type: ignore
-        jj_env.filters["is_pow2"] = is_pow2  # type: ignore
-        jj_env.filters["roundup_pow2"] = roundup_pow2  # type: ignore
-        jj_env.filters["address_slice"] = self.get_address_slice  # type: ignore
-        jj_env.filters["get_path"] = lambda x: get_indexed_path(self.exp.ds.top_node, x, "i")  # type: ignore
-        jj_env.filters["walk"] = self.exp.walk  # type: ignore
+        jj_env.tests["array"] = self.check_is_array
+        jj_env.filters["clog2"] = clog2
+        jj_env.filters["is_pow2"] = is_pow2
+        jj_env.filters["roundup_pow2"] = roundup_pow2
+        jj_env.filters["address_slice"] = self.get_address_slice
+        jj_env.filters["get_path"] = lambda x: get_indexed_path(self.exp.ds.top_node, x, "i")
+        jj_env.filters["walk"] = self.exp.walk
 
-        context = {  # type: ignore
+        context = {
             "cpuif": self,
             "ds": self.exp.ds,
             "fanout": FanoutGenerator,

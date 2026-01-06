@@ -22,5 +22,5 @@ jobs:
       - name: Install package
         run: uv sync --extra cli
       
-      - name: Run pyrefly type check
-        run: uvx pyrefly check src/
+      - name: Run ty type check
+        run: uvx ty check src/

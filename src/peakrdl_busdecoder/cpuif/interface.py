@@ -78,7 +78,7 @@ class SVInterface(Interface):
 
             # When unrolled, current_idx is set - append it to the name
             if child.current_idx is not None:
-                base = f"{base}_{'_'.join(map(str, child.current_idx))}"
+                base = f"{base}_{'_'.join(map(str, child.current_idx))}"  # ty: ignore
 
             # Only add array dimensions if this should be treated as an array
             if self.cpuif.check_is_array(child):
