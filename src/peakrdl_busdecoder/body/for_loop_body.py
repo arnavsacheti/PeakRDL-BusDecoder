@@ -4,7 +4,7 @@ from .body import Body
 
 
 class ForLoopBody(Body):
-    def __init__(self, type: str, iterator: str, dim: int) -> None:
+    def __init__(self, type: str, iterator: str, dim: int | str) -> None:
         super().__init__()
         self._type = type
         self._iterator = iterator

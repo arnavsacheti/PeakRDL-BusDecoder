@@ -53,8 +53,11 @@ class StructGenerator(BusDecoderListener):
         name = kwf(node.inst_name)
 
         if node.array_dimensions:
-            for dim in node.array_dimensions:
-                name = f"{name}[{dim}]"
+            if len(node.array_dimensions) == 1:
+                name = f"{name}[N_{node.inst_name.upper()}S]"
+            else:
+                for i in range(len(node.array_dimensions)):
+                    name = f"{name}[N_{node.inst_name.upper()}S_{i}]"
 
         self._stack[-1] += f"{type} {name};"
 
