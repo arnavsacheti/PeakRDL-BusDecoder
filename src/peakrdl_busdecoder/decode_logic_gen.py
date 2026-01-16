@@ -116,7 +116,9 @@ class DecodeLogicGenerator(BusDecoderListener):
                 fb = ForLoopBody(
                     "int",
                     f"i{i}",
-                    dim,
+                    f"N_{node.inst_name.upper()}S_{i}"
+                    if len(node.array_dimensions) > 1
+                    else f"N_{node.inst_name.upper()}S",
                 )
                 self._decode_stack.append(fb)
 

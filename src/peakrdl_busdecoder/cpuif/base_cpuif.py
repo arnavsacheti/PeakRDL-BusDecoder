@@ -50,11 +50,20 @@ class BaseCpuif:
         Optional list of additional parameters this CPU interface provides to
         the module's definition
         """
-        array_parameters = [
-            f"localparam N_{child.inst_name.upper()}S = {child.n_elements}"
-            for child in self.addressable_children
-            if self.check_is_array(child)
-        ]
+        array_parameters = []
+        for child in self.addressable_children:
+            if not self.check_is_array(child):
+                continue
+            if child.array_dimensions is None or len(child.array_dimensions) == 1:
+                array_parameters.append(f"parameter N_{child.inst_name.upper()}S = {child.n_elements}")
+            else:
+                for i, dim in enumerate(child.array_dimensions):
+                    array_parameters.append(f"parameter N_{child.inst_name.upper()}S_{i} = {dim}")
+
+            # Compute total number of elements for MAX_N_{child.inst_name.upper()}S
+            # Should be sane, as this tells us information about the maximum address space,
+            # this should be the same as n_elements
+            array_parameters.append(f"localparam MAX_N_{child.inst_name.upper()}S = {child.n_elements}")
         return array_parameters
 
     def _get_template_path_class_dir(self) -> str:

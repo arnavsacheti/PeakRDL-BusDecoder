@@ -86,7 +86,10 @@ class SVInterface(Interface):
             # Only add array dimensions if this should be treated as an array
             if self.cpuif.check_is_array(child):
                 assert child.array_dimensions is not None
-                base = f"{base} {''.join(f'[{dim}]' for dim in child.array_dimensions)}"
+                if len(child.array_dimensions) == 1:
+                    base = f"{base} [N_{child.inst_name.upper()}S]"
+                else:
+                    base = f"{base} {''.join(f'[N_{child.inst_name.upper()}S_{i}]' for i in range(len(child.array_dimensions)))}"
 
             master_ports.append(base)
 
