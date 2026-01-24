@@ -74,5 +74,14 @@ module {{ds.module_name}}
             // No read request, all select signals remain 0
         end
     end
+
+    //--------------------------------------------------------------------------
+    // Assertions
+    //--------------------------------------------------------------------------
+{%- if cpuif.is_interface %}
+`ifndef SYNTHESIS
+    {{cpuif.get_assertion_block()|indent(4)}}
+`endif
+{%- endif %}
 endmodule
 {# (eof newline anchor) #}
