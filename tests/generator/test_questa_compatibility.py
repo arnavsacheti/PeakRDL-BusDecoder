@@ -44,9 +44,8 @@ def test_instance_array_questa_compatibility(compile_rdl: Callable[..., AddrmapN
         # Should use unpacked struct
         assert "typedef struct {" in content
         assert "typedef struct packed" not in content
-
-        # Should use unpacked array syntax for array members
-        assert "logic my_reg[4];" in content
+        # Should use unpacked array syntax for array members (parameterized)
+        assert "logic my_reg[N_MY_REGS];" in content
 
         # Should NOT use packed bit-vector syntax
         assert "[3:0]my_reg" not in content
@@ -84,9 +83,8 @@ def test_multidimensional_array_questa_compatibility(compile_rdl: Callable[..., 
 
         # Should use unpacked struct with multidimensional array
         assert "typedef struct {" in content
-
-        # Should use unpacked array syntax for multidimensional arrays
-        assert "logic my_reg[2][3];" in content
+        # Should use unpacked array syntax for multidimensional arrays (parameterized)
+        assert "logic my_reg[N_MY_REGS_0][N_MY_REGS_1];" in content
 
         # Should NOT use packed bit-vector syntax
         assert "[1:0][2:0]my_reg" not in content

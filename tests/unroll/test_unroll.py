@@ -23,8 +23,8 @@ def test_unroll_disabled_creates_array_interface(sample_rdl: AddrmapNode) -> Non
         module_file = Path(tmpdir) / "top.sv"
         content = module_file.read_text()
 
-        # Should have a single array interface with [4] dimension
-        assert "m_apb_regs [4]" in content
+        # Should have a single array interface with parameterized dimension
+        assert "m_apb_regs [N_REGSS]" in content or "m_apb_regs[N_REGSS]" in content
 
         # Should have a parameter for array size
         assert "N_REGSS = 4" in content

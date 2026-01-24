@@ -3,6 +3,8 @@ from typing import TYPE_CHECKING
 
 from systemrdl.node import AddressableNode
 
+from ...body import SupportsStr
+from ...sv_assertion import Operator, SVAssertion
 from ...sv_int import SVInt
 from ...utils import get_indexed_path
 from ..base_cpuif import BaseCpuif
@@ -40,23 +42,24 @@ class APB3CpuifFlat(BaseCpuif):
 
         addr_width = f"{self.exp.ds.module_name.upper()}_{node.inst_name.upper()}_ADDR_WIDTH"
 
-        fanout[self.signal("PSEL", node, "gi")] = (
+        idx = "gi" if self.check_is_array(node) else None
+        fanout[self.signal("PSEL", node, idx)] = (
             f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}|cpuif_rd_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
         )
-        fanout[self.signal("PENABLE", node, "gi")] = self.signal("PENABLE")
-        fanout[self.signal("PWRITE", node, "gi")] = (
+        fanout[self.signal("PENABLE", node, idx)] = self.signal("PENABLE")
+        fanout[self.signal("PWRITE", node, idx)] = (
             f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
         )
         if self._can_truncate_addr(node, array_stack):
             # Size is a power of 2 and aligned, so we can directly use the address bits as the slave address
-            fanout[self.signal("PADDR", node, "gi")] = f"{self.signal('PADDR')}[{addr_width}-1:0]"
+            fanout[self.signal("PADDR", node, idx)] = f"{self.signal('PADDR')}[{addr_width}-1:0]"
         else:
             addr_comp = [f"{self.signal('PADDR')}", f"{SVInt(node.raw_absolute_address, self.addr_width)}"]
             for i, stride in enumerate(array_stack):
                 addr_comp.append(f"{self.addr_width}'(gi{i}*{SVInt(stride, self.addr_width)})")
 
-            fanout[self.signal("PADDR", node, "gi")] = f"{addr_width}'({' - '.join(addr_comp)})"
-        fanout[self.signal("PWDATA", node, "gi")] = "cpuif_wr_data"
+            fanout[self.signal("PADDR", node, idx)] = f"{addr_width}'({' - '.join(addr_comp)})"
+        fanout[self.signal("PWDATA", node, idx)] = "cpuif_wr_data"
 
         return "\n".join(f"assign {kv[0]} = {kv[1]};" for kv in fanout.items())
 
@@ -84,8 +87,49 @@ class APB3CpuifFlat(BaseCpuif):
                 fanin["cpuif_rd_ack"] = "'1"
                 fanin["cpuif_rd_err"] = "cpuif_rd_sel.cpuif_err"
         else:
-            fanin["cpuif_rd_ack"] = self.signal("PREADY", node, "i")
-            fanin["cpuif_rd_err"] = self.signal("PSLVERR", node, "i")
-            fanin["cpuif_rd_data"] = self.signal("PRDATA", node, "i")
+            idx = "i" if self.check_is_array(node) else None
+            fanin["cpuif_rd_ack"] = self.signal("PREADY", node, idx)
+            fanin["cpuif_rd_err"] = self.signal("PSLVERR", node, idx)
+            fanin["cpuif_rd_data"] = self.signal("PRDATA", node, idx)
 
         return "\n".join(f"{kv[0]} = {kv[1]};" for kv in fanin.items())
+
+    def readback(self, node: AddressableNode | None = None) -> str:
+        fanin: dict[str, str] = {}
+        if node is None:
+            fanin["cpuif_rd_data"] = "'0"
+        else:
+            idx = "i" if self.check_is_array(node) else None
+            fanin["cpuif_rd_data"] = self.signal("PRDATA", node, idx)
+
+        return "\n".join(f"{kv[0]} = {kv[1]};" for kv in fanin.items())
+
+    def get_initial_assertions(self) -> list[SupportsStr]:
+        """
+        Optional list of initial assertions to include in the CPU interface module
+        """
+        initial_assertions = super().get_initial_assertions()
+
+        # Bad Address Width Assertion for APB4
+        initial_assertions.append(
+            SVAssertion(
+                f"$bits({self.signal('PADDR')})",
+                f"{self.exp.ds.package_name}::{self.exp.ds.module_name.upper()}_MIN_ADDR_WIDTH",
+                operator=Operator.GREATER_EQUAL,
+                name="assert_apb4_addr_width",
+                message="APB4 address width is less than the minimum required width.",
+            )
+        )
+
+        # Bad Data Width Assertion for APB4
+        initial_assertions.append(
+            SVAssertion(
+                f"$bits({self.signal('PWDATA')})",
+                f"{self.exp.ds.package_name}::{self.exp.ds.module_name.upper()}_DATA_WIDTH",
+                operator=Operator.EQUAL,
+                name="assert_apb4_data_width",
+                message="APB4 data width is not equal to the required width.",
+            )
+        )
+
+        return initial_assertions

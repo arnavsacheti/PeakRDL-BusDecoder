@@ -16,6 +16,13 @@ def get_indexed_path(
     """
     path = target_node.get_rel_path(top_node, empty_array_suffix="[!]")
 
+    # If this node is an explicitly unrolled array element, use underscore
+    # separated indices (e.g. foo_0_1) instead of SV array syntax (foo[0][1]).
+    # This keeps generated names consistent with the port and struct names
+    # emitted when the --unroll flag is enabled.
+    if getattr(target_node, "current_idx", None) is not None:
+        path = path.replace("[", "_").replace("]", "")
+
     # replace unknown indexes with incrementing iterators i0, i1, ...
     class ReplaceUnknown:
         def __init__(self) -> None:
