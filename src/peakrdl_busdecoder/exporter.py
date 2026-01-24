@@ -136,7 +136,7 @@ class BusDecoderExporter:
         stream.dump(module_file_path)
 
     def walk(self, listener_cls: type[BusDecoderListener], **kwargs: dict[str, Any]) -> str:
-        walker = RDLSteerableWalker()
+        walker = RDLSteerableWalker(unroll=self.ds.cpuif_unroll)
         listener = listener_cls(self.ds, **kwargs)
         walker.walk(self.ds.top_node, listener, skip_top=True)
         return str(listener)

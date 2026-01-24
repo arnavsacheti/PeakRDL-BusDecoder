@@ -13,8 +13,9 @@ package {{ds.package_name}};
     localparam {{ds.module_name.upper()}}_DATA_WIDTH = {{ds.cpuif_data_width}};
     localparam {{ds.module_name.upper()}}_MIN_ADDR_WIDTH = {{ds.addr_width}};
     localparam {{ds.module_name.upper()}}_SIZE = {{SVInt(ds.top_node.size)}};
-{%- for child in cpuif.addressable_children %}
-    localparam {{ds.module_name.upper()}}_{{child.inst_name.upper()}}_ADDR_WIDTH = {{child.size|clog2}};
-{%- endfor %}
+{% for child in cpuif.addressable_children %}
+    {% set idx_suffix = "_" + "_".join(child.current_idx|map("string")) if child.current_idx is not none else "" -%}
+    localparam {{ds.module_name.upper()}}_{{child.inst_name.upper()}}{{idx_suffix}}_ADDR_WIDTH = {{child.size|clog2}};
+{% endfor %}
 endpackage
 {# (eof newline anchor) #}

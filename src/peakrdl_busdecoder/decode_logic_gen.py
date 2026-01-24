@@ -42,14 +42,29 @@ class DecodeLogicGenerator(BusDecoderListener):
     def cpuif_addr_predicate(self, node: AddressableNode, total_size: bool = True) -> list[str]:
         # Generate address bounds
         addr_width = self._ds.addr_width
-        l_bound = SVInt(
-            node.raw_absolute_address,
-            addr_width,
-        )
-        if total_size:
-            u_bound = l_bound + SVInt(node.total_size, addr_width)
-        else:
-            u_bound = l_bound + SVInt(node.size, addr_width)
+        is_unrolled_elem = self._ds.cpuif_unroll and getattr(node, "current_idx", None) is not None
+
+        base_addr = node.raw_absolute_address
+        size_val = node.total_size if total_size else node.size
+
+        # For unrolled elements, incorporate the fixed array index offsets so the
+        # predicate covers only this instance.
+        if is_unrolled_elem and node.array_dimensions:
+            assert node.array_stride is not None
+            strides: list[int] = []
+            current_stride = node.array_stride
+            strides.append(current_stride)
+            for dim in node.array_dimensions[-1:0:-1]:
+                current_stride = current_stride * dim
+                strides.insert(0, current_stride)
+
+            for idx, stride in zip(node.current_idx or [], strides, strict=False):
+                base_addr += idx * stride
+
+            size_val = node.size
+
+        l_bound = SVInt(base_addr, addr_width)
+        u_bound = l_bound + SVInt(size_val, addr_width)
 
         array_stack = list(self._array_stride_stack)
         if total_size and node.array_dimensions:
@@ -93,6 +108,8 @@ class DecodeLogicGenerator(BusDecoderListener):
 
     def enter_AddressableComponent(self, node: AddressableNode) -> WalkerAction | None:
         action = super().enter_AddressableComponent(node)
+
+        is_unrolled_elem = self._ds.cpuif_unroll and getattr(node, "current_idx", None) is not None
         should_decode = action == WalkerAction.SkipDescendants
 
         if not should_decode and self._ds.max_decode_depth == 0:
@@ -109,7 +126,7 @@ class DecodeLogicGenerator(BusDecoderListener):
         condition = " && ".join(f"({c})" for c in conditions) if len(conditions) > 1 else conditions[0]
 
         # Generate condition string and manage stack
-        if node.array_dimensions:
+        if node.array_dimensions and not is_unrolled_elem:
             # arrayed component with new if-body
             self._cond_stack.append(condition)
             for i, dim in enumerate(node.array_dimensions, len(self._decode_stack) - 1):
@@ -132,7 +149,8 @@ class DecodeLogicGenerator(BusDecoderListener):
         return action
 
     def exit_AddressableComponent(self, node: AddressableNode) -> None:
-        if not node.array_dimensions:
+        is_unrolled_elem = self._ds.cpuif_unroll and getattr(node, "current_idx", None) is not None
+        if not node.array_dimensions or is_unrolled_elem:
             return
 
         ifb = self._decode_stack.pop()

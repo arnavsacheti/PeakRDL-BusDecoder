@@ -3,8 +3,9 @@ from typing import TYPE_CHECKING
 
 from systemrdl.node import AddressableNode
 
-from peakrdl_busdecoder.sv_int import SVInt
-
+from ...body import SupportsStr
+from ...sv_assertion import Operator, SVAssertion
+from ...sv_int import SVInt
 from ...utils import get_indexed_path
 from ..base_cpuif import BaseCpuif
 from .axi4_lite_interface import AXI4LiteFlatInterface, AXI4LiteSVInterface
@@ -31,12 +32,7 @@ class AXI4LiteCpuifFlat(BaseCpuif):
         """Returns the port declaration for the AXI4-Lite interface."""
         return self._interface.get_port_declaration("s_axil_", "m_axil_")
 
-    def signal(
-        self,
-        signal: str,
-        node: AddressableNode | None = None,
-        indexer: str | None = None,
-    ) -> str:
+    def signal(self, signal: str, node: AddressableNode | None = None, indexer: str | None = None) -> str:
         return self._interface.signal(signal, node, indexer)
 
     def fanout(self, node: AddressableNode, array_stack: deque[int]) -> str:
@@ -50,37 +46,38 @@ class AXI4LiteCpuifFlat(BaseCpuif):
 
         addr_width = f"{self.exp.ds.module_name.upper()}_{node.inst_name.upper()}_ADDR_WIDTH"
 
+        idx = "gi" if self.check_is_array(node) else None
         wr_sel = f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
         rd_sel = f"cpuif_rd_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
 
         # Write address channel
-        fanout[self.signal("AWVALID", node, "gi")] = wr_sel
+        fanout[self.signal("AWVALID", node, idx)] = wr_sel
         if self._can_truncate_addr(node, array_stack):
             # Size is a power of 2 and aligned, so we can directly use the address bits as the slave address
-            fanout[self.signal("AWADDR", node, "gi")] = f"{self.signal('AWADDR')}[{addr_width}-1:0]"
+            fanout[self.signal("AWADDR", node, idx)] = f"{self.signal('AWADDR')}[{addr_width}-1:0]"
         else:
-            fanout[self.signal("AWADDR", node, "gi")] = f"{addr_width}'({'-'.join(waddr_comp)})"
-        fanout[self.signal("AWPROT", node, "gi")] = self.signal("AWPROT")
+            fanout[self.signal("AWADDR", node, idx)] = f"{addr_width}'({'-'.join(waddr_comp)})"
+        fanout[self.signal("AWPROT", node, idx)] = self.signal("AWPROT")
 
         # Write data channel
-        fanout[self.signal("WVALID", node, "gi")] = wr_sel
-        fanout[self.signal("WDATA", node, "gi")] = "cpuif_wr_data"
-        fanout[self.signal("WSTRB", node, "gi")] = "cpuif_wr_byte_en"
+        fanout[self.signal("WVALID", node, idx)] = wr_sel
+        fanout[self.signal("WDATA", node, idx)] = "cpuif_wr_data"
+        fanout[self.signal("WSTRB", node, idx)] = "cpuif_wr_byte_en"
 
         # Write response channel (master -> slave)
-        fanout[self.signal("BREADY", node, "gi")] = self.signal("BREADY")
+        fanout[self.signal("BREADY", node, idx)] = self.signal("BREADY")
 
         # Read address channel
-        fanout[self.signal("ARVALID", node, "gi")] = rd_sel
+        fanout[self.signal("ARVALID", node, idx)] = rd_sel
         if self._can_truncate_addr(node, array_stack):
             # Size is a power of 2 and aligned, so we can directly use the address bits as the slave address
-            fanout[self.signal("ARADDR", node, "gi")] = f"{self.signal('ARADDR')}[{addr_width}-1:0]"
+            fanout[self.signal("ARADDR", node, idx)] = f"{self.signal('ARADDR')}[{addr_width}-1:0]"
         else:
-            fanout[self.signal("ARADDR", node, "gi")] = f"{addr_width}'({'-'.join(raddr_comp)})"
-        fanout[self.signal("ARPROT", node, "gi")] = self.signal("ARPROT")
+            fanout[self.signal("ARADDR", node, idx)] = f"{addr_width}'({'-'.join(raddr_comp)})"
+        fanout[self.signal("ARPROT", node, idx)] = self.signal("ARPROT")
 
         # Read data channel (master -> slave)
-        fanout[self.signal("RREADY", node, "gi")] = self.signal("RREADY")
+        fanout[self.signal("RREADY", node, idx)] = self.signal("RREADY")
 
         return "\n".join(f"assign {lhs} = {rhs};" for lhs, rhs in fanout.items())
 
@@ -112,6 +109,16 @@ class AXI4LiteCpuifFlat(BaseCpuif):
             fanin["cpuif_rd_ack"] = self.signal("RVALID", node, "i")
             fanin["cpuif_rd_err"] = f"{self.signal('RRESP', node, 'i')}[1]"
             fanin["cpuif_rd_data"] = self.signal("RDATA", node, "i")
+
+        return "\n".join(f"{lhs} = {rhs};" for lhs, rhs in fanin.items())
+
+    def readback(self, node: AddressableNode | None = None) -> str:
+        fanin: dict[str, str] = {}
+        if node is None:
+            fanin["cpuif_rd_data"] = "'0"
+        else:
+            idx = "i" if self.check_is_array(node) else None
+            fanin["cpuif_rd_data"] = self.signal("RDATA", node, idx)
 
         return "\n".join(f"{lhs} = {rhs};" for lhs, rhs in fanin.items())
 
@@ -153,6 +160,17 @@ class AXI4LiteCpuif(AXI4LiteCpuifFlat):
 
         return fanin_rd
 
+    def readback(self, node: AddressableNode | None = None) -> str:
+        readback = super().readback(node)
+        if node is not None and self.is_interface and node.is_array and node.array_dimensions:
+            fanin: dict[str, str] = {}
+            # Generate array index string [i0][i1]... for the intermediate signal
+            array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
+            fanin["cpuif_rd_data"] = f"{node.inst_name}_fanin_data{array_idx}"
+
+            readback = "\n" + "\n".join([f"{lhs} = {rhs};" for lhs, rhs in fanin.items()])
+        return readback
+
     def fanin_intermediate_assignments(
         self, node: AddressableNode, inst_name: str, array_idx: str, master_prefix: str, indexed_path: str
     ) -> list[str]:
@@ -174,3 +192,62 @@ class AXI4LiteCpuif(AXI4LiteCpuifFlat):
             f"logic {node.inst_name}_fanin_wr_valid{array_str};",
             f"logic {node.inst_name}_fanin_wr_err{array_str};",
         ]
+
+    def get_initial_assertions(self) -> list["SupportsStr"]:
+        """
+        Optional list of initial assertions to include in the CPU interface module
+        """
+        initial_assertions = super().get_initial_assertions()
+
+        # Bad Address Width Assertion for AXI4-Lite
+        initial_assertions.append(
+            SVAssertion(
+                f"$bits({self.signal('AWADDR')})",
+                f"{self.addr_width}",
+                operator=Operator.EQUAL,
+                name="assert_axi4lite_awaddr_width",
+                message="Bad Address Width: AWADDR width does not match expected address width.",
+            )
+        )
+        initial_assertions.append(
+            SVAssertion(
+                f"$bits({self.signal('ARADDR')})",
+                f"{self.addr_width}",
+                operator=Operator.EQUAL,
+                name="assert_axi4lite_araddr_width",
+                message="Bad Address Width: ARADDR width does not match expected address width.",
+            )
+        )
+
+        # Bad Data Width Assertion for AXI4-Lite
+        initial_assertions.append(
+            SVAssertion(
+                f"$bits({self.signal('WDATA')})",
+                f"{self.data_width}",
+                operator=Operator.EQUAL,
+                name="assert_axi4lite_data_width",
+                message="Bad Data Width: WDATA width does not match expected data width.",
+            )
+        )
+
+        return initial_assertions
+
+    def get_assertions(self) -> list["SupportsStr"]:
+        """Get all assertions for the CPU interface module."""
+        assertions = super().get_assertions()
+
+        # Add any AXI4-Lite specific assertions here if needed
+        # TODO: FIXME: reintergrate once we have a clock signal and SVAssertion supports properties with implications
+        #     assertions.append(
+        #         f"""assert_rd_resp_enc: assert property (@(posedge {self.signal("ACLK")})
+        # {self.signal("RVALID")} |-> (^{self.signal("RRESP")} !== 1'bx))
+        #     else $error("RRESP must be a legal AXI response when RVALID is high");"""
+        #     )
+
+        #     assertions.append(
+        #         f"""assert_wr_resp_enc: assert property (@(posedge {self.signal("ACLK")})
+        # {self.signal("BVALID")} |-> (^{self.signal("BRESP")} !== 1'bx))
+        #     else $error("BRESP must be a legal AXI response when BVALID is high");"""
+        #     )
+
+        return assertions
