@@ -103,18 +103,17 @@ class SVInterface(Interface):
     ) -> str:
         """Generate SystemVerilog interface signal reference."""
 
-        # SVInterface only supports string indexers (loop variable names like "i", "gi")
-        if indexer is not None and not isinstance(indexer, str):
-            raise TypeError(f"SVInterface.signal() requires string indexer, got {type(indexer).__name__}")
-
-        if node is None or indexer is None:
-            # Node is none, so this is a slave signal
+        if node is None:
+            # Slave signal
             slave_name = self.get_slave_name()
             return f"{slave_name}.{signal}"
 
-        # Master signal
+        if indexer is not None and not isinstance(indexer, str):
+            raise TypeError(f"SVInterface.signal() requires string indexer, got {type(indexer).__name__}")
+
         master_prefix = self.get_master_prefix()
-        return f"{master_prefix}{get_indexed_path(node.parent, node, indexer, skip_kw_filter=True)}.{signal}"
+        path_indexer = indexer if indexer is not None else "i"
+        return f"{master_prefix}{get_indexed_path(node.parent, node, path_indexer, skip_kw_filter=True)}.{signal}"
 
     @abstractmethod
     def get_interface_type(self) -> str:
