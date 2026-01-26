@@ -3,6 +3,8 @@ from typing import TYPE_CHECKING
 
 from systemrdl.node import AddressableNode
 
+from ...body import SupportsStr
+from ...sv_assertion import Operator, SVAssertion
 from ...sv_int import SVInt
 from ...utils import clog2, get_indexed_path
 from ..base_cpuif import BaseCpuif
@@ -74,3 +76,33 @@ class APB4CpuifFlat(BaseCpuif):
             fanin["cpuif_rd_data"] = self.signal("PRDATA", node, "i")
 
         return "\n".join(f"{kv[0]} = {kv[1]};" for kv in fanin.items())
+
+    def get_initial_assertions(self) -> list[SupportsStr]:
+        """
+        Optional list of initial assertions to include in the CPU interface module
+        """
+        initial_assertions: list[SupportsStr] = []
+
+        # Bad Address Width Assertion for APB4
+        initial_assertions.append(
+            SVAssertion(
+                f"$bits({self.signal('PADDR')})",
+                f"{self.exp.ds.package_name}::{self.exp.ds.module_name.upper()}_MIN_ADDR_WIDTH",
+                operator=Operator.GREATER_EQUAL,
+                name="assert_apb4_addr_width",
+                message="APB4 address width is less than the minimum required width.",
+            )
+        )
+
+        # Bad Data Width Assertion for APB4
+        initial_assertions.append(
+            SVAssertion(
+                f"$bits({self.signal('PWDATA')})",
+                f"{self.exp.ds.package_name}::{self.exp.ds.module_name.upper()}_DATA_WIDTH",
+                operator=Operator.EQUAL,
+                name="assert_apb4_data_width",
+                message="APB4 data width is not equal to the required width.",
+            )
+        )
+
+        return initial_assertions

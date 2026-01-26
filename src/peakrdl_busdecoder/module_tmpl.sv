@@ -78,10 +78,8 @@ module {{ds.module_name}}
     //--------------------------------------------------------------------------
     // Assertions
     //--------------------------------------------------------------------------
-{%- if cpuif.is_interface %}
 `ifndef SYNTHESIS
     {{cpuif.get_assertion_block()|indent(4)}}
 `endif
-{%- endif %}
 endmodule
 {# (eof newline anchor) #}

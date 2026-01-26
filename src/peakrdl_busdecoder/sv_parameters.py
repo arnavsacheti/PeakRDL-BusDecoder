@@ -4,7 +4,7 @@ class SVParameter:
         self.value = value
 
     def __str__(self) -> str:
-        return f"parameter {self.name} = {self.value};"
+        return f"parameter {self.name} = {self.value}"
 
     def __repr__(self) -> str:
         return f"SVParameter(name={self.name}, value={self.value})"
@@ -37,7 +37,7 @@ class SVLocalParam:
         self.value = value
 
     def __str__(self) -> str:
-        return f"localparam {self.name} = {self.value};"
+        return f"localparam {self.name} = {self.value}"
 
     def __repr__(self) -> str:
         return f"SVLocalParam(name={self.name}, value={self.value})"
