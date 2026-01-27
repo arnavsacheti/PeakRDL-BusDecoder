@@ -15,7 +15,7 @@ be contrary to this project's philosophy.
 
 
 What is covered by the LGPL v3 license?
---------------------------------------
+---------------------------------------
 The LGPL license is intended for the code generator itself. This includes all
 Python sources, Jinja template files, as well as testcase infrastructure not
 explicitly mentioned in the exemptions below.
