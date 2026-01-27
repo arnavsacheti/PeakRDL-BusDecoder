@@ -27,6 +27,7 @@ class FaninGenerator(BusDecoderListener):
     def enter_AddressableComponent(self, node: AddressableNode) -> WalkerAction | None:
         action = super().enter_AddressableComponent(node)
 
+        is_unrolled_elem = self._ds.cpuif_unroll and getattr(node, "current_idx", None) is not None
         should_generate = action == WalkerAction.SkipDescendants
         if not should_generate and self._ds.max_decode_depth == 0:
             for child in node.children():
@@ -38,7 +39,7 @@ class FaninGenerator(BusDecoderListener):
         if not should_generate:
             return action
 
-        if node.array_dimensions:
+        if node.array_dimensions and not is_unrolled_elem:
             for i in range(len(node.array_dimensions)):
                 fb = ForLoopBody(
                     "int",
@@ -64,7 +65,8 @@ class FaninGenerator(BusDecoderListener):
         return action
 
     def exit_AddressableComponent(self, node: AddressableNode) -> None:
-        if node.array_dimensions:
+        is_unrolled_elem = self._ds.cpuif_unroll and getattr(node, "current_idx", None) is not None
+        if node.array_dimensions and not is_unrolled_elem:
             for _ in node.array_dimensions:
                 b = self._stack.pop()
                 if not b:

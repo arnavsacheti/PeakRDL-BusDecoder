@@ -43,17 +43,16 @@ class APB4CpuifFlat(BaseCpuif):
         for i, stride in enumerate(array_stack):
             addr_comp.append(f"(gi{i}*{SVInt(stride, self.addr_width)})")
 
-        fanout[self.signal("PSEL", node, "gi")] = (
+        idx = "gi" if self.check_is_array(node) else None
+        fanout[self.signal("PSEL", node, idx)] = (
             f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}|cpuif_rd_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
         )
-        fanout[self.signal("PENABLE", node, "gi")] = self.signal("PENABLE")
-        fanout[self.signal("PWRITE", node, "gi")] = (
-            f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
-        )
-        fanout[self.signal("PADDR", node, "gi")] = f"{{{'-'.join(addr_comp)}}}[{clog2(node.size) - 1}:0]"
-        fanout[self.signal("PPROT", node, "gi")] = self.signal("PPROT")
-        fanout[self.signal("PWDATA", node, "gi")] = "cpuif_wr_data"
-        fanout[self.signal("PSTRB", node, "gi")] = "cpuif_wr_byte_en"
+        fanout[self.signal("PENABLE", node, idx)] = self.signal("PENABLE")
+        fanout[self.signal("PWRITE", node, idx)] = f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
+        fanout[self.signal("PADDR", node, idx)] = f"{{{'-'.join(addr_comp)}}}[{clog2(node.size) - 1}:0]"
+        fanout[self.signal("PPROT", node, idx)] = self.signal("PPROT")
+        fanout[self.signal("PWDATA", node, idx)] = "cpuif_wr_data"
+        fanout[self.signal("PSTRB", node, idx)] = "cpuif_wr_byte_en"
 
         return "\n".join(f"assign {kv[0]} = {kv[1]};" for kv in fanout.items())
 
@@ -63,8 +62,9 @@ class APB4CpuifFlat(BaseCpuif):
             fanin["cpuif_rd_ack"] = "'0"
             fanin["cpuif_rd_err"] = "'0"
         else:
-            fanin["cpuif_rd_ack"] = self.signal("PREADY", node, "i")
-            fanin["cpuif_rd_err"] = self.signal("PSLVERR", node, "i")
+            idx = "i" if self.check_is_array(node) else None
+            fanin["cpuif_rd_ack"] = self.signal("PREADY", node, idx)
+            fanin["cpuif_rd_err"] = self.signal("PSLVERR", node, idx)
 
         return "\n".join(f"{kv[0]} = {kv[1]};" for kv in fanin.items())
 
@@ -73,7 +73,8 @@ class APB4CpuifFlat(BaseCpuif):
         if node is None:
             fanin["cpuif_rd_data"] = "'0"
         else:
-            fanin["cpuif_rd_data"] = self.signal("PRDATA", node, "i")
+            idx = "i" if self.check_is_array(node) else None
+            fanin["cpuif_rd_data"] = self.signal("PRDATA", node, idx)
 
         return "\n".join(f"{kv[0]} = {kv[1]};" for kv in fanin.items())
 

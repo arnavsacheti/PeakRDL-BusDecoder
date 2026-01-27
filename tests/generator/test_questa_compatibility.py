@@ -45,16 +45,16 @@ def test_instance_array_questa_compatibility(compile_rdl: Callable[..., AddrmapN
         assert "typedef struct {" in content
         assert "typedef struct packed" not in content
         
-        # Should use unpacked array syntax for array members
-        assert "logic my_reg[4];" in content
-        
+        # Should use unpacked array syntax for array members (parameterized)
+        assert "logic my_reg[N_MY_REGS];" in content
+
         # Should NOT use packed bit-vector syntax
         assert "[3:0]my_reg" not in content
-        
+
         # Should have proper array indexing in decode logic
         assert "cpuif_wr_sel.my_reg[i0] = 1'b1;" in content
         assert "cpuif_rd_sel.my_reg[i0] = 1'b1;" in content
-        
+
         # Should have proper array indexing in fanout/fanin logic
         assert "cpuif_wr_sel.my_reg[gi0]" in content or "cpuif_rd_sel.my_reg[gi0]" in content
         assert "cpuif_wr_sel.my_reg[i0]" in content or "cpuif_rd_sel.my_reg[i0]" in content
@@ -85,9 +85,9 @@ def test_multidimensional_array_questa_compatibility(compile_rdl: Callable[..., 
         # Should use unpacked struct with multidimensional array
         assert "typedef struct {" in content
         
-        # Should use unpacked array syntax for multidimensional arrays
-        assert "logic my_reg[2][3];" in content
-        
+        # Should use unpacked array syntax for multidimensional arrays (parameterized)
+        assert "logic my_reg[N_MY_REGS_0][N_MY_REGS_1];" in content
+
         # Should NOT use packed bit-vector syntax
         assert "[1:0][2:0]my_reg" not in content
         assert "[5:0]my_reg" not in content

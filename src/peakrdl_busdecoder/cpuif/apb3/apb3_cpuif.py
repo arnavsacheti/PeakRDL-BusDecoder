@@ -37,15 +37,14 @@ class APB3Cpuif(BaseCpuif):
 
     def fanout(self, node: AddressableNode, array_stack: deque[int]) -> str:
         fanout: dict[str, str] = {}
-        fanout[self.signal("PSEL", node, "gi")] = (
+        idx = "gi" if self.check_is_array(node) else None
+        fanout[self.signal("PSEL", node, idx)] = (
             f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}|cpuif_rd_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
         )
-        fanout[self.signal("PENABLE", node, "gi")] = self.signal("PENABLE")
-        fanout[self.signal("PWRITE", node, "gi")] = (
-            f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
-        )
-        fanout[self.signal("PADDR", node, "gi")] = self.signal("PADDR")
-        fanout[self.signal("PWDATA", node, "gi")] = "cpuif_wr_data"
+        fanout[self.signal("PENABLE", node, idx)] = self.signal("PENABLE")
+        fanout[self.signal("PWRITE", node, idx)] = f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
+        fanout[self.signal("PADDR", node, idx)] = self.signal("PADDR")
+        fanout[self.signal("PWDATA", node, idx)] = "cpuif_wr_data"
 
         return "\n".join(f"assign {kv[0]} = {kv[1]};" for kv in fanout.items())
 
@@ -57,14 +56,16 @@ class APB3Cpuif(BaseCpuif):
         else:
             # Use intermediate signals for interface arrays to avoid
             # non-constant indexing of interface arrays in procedural blocks
-            if self.is_interface and node.is_array and node.array_dimensions:
+            is_array = self.check_is_array(node)
+            if self.is_interface and is_array and node.array_dimensions:
                 # Generate array index string [i0][i1]... for the intermediate signal
                 array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
                 fanin["cpuif_rd_ack"] = f"{node.inst_name}_fanin_ready{array_idx}"
                 fanin["cpuif_rd_err"] = f"{node.inst_name}_fanin_err{array_idx}"
             else:
-                fanin["cpuif_rd_ack"] = self.signal("PREADY", node, "i")
-                fanin["cpuif_rd_err"] = self.signal("PSLVERR", node, "i")
+                idx = "i" if self.check_is_array(node) else None
+                fanin["cpuif_rd_ack"] = self.signal("PREADY", node, idx)
+                fanin["cpuif_rd_err"] = self.signal("PSLVERR", node, idx)
 
         return "\n".join(f"{kv[0]} = {kv[1]};" for kv in fanin.items())
 
@@ -75,12 +76,14 @@ class APB3Cpuif(BaseCpuif):
         else:
             # Use intermediate signals for interface arrays to avoid
             # non-constant indexing of interface arrays in procedural blocks
-            if self.is_interface and node.is_array and node.array_dimensions:
+            is_array = self.check_is_array(node)
+            if self.is_interface and is_array and node.array_dimensions:
                 # Generate array index string [i0][i1]... for the intermediate signal
                 array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
                 fanin["cpuif_rd_data"] = f"{node.inst_name}_fanin_data{array_idx}"
             else:
-                fanin["cpuif_rd_data"] = self.signal("PRDATA", node, "i")
+                idx = "i" if self.check_is_array(node) else None
+                fanin["cpuif_rd_data"] = self.signal("PRDATA", node, idx)
 
         return "\n".join(f"{kv[0]} = {kv[1]};" for kv in fanin.items())
 

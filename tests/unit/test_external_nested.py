@@ -43,7 +43,7 @@ def test_external_nested_components_generate_correct_decoder(external_nested_rdl
         # Verify struct is flat (no nested structs for external children)
         assert "typedef struct" in content
         assert "logic multicast;" in content
-        assert "logic port[16];" in content
+        assert "logic port[N_PORTS];" in content
 
 
 def test_external_nested_components_generate_correct_interfaces(external_nested_rdl: AddrmapNode) -> None:
@@ -68,7 +68,7 @@ def test_external_nested_components_generate_correct_interfaces(external_nested_
         
         # Should have master interfaces for top-level external children
         assert "m_apb_multicast" in content
-        assert "m_apb_port [16]" in content or "m_apb_port[16]" in content
+        assert "m_apb_port [N_PORTS]" in content or "m_apb_port[N_PORTS]" in content
         
         # Should NOT have interfaces for nested external children
         assert "m_apb_multicast_common" not in content
@@ -248,5 +248,3 @@ def test_unaligned_external_nested_in_addrmap(compile_rdl: Callable[..., Addrmap
         content = module_file.read_text()
         # Verify the nested components are in the generated code
         assert "inner" in content
-
-
