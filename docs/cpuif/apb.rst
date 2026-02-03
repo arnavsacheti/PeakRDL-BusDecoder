@@ -20,7 +20,7 @@ Both APB3 and APB4 standards are supported.
 APB3
 ----
 
-Implements the register block using an
+Implements the bus decoder using an
 `AMBA 3 APB <https://developer.arm.com/documentation/ihi0024/b/Introduction/About-the-AMBA-3-APB>`_
 CPU interface.
 
@@ -29,19 +29,19 @@ The APB3 CPU interface comes in two i/o port flavors:
 SystemVerilog Interface
     * Command line: ``--cpuif apb3``
     * Interface Definition: :download:`apb3_intf.sv <../../hdl-src/apb3_intf.sv>`
-    * Class: :class:`peakrdl_busdecoder.cpuif.apb3.APB3_Cpuif`
+    * Class: :class:`peakrdl_busdecoder.cpuif.apb3.APB3Cpuif`
 
 Flattened inputs/outputs
     Flattens the interface into discrete input and output ports.
 
     * Command line: ``--cpuif apb3-flat``
-    * Class: :class:`peakrdl_busdecoder.cpuif.apb3.APB3_Cpuif_flattened`
+    * Class: :class:`peakrdl_busdecoder.cpuif.apb3.APB3CpuifFlat`
 
 
 APB4
 ----
 
-Implements the register block using an
+Implements the bus decoder using an
 `AMBA 4 APB <https://developer.arm.com/documentation/ihi0024/d/?lang=en>`_
 CPU interface.
 
@@ -50,10 +50,10 @@ The APB4 CPU interface comes in two i/o port flavors:
 SystemVerilog Interface
     * Command line: ``--cpuif apb4``
     * Interface Definition: :download:`apb4_intf.sv <../../hdl-src/apb4_intf.sv>`
-    * Class: :class:`peakrdl_busdecoder.cpuif.apb4.APB4_Cpuif`
+    * Class: :class:`peakrdl_busdecoder.cpuif.apb4.APB4Cpuif`
 
 Flattened inputs/outputs
     Flattens the interface into discrete input and output ports.
 
     * Command line: ``--cpuif apb4-flat``
-    * Class: :class:`peakrdl_busdecoder.cpuif.apb4.APB4_Cpuif_flattened`
+    * Class: :class:`peakrdl_busdecoder.cpuif.apb4.APB4CpuifFlat`

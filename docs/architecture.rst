@@ -1,64 +1,54 @@
-Register Block Architecture
-===========================
+Bus Decoder Architecture
+========================
 
-The generated bus decoder RTL is organized into several sections.
-Each section is automatically generated based on the source register model and
-is rendered into the output SystemVerilog RTL module. The bus decoder serves as 
-an address decode and routing layer that splits a single CPU interface into 
-multiple sub-address spaces corresponding to child addrmaps in your SystemRDL design.
+The generated RTL is a pure bus-routing layer. It accepts a single CPU interface
+on the slave side and fans transactions out to a set of child interfaces on the
+master side. No register storage or field logic is generated.
 
-.. figure:: diagrams/arch.png
-
-Although it is not completely necessary to know the inner workings of the
-generated RTL, it can be helpful to understand the implications of various
-exporter configuration options.
+Although you do not need to know the inner workings to use the exporter, the
+sections below explain the structure of the generated module and how it maps to
+SystemRDL hierarchy.
 
 
-CPU Interface
--------------
-The CPU interface logic layer provides an abstraction between the
-application-specific bus protocol and the internal register file logic.
-This logic layer normalizes external CPU read & write transactions into a common
-:ref:`cpuif_protocol` that is used to interact with the register file. When the 
-design contains multiple child addrmaps, the CPU interface handles fanout of 
-transactions to the appropriate sub-address space.
+CPU Interface Adapter
+---------------------
+Each supported CPU interface protocol (APB3, APB4, AXI4-Lite) provides a small
+adapter that translates the external bus protocol into internal request/response
+signals. These internal signals are then used by the address decoder and fanout
+logic.
+
+If you write a custom CPU interface, it must implement the internal signals
+described in :ref:`cpuif_protocol`.
 
 
 Address Decode
 --------------
-A common address decode operation is generated which computes individual access
-strobes for each software-accessible register or child addrmap in the design.
-This operation is performed completely combinationally. The decoder determines 
-which sub-address space should handle each transaction based on the address range.
+The address decoder computes per-child select signals based on address ranges.
+The decode boundary is controlled by ``max_decode_depth``:
+
+* ``0``: Decode all the way down to leaf registers
+* ``1`` (default): Decode only top-level children
+* ``N``: Decode down to depth ``N`` from the top-level
+
+This allows you to choose whether the bus decoder routes to large blocks (e.g.,
+child addrmaps) or to smaller sub-blocks.
 
 
-Field Logic
------------
-This layer of the register block implements the storage elements and state-change
-logic for every field in the design. Field state is updated based on address
-decode strobes from software read/write actions, as well as events from the
-hardware interface input struct.
-This section also assigns any hardware interface outputs.
+Fanout to Child Interfaces
+--------------------------
+For each decoded child, the bus decoder drives a master-side CPU interface.
+All address, data, and control signals are forwarded to the selected child.
+
+Arrayed children can be kept as arrays or unrolled into discrete interfaces using
+``--unroll``. This only affects port structure and naming; decode semantics are
+unchanged.
 
 
-Readback
---------
-The readback layer aggregates and reduces all readable registers into a single
-read response. During a read operation, the same address decode strobes are used
-to select the active register that is being accessed.
-This allows for a simple OR-reduction operation to be used to compute the read
-data response.
+Fanin and Error Handling
+------------------------
+Read and write responses are muxed back from the selected child to the slave
+interface. If no child is selected for a transaction, the decoder generates an
+error response on the slave interface.
 
-For designs with a large number of software-readable registers, an optional
-fanin re-timing stage can be enabled. This stage is automatically inserted at a
-balanced point in the read-data reduction so that fanin and logic-levels are
-optimally reduced.
-
-.. figure:: diagrams/readback.png
-    :width: 65%
-    :align: center
-
-A second optional read response retiming register can be enabled in-line with the
-path back to the CPU interface layer. This can be useful if the CPU interface protocol
-used has a fully combinational response path, and the design's complexity requires
-this path to be retimed further.
+The exact error signaling depends on the chosen CPU interface protocol (e.g.,
+``PSLVERR`` for APB, ``RRESP/BRESP`` for AXI4-Lite).

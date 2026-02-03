@@ -1,3 +1,2 @@
 pygments-systemrdl
-sphinxcontrib-wavedrom
 sphinx-book-theme

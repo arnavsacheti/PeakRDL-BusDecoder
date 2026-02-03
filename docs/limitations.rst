@@ -1,53 +1,47 @@
 Known Limitations
 =================
 
-Not all SystemRDL features are supported by this exporter. For a listing of
-supported properties, see the appropriate property listing page in the sections
-that follow.
+The busdecoder exporter intentionally focuses on address decode and routing.
+Some SystemRDL features are ignored, and a few are explicitly disallowed.
 
 
-Alias Registers
----------------
-Registers instantiated using the ``alias`` keyword are not supported yet.
+Address Alignment
+-----------------
+All address offsets and array strides must be aligned to the CPU interface data
+bus width (in bytes). Misaligned offsets/strides are rejected.
 
 
-Unaligned Registers
--------------------
-All address offsets & strides shall be a multiple of the cpuif bus width used. Specifically:
+Wide Registers
+--------------
+If a register is wider than its ``accesswidth`` (a multi-word register), its
+``accesswidth`` must match the CPU interface data width. Multi-word registers
+with a smaller accesswidth are not supported.
 
-* Bus width is inferred by the maximum accesswidth used in the busdecoder.
-* Each component's address and array stride shall be aligned to the bus width.
+
+Fields Spanning Sub-Words
+-------------------------
+If a field spans multiple sub-words of a wide register:
+
+* Software-writable fields must have write buffering enabled
+* Fields with ``onread`` side-effects must have read buffering enabled
+
+These rules are enforced to avoid ambiguous multi-word access behavior.
 
 
-Uniform accesswidth
--------------------
-All registers within a register block shall use the same accesswidth.
+External Boundary References
+----------------------------
+Property references are not allowed to cross the internal/external boundary of
+the exported addrmap. References must point to components that are internal to
+the busdecoder being generated.
 
-One exception is that registers with regwidth that is narrower than the cpuif
-bus width are permitted, provided that their regwidth is equal to their accesswidth.
+CPU Interface Reset Location
+----------------------------
+Only ``cpuif_reset`` signals instantiated at the top-level addrmap (or above)
+are honored. Nested ``cpuif_reset`` signals are ignored.
 
-For example:
 
-.. code-block:: systemrdl
+Unsupported Properties
+----------------------
+The following SystemRDL properties are explicitly rejected:
 
-    // (Largest accesswidth used is 32, therefore the CPUIF bus width is 32)
-
-    reg {
-        regwidth = 32;
-        accesswidth = 32;
-    } reg_a @ 0x00; // OK. Regular 32-bit register
-
-    reg {
-        regwidth = 64;
-        accesswidth = 32;
-    } reg_b @ 0x08; // OK. "Wide" register of 64-bits, but is accessed using 32-bit subwords
-
-    reg {
-        regwidth = 8;
-        accesswidth = 8;
-    } reg_c @ 0x10; // OK. Is aligned to the cpuif bus width
-
-    reg {
-        regwidth = 32;
-        accesswidth = 8;
-    } bad_reg @ 0x14; // NOT OK. accesswidth conflicts with cpuif width
+* ``sharedextbus`` on addrmap/regfile components

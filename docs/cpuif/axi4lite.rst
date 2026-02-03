@@ -3,7 +3,7 @@
 AMBA AXI4-Lite
 ==============
 
-Implements the register block using an
+Implements the bus decoder using an
 `AMBA AXI4-Lite <https://developer.arm.com/documentation/ihi0022/e/AMBA-AXI4-Lite-Interface-Specification>`_
 CPU interface.
 
@@ -12,21 +12,22 @@ The AXI4-Lite CPU interface comes in two i/o port flavors:
 SystemVerilog Interface
     * Command line: ``--cpuif axi4-lite``
     * Interface Definition: :download:`axi4lite_intf.sv <../../hdl-src/axi4lite_intf.sv>`
-    * Class: :class:`peakrdl_busdecoder.cpuif.axi4lite.AXI4Lite_Cpuif`
+    * Class: :class:`peakrdl_busdecoder.cpuif.axi4lite.AXI4LiteCpuif`
 
 Flattened inputs/outputs
     Flattens the interface into discrete input and output ports.
 
     * Command line: ``--cpuif axi4-lite-flat``
-    * Class: :class:`peakrdl_busdecoder.cpuif.axi4lite.AXI4Lite_Cpuif_flattened`
+    * Class: :class:`peakrdl_busdecoder.cpuif.axi4lite.AXI4LiteCpuifFlat`
 
 
-Pipelined Performance
----------------------
-This implementation of the AXI4-Lite interface supports transaction pipelining
-which can significantly improve performance of back-to-back transfers.
+Protocol Notes
+--------------
+The AXI4-Lite adapter is intentionally simplified:
 
-In order to support transaction pipelining, the CPU interface will accept multiple
-concurrent transactions. The number of outstanding transactions allowed is automatically
-determined based on the register file pipeline depth (affected by retiming options),
-and influences the depth of the internal transaction response skid buffer.
+* AW and W channels must be asserted together for writes. The adapter does not
+  support decoupled address/data for writes.
+* Only a single outstanding transaction is supported. Masters should wait for
+  the corresponding response before issuing the next request.
+* Burst transfers are not supported (single-beat transfers only), consistent
+  with AXI4-Lite.

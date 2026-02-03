@@ -4,10 +4,10 @@ Configuring PeakRDL-BusDecoder
 ==============================
 
 If using the `PeakRDL command line tool <https://peakrdl.readthedocs.io/>`_,
-some aspects of the ``busdecoder`` command have additional configuration options
-available via the PeakRDL TOML file.
+some aspects of the ``busdecoder`` command can be configured via the PeakRDL
+TOML file.
 
-All busdecoder-specific options are defined under the ``[busdecoder]`` TOML heading.
+All busdecoder-specific options are defined under the ``[busdecoder]`` heading.
 
 .. data:: cpuifs
 
@@ -24,22 +24,15 @@ All busdecoder-specific options are defined under the ``[busdecoder]`` TOML head
         cpuifs.my-cpuif-name = "my_cpuif_module:MyCPUInterfaceClass"
 
 
-.. data:: default_reset
+Command-Line Options
+--------------------
 
-    Choose the default style of reset signal if not explicitly
-    specified by the SystemRDL design. If unspecified, the default reset
-    is active-high and synchronous.
+The following options are available on the ``peakrdl busdecoder`` command:
 
-    Choice of:
-
-        * ``rst`` (default)
-        * ``rst_n``
-        * ``arst``
-        * ``arst_n``
-
-    For example:
-
-    .. code-block:: toml
-
-        [busdecoder]
-        default_reset = "arst"
+* ``--cpuif``: Select the CPU interface (``apb3``, ``apb3-flat``, ``apb4``,
+  ``apb4-flat``, ``axi4-lite``, ``axi4-lite-flat``)
+* ``--module-name``: Override the generated module name
+* ``--package-name``: Override the generated package name
+* ``--addr-width``: Override the slave address width
+* ``--unroll``: Unroll arrayed children into discrete interfaces
+* ``--max-decode-depth``: Control how far the decoder descends into hierarchy

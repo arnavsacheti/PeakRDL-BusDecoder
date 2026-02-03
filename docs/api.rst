@@ -15,10 +15,11 @@ implementation from SystemRDL source.
 .. code-block:: python
     :emphasize-lines: 2-4, 29-33
 
+    import sys
+
     from systemrdl import RDLCompiler, RDLCompileError
     from peakrdl_busdecoder import BusDecoderExporter
-    from peakrdl_busdecoder.cpuif.axi4lite import AXI4Lite_Cpuif
-    from peakrdl_busdecoder.udps import ALL_UDPS
+    from peakrdl_busdecoder.cpuif.axi4lite import AXI4LiteCpuif
 
     input_files = [
         "PATH/TO/my_register_block.rdl"
@@ -26,10 +27,6 @@ implementation from SystemRDL source.
 
     # Create an instance of the compiler
     rdlc = RDLCompiler()
-
-    # Register all UDPs that 'busdecoder' requires
-    for udp in ALL_UDPS:
-        rdlc.register_udp(udp)
 
     try:
         # Compile your RDL files
@@ -46,5 +43,5 @@ implementation from SystemRDL source.
     exporter = BusDecoderExporter()
     exporter.export(
         root, "path/to/output_dir",
-        cpuif_cls=AXI4Lite_Cpuif
+        cpuif_cls=AXI4LiteCpuif
     )

@@ -2,16 +2,17 @@ Introduction
 ============
 
 The CPU interface logic layer provides an abstraction between the
-application-specific bus protocol and the internal register file logic.
-When exporting a design, you can select from a variety of popular CPU interface
-protocols. These are described in more detail in the pages that follow.
+application-specific bus protocol and the internal bus decoder logic.
+When exporting a design, you can select from supported CPU interface protocols.
+These are described in more detail in the pages that follow.
 
 
 Bus Width
 ^^^^^^^^^
-The CPU interface bus width is automatically determined from the contents of the
-design being exported. The bus width is equal to the widest ``accesswidth``
-encountered in the design.
+The CPU interface bus width is inferred from the contents of the design.
+It is intended to be equal to the widest ``accesswidth`` encountered in the
+design. If the exported addrmap contains only external components, the width
+cannot be inferred and will default to 32 bits.
 
 
 Addressing
@@ -32,5 +33,6 @@ For example, consider a fictional AXI4-Lite device that:
 - If care is taken to align the global address offset to the size of the device,
   creating a relative address is as simple as pruning down address bits.
 
-By default, the bit-width of the address bus will be the minimum size to span the contents
-of the register block. If needed, the address width can be overridden to a larger range.
+By default, the bit-width of the address bus will be the minimum size to span the
+contents of the decoded address space. If needed, the address width can be
+overridden to a larger range using ``--addr-width``.

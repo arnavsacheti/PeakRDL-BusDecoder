@@ -55,7 +55,6 @@ Documentation = "https://peakrdl-busdecoder.readthedocs.io/"
 docs = [
     "pygments-systemrdl>=1.3.0",
     "sphinx-book-theme>=1.1.4",
-    "sphinxcontrib-wavedrom>=3.0.4",
 ]
 test = [
     "parameterized>=0.9.0",

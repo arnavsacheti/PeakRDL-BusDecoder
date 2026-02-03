@@ -29,15 +29,15 @@ Rather than rewriting a new CPU interface definition, you can extend and adjust 
 
 .. code-block:: python
 
-    from peakrdl_busdecoder.cpuif.axi4lite import AXI4Lite_Cpuif
+    from peakrdl_busdecoder.cpuif.axi4lite import AXI4LiteCpuif
 
-    class My_AXI4Lite(AXI4Lite_Cpuif):
+    class My_AXI4Lite(AXI4LiteCpuif):
         @property
         def port_declaration(self) -> str:
             # Override the port declaration text to use the alternate interface name and modport style
             return "axi4_lite_interface.Slave_mp s_axil"
 
-        def signal(self, name:str) -> str:
+        def signal(self, name: str, node=None, indexer=None) -> str:
             # Override the signal names to be lowercase instead
             return "s_axil." + name.lower()
 
@@ -72,7 +72,7 @@ you can define your own.
 
 2. Create a Python class that defines your CPUIF
 
-    Extend your class from :class:`peakrdl_busdecoder.cpuif.CpuifBase`.
+    Extend your class from :class:`peakrdl_busdecoder.cpuif.BaseCpuif`.
     Define the port declaration string, and provide a reference to your template file.
 
 3. Use your new CPUIF definition when exporting.
