@@ -106,7 +106,7 @@ async def test_apb3_address_decoding(dut) -> None:
         _set_value(entry["inputs"]["PREADY"], idx, 0)
         _set_value(entry["inputs"]["PSLVERR"], idx, 0)
 
-    await Timer(1, units="ns")
+    await Timer(1, unit="ns")
 
     addr_mask = (1 << config["address_width"]) - 1
 
@@ -132,7 +132,7 @@ async def test_apb3_address_decoding(dut) -> None:
         )
         master_address = (address - entry["inst_address"]) % entry["inst_size"]
 
-        await Timer(1, units="ns")
+        await Timer(1, unit="ns")
 
         assert _get_int(entry["outputs"]["PSEL"], index) == 1, f"{master_name} should assert PSEL for write"
         assert _get_int(entry["outputs"]["PWRITE"], index) == 1, f"{master_name} should see write direction"
@@ -158,7 +158,7 @@ async def test_apb3_address_decoding(dut) -> None:
         slave.PENABLE.value = 0
         slave.PWRITE.value = 0
         _set_value(entry["inputs"]["PREADY"], index, 0)
-        await Timer(1, units="ns")
+        await Timer(1, unit="ns")
 
         # ------------------------------------------------------------------
         # Read phase
@@ -173,7 +173,7 @@ async def test_apb3_address_decoding(dut) -> None:
         slave.PSEL.value = 1
         slave.PENABLE.value = 1
 
-        await Timer(1, units="ns")
+        await Timer(1, unit="ns")
 
         assert _get_int(entry["outputs"]["PSEL"], index) == 1, f"{master_name} must assert PSEL for read"
         assert _get_int(entry["outputs"]["PWRITE"], index) == 0, (
@@ -199,4 +199,4 @@ async def test_apb3_address_decoding(dut) -> None:
         slave.PENABLE.value = 0
         _set_value(entry["inputs"]["PREADY"], index, 0)
         _set_value(entry["inputs"]["PRDATA"], index, 0)
-        await Timer(1, units="ns")
+        await Timer(1, unit="ns")

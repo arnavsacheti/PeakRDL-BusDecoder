@@ -62,7 +62,7 @@ async def test_depth_1(dut):
     inner1.PREADY.value = 0
     inner1.PSLVERR.value = 0
 
-    await Timer(1, units="ns")
+    await Timer(1, unit="ns")
 
     # Write to address 0x0 (should select inner1)
     inner1.PREADY.value = 1
@@ -73,7 +73,7 @@ async def test_depth_1(dut):
     s_apb.PSEL.value = 1
     s_apb.PENABLE.value = 1
 
-    await Timer(1, units="ns")
+    await Timer(1, unit="ns")
 
     assert int(inner1.PSEL.value) == 1, "inner1 must be selected"
     assert int(inner1.PWRITE.value) == 1, "Write should propagate"
@@ -106,7 +106,7 @@ async def test_depth_2(dut):
     inner2.PREADY.value = 0
     inner2.PSLVERR.value = 0
 
-    await Timer(1, units="ns")
+    await Timer(1, unit="ns")
 
     # Write to address 0x0 (should select reg1)
     reg1.PREADY.value = 1
@@ -117,7 +117,7 @@ async def test_depth_2(dut):
     s_apb.PSEL.value = 1
     s_apb.PENABLE.value = 1
 
-    await Timer(1, units="ns")
+    await Timer(1, unit="ns")
 
     assert int(reg1.PSEL.value) == 1, "reg1 must be selected for address 0x0"
     assert int(inner2.PSEL.value) == 0, "inner2 should not be selected"
@@ -126,7 +126,7 @@ async def test_depth_2(dut):
     s_apb.PSEL.value = 0
     s_apb.PENABLE.value = 0
     reg1.PREADY.value = 0
-    await Timer(1, units="ns")
+    await Timer(1, unit="ns")
 
     # Write to address 0x10 (should select inner2)
     inner2.PREADY.value = 1
@@ -137,7 +137,7 @@ async def test_depth_2(dut):
     s_apb.PSEL.value = 1
     s_apb.PENABLE.value = 1
 
-    await Timer(1, units="ns")
+    await Timer(1, unit="ns")
 
     assert int(inner2.PSEL.value) == 1, "inner2 must be selected for address 0x10"
     assert int(reg1.PSEL.value) == 0, "reg1 should not be selected"
@@ -167,7 +167,7 @@ async def test_depth_0(dut):
         master.PREADY.value = 0
         master.PSLVERR.value = 0
 
-    await Timer(1, units="ns")
+    await Timer(1, unit="ns")
 
     # Write to address 0x0 (should select reg1)
     reg1.PREADY.value = 1
@@ -178,7 +178,7 @@ async def test_depth_0(dut):
     s_apb.PSEL.value = 1
     s_apb.PENABLE.value = 1
 
-    await Timer(1, units="ns")
+    await Timer(1, unit="ns")
 
     assert int(reg1.PSEL.value) == 1, "reg1 must be selected for address 0x0"
     assert int(reg2.PSEL.value) == 0, "reg2 should not be selected"
@@ -188,7 +188,7 @@ async def test_depth_0(dut):
     s_apb.PSEL.value = 0
     s_apb.PENABLE.value = 0
     reg1.PREADY.value = 0
-    await Timer(1, units="ns")
+    await Timer(1, unit="ns")
 
     # Write to address 0x10 (should select reg2)
     reg2.PREADY.value = 1
@@ -199,7 +199,7 @@ async def test_depth_0(dut):
     s_apb.PSEL.value = 1
     s_apb.PENABLE.value = 1
 
-    await Timer(1, units="ns")
+    await Timer(1, unit="ns")
 
     assert int(reg2.PSEL.value) == 1, "reg2 must be selected for address 0x10"
     assert int(reg1.PSEL.value) == 0, "reg1 should not be selected"
@@ -209,7 +209,7 @@ async def test_depth_0(dut):
     s_apb.PSEL.value = 0
     s_apb.PENABLE.value = 0
     reg2.PREADY.value = 0
-    await Timer(1, units="ns")
+    await Timer(1, unit="ns")
 
     # Write to address 0x14 (should select reg2b)
     reg2b.PREADY.value = 1
@@ -220,7 +220,7 @@ async def test_depth_0(dut):
     s_apb.PSEL.value = 1
     s_apb.PENABLE.value = 1
 
-    await Timer(1, units="ns")
+    await Timer(1, unit="ns")
 
     assert int(reg2b.PSEL.value) == 1, "reg2b must be selected for address 0x14"
     assert int(reg1.PSEL.value) == 0, "reg1 should not be selected"

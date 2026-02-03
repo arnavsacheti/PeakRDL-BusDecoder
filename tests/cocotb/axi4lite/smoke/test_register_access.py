@@ -137,7 +137,7 @@ async def test_axi4lite_address_decoding(dut) -> None:
         _set_value(entry["inputs"]["RDATA"], idx, 0)
         _set_value(entry["inputs"]["RRESP"], idx, 0)
 
-    await Timer(1, units="ns")
+    await Timer(1, unit="ns")
 
     addr_mask = (1 << config["address_width"]) - 1
     strobe_mask = (1 << config["byte_width"]) - 1
@@ -163,7 +163,7 @@ async def test_axi4lite_address_decoding(dut) -> None:
         )
         master_address = (address - entry["inst_address"]) % entry["inst_size"]
 
-        await Timer(1, units="ns")
+        await Timer(1, unit="ns")
 
         assert _get_int(entry["outputs"]["AWVALID"], index) == 1, f"{master_name} should see AWVALID asserted"
         assert _get_int(entry["outputs"]["AWADDR"], index) == master_address, (
@@ -187,7 +187,7 @@ async def test_axi4lite_address_decoding(dut) -> None:
         slave.AWVALID.value = 0
         slave.WVALID.value = 0
         slave.BREADY.value = 0
-        await Timer(1, units="ns")
+        await Timer(1, unit="ns")
 
         read_data = _read_pattern(address, config["data_width"])
         _set_value(entry["inputs"]["RVALID"], index, 1)
@@ -199,7 +199,7 @@ async def test_axi4lite_address_decoding(dut) -> None:
         slave.ARVALID.value = 1
         slave.RREADY.value = 1
 
-        await Timer(1, units="ns")
+        await Timer(1, unit="ns")
 
         assert _get_int(entry["outputs"]["ARVALID"], index) == 1, f"{master_name} should assert ARVALID"
         assert _get_int(entry["outputs"]["ARADDR"], index) == master_address, (
@@ -222,4 +222,4 @@ async def test_axi4lite_address_decoding(dut) -> None:
         slave.RREADY.value = 0
         _set_value(entry["inputs"]["RVALID"], index, 0)
         _set_value(entry["inputs"]["RDATA"], index, 0)
-        await Timer(1, units="ns")
+        await Timer(1, unit="ns")
