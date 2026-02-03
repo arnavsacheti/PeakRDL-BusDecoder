@@ -1,4 +1,3 @@
-
 from collections.abc import Callable
 
 from systemrdl.node import AddrmapNode
@@ -9,7 +8,7 @@ from peakrdl_busdecoder.design_state import DesignState
 class TestDesignState:
     """Test the DesignState class."""
 
-    def test_design_state_basic(self, compile_rdl:Callable[..., AddrmapNode])->None:
+    def test_design_state_basic(self, compile_rdl: Callable[..., AddrmapNode]) -> None:
         """Test basic DesignState initialization."""
         rdl_source = """
         addrmap test {
@@ -31,7 +30,7 @@ class TestDesignState:
         assert ds.cpuif_data_width == 32  # Should infer from 32-bit field
         assert ds.addr_width > 0
 
-    def test_design_state_custom_module_name(self, compile_rdl:Callable[..., AddrmapNode])->None:
+    def test_design_state_custom_module_name(self, compile_rdl: Callable[..., AddrmapNode]) -> None:
         """Test DesignState with custom module name."""
         rdl_source = """
         addrmap test {
@@ -50,7 +49,7 @@ class TestDesignState:
         assert ds.module_name == "custom_module"
         assert ds.package_name == "custom_module_pkg"
 
-    def test_design_state_custom_package_name(self, compile_rdl:Callable[..., AddrmapNode])->None:
+    def test_design_state_custom_package_name(self, compile_rdl: Callable[..., AddrmapNode]) -> None:
         """Test DesignState with custom package name."""
         rdl_source = """
         addrmap test {
@@ -68,7 +67,7 @@ class TestDesignState:
 
         assert ds.package_name == "custom_pkg"
 
-    def test_design_state_custom_address_width(self, compile_rdl:Callable[..., AddrmapNode])->None:
+    def test_design_state_custom_address_width(self, compile_rdl: Callable[..., AddrmapNode]) -> None:
         """Test DesignState with custom address width."""
         rdl_source = """
         addrmap test {
@@ -86,7 +85,7 @@ class TestDesignState:
 
         assert ds.addr_width == 16
 
-    def test_design_state_unroll_arrays(self, compile_rdl:Callable[..., AddrmapNode])->None:
+    def test_design_state_unroll_arrays(self, compile_rdl: Callable[..., AddrmapNode]) -> None:
         """Test DesignState with cpuif_unroll option."""
         rdl_source = """
         addrmap test {
@@ -104,7 +103,7 @@ class TestDesignState:
 
         assert ds.cpuif_unroll is True
 
-    def test_design_state_64bit_registers(self, compile_rdl:Callable[..., AddrmapNode])->None:
+    def test_design_state_64bit_registers(self, compile_rdl: Callable[..., AddrmapNode]) -> None:
         """Test DesignState with wider data width."""
         rdl_source = """
         addrmap test {

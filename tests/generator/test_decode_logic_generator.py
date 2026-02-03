@@ -28,7 +28,7 @@ class TestDecodeLogicGenerator:
 
         # Basic sanity check - it should initialize
         assert gen is not None
-        assert gen._flavor == DecodeLogicFlavor.READ  
+        assert gen._flavor == DecodeLogicFlavor.READ
 
     def test_decode_logic_write(self, compile_rdl: Callable[..., AddrmapNode]) -> None:
         """Test decode logic generation for write operations."""
@@ -48,7 +48,7 @@ class TestDecodeLogicGenerator:
         gen = DecodeLogicGenerator(ds, DecodeLogicFlavor.WRITE)
 
         assert gen is not None
-        assert gen._flavor == DecodeLogicFlavor.WRITE  
+        assert gen._flavor == DecodeLogicFlavor.WRITE
 
     def test_cpuif_addr_predicate(self, compile_rdl: Callable[..., AddrmapNode]) -> None:
         """Test address predicate generation."""

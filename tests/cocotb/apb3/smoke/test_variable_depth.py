@@ -3,6 +3,8 @@
 import cocotb
 from cocotb.triggers import Timer
 
+from tests.cocotb_lib.protocol_utils import apb_access, apb_setup
+
 
 class _Apb3SlaveShim:
     def __init__(self, dut):
@@ -60,13 +62,8 @@ async def test_depth_1(dut):
 
     # Write to address 0x0 (should select inner1)
     inner1.PREADY.value = 1
-    s_apb.PADDR.value = 0x0
-    s_apb.PWDATA.value = 0x12345678
-    s_apb.PWRITE.value = 1
-    s_apb.PSEL.value = 1
-    s_apb.PENABLE.value = 1
-
-    await Timer(1, unit="ns")
+    await apb_setup(s_apb, 0x0, True, 0x12345678)
+    await apb_access(s_apb)
 
     assert int(inner1.PSEL.value) == 1, "inner1 must be selected"
     assert int(inner1.PWRITE.value) == 1, "Write should propagate"
@@ -101,13 +98,8 @@ async def test_depth_2(dut):
 
     # Write to address 0x0 (should select reg1)
     reg1.PREADY.value = 1
-    s_apb.PADDR.value = 0x0
-    s_apb.PWDATA.value = 0xABCDEF01
-    s_apb.PWRITE.value = 1
-    s_apb.PSEL.value = 1
-    s_apb.PENABLE.value = 1
-
-    await Timer(1, unit="ns")
+    await apb_setup(s_apb, 0x0, True, 0xABCDEF01)
+    await apb_access(s_apb)
 
     assert int(reg1.PSEL.value) == 1, "reg1 must be selected for address 0x0"
     assert int(inner2.PSEL.value) == 0, "inner2 should not be selected"
@@ -120,13 +112,8 @@ async def test_depth_2(dut):
 
     # Write to address 0x10 (should select inner2)
     inner2.PREADY.value = 1
-    s_apb.PADDR.value = 0x10
-    s_apb.PWDATA.value = 0x23456789
-    s_apb.PWRITE.value = 1
-    s_apb.PSEL.value = 1
-    s_apb.PENABLE.value = 1
-
-    await Timer(1, unit="ns")
+    await apb_setup(s_apb, 0x10, True, 0x23456789)
+    await apb_access(s_apb)
 
     assert int(inner2.PSEL.value) == 1, "inner2 must be selected for address 0x10"
     assert int(reg1.PSEL.value) == 0, "reg1 should not be selected"
@@ -158,13 +145,8 @@ async def test_depth_0(dut):
 
     # Write to address 0x0 (should select reg1)
     reg1.PREADY.value = 1
-    s_apb.PADDR.value = 0x0
-    s_apb.PWDATA.value = 0x11111111
-    s_apb.PWRITE.value = 1
-    s_apb.PSEL.value = 1
-    s_apb.PENABLE.value = 1
-
-    await Timer(1, unit="ns")
+    await apb_setup(s_apb, 0x0, True, 0x11111111)
+    await apb_access(s_apb)
 
     assert int(reg1.PSEL.value) == 1, "reg1 must be selected for address 0x0"
     assert int(reg2.PSEL.value) == 0, "reg2 should not be selected"
@@ -178,13 +160,8 @@ async def test_depth_0(dut):
 
     # Write to address 0x10 (should select reg2)
     reg2.PREADY.value = 1
-    s_apb.PADDR.value = 0x10
-    s_apb.PWDATA.value = 0x22222222
-    s_apb.PWRITE.value = 1
-    s_apb.PSEL.value = 1
-    s_apb.PENABLE.value = 1
-
-    await Timer(1, unit="ns")
+    await apb_setup(s_apb, 0x10, True, 0x22222222)
+    await apb_access(s_apb)
 
     assert int(reg2.PSEL.value) == 1, "reg2 must be selected for address 0x10"
     assert int(reg1.PSEL.value) == 0, "reg1 should not be selected"
@@ -198,13 +175,8 @@ async def test_depth_0(dut):
 
     # Write to address 0x14 (should select reg2b)
     reg2b.PREADY.value = 1
-    s_apb.PADDR.value = 0x14
-    s_apb.PWDATA.value = 0x33333333
-    s_apb.PWRITE.value = 1
-    s_apb.PSEL.value = 1
-    s_apb.PENABLE.value = 1
-
-    await Timer(1, unit="ns")
+    await apb_setup(s_apb, 0x14, True, 0x33333333)
+    await apb_access(s_apb)
 
     assert int(reg2b.PSEL.value) == 1, "reg2b must be selected for address 0x14"
     assert int(reg1.PSEL.value) == 0, "reg1 should not be selected"

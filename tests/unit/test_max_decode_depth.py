@@ -36,7 +36,7 @@ def test_depth_1_generates_top_level_interface_only(compile_rdl: Callable[..., A
         assert "m_apb_inner1" in content
         # Should NOT have interface for reg1
         assert "m_apb_reg1" not in content
-        
+
         # Struct should have inner1 but not nested structure
         assert "logic inner1;" in content
 
@@ -77,7 +77,7 @@ def test_depth_2_generates_second_level_interfaces(compile_rdl: Callable[..., Ad
         # Should NOT have interface for inner1 or reg2
         assert "m_apb_inner1" not in content
         assert "m_apb_reg2" not in content
-        
+
         # Struct should be hierarchical with inner1.reg1 and inner1.inner2
         assert "cpuif_sel_inner1_t" in content
         assert "logic reg1;" in content
@@ -125,7 +125,7 @@ def test_depth_0_decodes_all_levels(compile_rdl: Callable[..., AddrmapNode]) -> 
         # Should NOT have interfaces for addrmaps
         assert "m_apb_inner1" not in content
         assert "m_apb_inner2" not in content
-        
+
         # Struct should be fully hierarchical
         assert "cpuif_sel_inner1_t" in content
         assert "cpuif_sel_inner2_t" in content

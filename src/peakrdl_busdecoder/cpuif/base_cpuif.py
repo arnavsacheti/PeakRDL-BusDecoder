@@ -136,3 +136,7 @@ class BaseCpuif:
             List of assignment strings
         """
         return []  # Default: no intermediate assignments needed
+
+    def fanin_intermediate_declarations(self, node: AddressableNode) -> list[str]:
+        """Optional extra intermediate signal declarations for interface arrays."""
+        return []
