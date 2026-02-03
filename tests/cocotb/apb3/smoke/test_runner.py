@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import logging
+from pathlib import Path
 
 import pytest
 
@@ -16,7 +16,7 @@ except ImportError:  # pragma: no cover
     from cocotb_tools.runner import get_runner
 
 from tests.cocotb_lib import RDL_CASES
-from tests.cocotb_lib.utils import get_verilog_sources, prepare_cpuif_case, colorize_cocotb_log
+from tests.cocotb_lib.utils import colorize_cocotb_log, get_verilog_sources, prepare_cpuif_case
 
 
 @pytest.mark.simulation

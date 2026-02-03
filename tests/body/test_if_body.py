@@ -1,4 +1,6 @@
 from peakrdl_busdecoder.body import IfBody
+
+
 class TestIfBody:
     """Test the IfBody class."""
 
@@ -82,4 +84,3 @@ class TestIfBody:
         assert "if (outer_cond)" in result
         assert "if (inner_cond)" in result
         assert "nested_statement;" in result
-

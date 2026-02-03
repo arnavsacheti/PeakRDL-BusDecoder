@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from pathlib import Path
-import re
 from typing import Any
 
 from systemrdl import RDLCompiler
@@ -49,6 +49,7 @@ def colorize_cocotb_log(text: str) -> str:
     Returns:
         A string with colorized log lines.
     """
+
     def _color_line(match: re.Match) -> str:
         prefix = match.group("prefix")
         time = match.group("time")

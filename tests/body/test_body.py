@@ -1,4 +1,3 @@
-
 from peakrdl_busdecoder.body import Body
 
 
@@ -46,5 +45,3 @@ class TestBody:
         outer += "outer2"
         expected = "outer1\ninner1\ninner2\nouter2"
         assert str(outer) == expected
-
-

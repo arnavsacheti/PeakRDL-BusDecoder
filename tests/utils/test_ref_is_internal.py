@@ -16,9 +16,7 @@ def _find_child_by_name(node: AddrmapNode, inst_name: str):
 class TestRefIsInternal:
     """Tests for ref_is_internal utility."""
 
-    def test_external_components_flagged(
-        self, compile_rdl: Callable[..., AddrmapNode]
-    ) -> None:
+    def test_external_components_flagged(self, compile_rdl: Callable[..., AddrmapNode]) -> None:
         """External components should be treated as non-internal."""
         rdl_source = """
         reg reg_t {
