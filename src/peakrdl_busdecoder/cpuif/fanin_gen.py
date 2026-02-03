@@ -48,9 +48,7 @@ class FaninGenerator(BusDecoderListener):
                 self._stack.append(fb)
 
         ifb = IfBody()
-        with ifb.cm(
-            f"cpuif_wr_sel.{get_indexed_path(self._cpuif.exp.ds.top_node, node)}"
-        ) as b:
+        with ifb.cm(f"cpuif_wr_sel.{get_indexed_path(self._cpuif.exp.ds.top_node, node)}") as b:
             b += self._cpuif.fanin_wr(node)
         self._stack[-1] += ifb
 
