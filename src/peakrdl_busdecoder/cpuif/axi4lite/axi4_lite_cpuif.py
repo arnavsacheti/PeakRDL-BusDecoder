@@ -63,11 +63,14 @@ class AXI4LiteCpuif(BaseCpuif):
 
         return "\n".join(f"assign {lhs} = {rhs};" for lhs, rhs in fanout.items())
 
-    def fanin_wr(self, node: AddressableNode | None = None) -> str:
+    def fanin_wr(self, node: AddressableNode | None = None, *, error: bool = False) -> str:
         fanin: dict[str, str] = {}
         if node is None:
             fanin["cpuif_wr_ack"] = "'0"
             fanin["cpuif_wr_err"] = "'0"
+            if error:
+                fanin["cpuif_wr_ack"] = "'1"
+                fanin["cpuif_wr_err"] = "cpuif_wr_sel.cpuif_err"
         else:
             # Use intermediate signals for interface arrays to avoid
             # non-constant indexing of interface arrays in procedural blocks
@@ -83,12 +86,15 @@ class AXI4LiteCpuif(BaseCpuif):
 
         return "\n".join(f"{lhs} = {rhs};" for lhs, rhs in fanin.items())
 
-    def fanin_rd(self, node: AddressableNode | None = None) -> str:
+    def fanin_rd(self, node: AddressableNode | None = None, *, error: bool = False) -> str:
         fanin: dict[str, str] = {}
         if node is None:
             fanin["cpuif_rd_ack"] = "'0"
             fanin["cpuif_rd_err"] = "'0"
             fanin["cpuif_rd_data"] = "'0"
+            if error:
+                fanin["cpuif_rd_ack"] = "'1"
+                fanin["cpuif_rd_err"] = "cpuif_rd_sel.cpuif_err"
         else:
             # Use intermediate signals for interface arrays to avoid
             # non-constant indexing of interface arrays in procedural blocks

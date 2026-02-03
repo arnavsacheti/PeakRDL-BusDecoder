@@ -53,23 +53,29 @@ class APB3CpuifFlat(BaseCpuif):
 
         return "\n".join(f"assign {kv[0]} = {kv[1]};" for kv in fanout.items())
 
-    def fanin_wr(self, node: AddressableNode | None = None) -> str:
+    def fanin_wr(self, node: AddressableNode | None = None, *, error: bool = False) -> str:
         fanin: dict[str, str] = {}
         if node is None:
             fanin["cpuif_wr_ack"] = "'0"
             fanin["cpuif_wr_err"] = "'0"
+            if error:
+                fanin["cpuif_wr_ack"] = "'1"
+                fanin["cpuif_wr_err"] = "cpuif_wr_sel.cpuif_err"
         else:
             fanin["cpuif_wr_ack"] = self.signal("PREADY", node, "i")
             fanin["cpuif_wr_err"] = self.signal("PSLVERR", node, "i")
 
         return "\n".join(f"{kv[0]} = {kv[1]};" for kv in fanin.items())
 
-    def fanin_rd(self, node: AddressableNode | None = None) -> str:
+    def fanin_rd(self, node: AddressableNode | None = None, *, error: bool = False) -> str:
         fanin: dict[str, str] = {}
         if node is None:
             fanin["cpuif_rd_ack"] = "'0"
             fanin["cpuif_rd_err"] = "'0"
             fanin["cpuif_rd_data"] = "'0"
+            if error:
+                fanin["cpuif_rd_ack"] = "'1"
+                fanin["cpuif_rd_err"] = "cpuif_rd_sel.cpuif_err"
         else:
             fanin["cpuif_rd_ack"] = self.signal("PREADY", node, "i")
             fanin["cpuif_rd_err"] = self.signal("PSLVERR", node, "i")
