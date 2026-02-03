@@ -110,10 +110,10 @@ class BaseCpuif:
     def fanout(self, node: AddressableNode, array_stack: deque[int]) -> str:
         raise NotImplementedError
 
-    def fanin(self, node: AddressableNode | None = None) -> str:
+    def fanin_wr(self, node: AddressableNode | None = None) -> str:
         raise NotImplementedError
 
-    def readback(self, node: AddressableNode | None = None) -> str:
+    def fanin_rd(self, node: AddressableNode | None = None) -> str:
         raise NotImplementedError
 
     def fanin_intermediate_assignments(

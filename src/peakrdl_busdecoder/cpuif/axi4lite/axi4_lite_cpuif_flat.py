@@ -72,23 +72,27 @@ class AXI4LiteCpuifFlat(BaseCpuif):
 
         return "\n".join(f"assign {lhs} = {rhs};" for lhs, rhs in fanout.items())
 
-    def fanin(self, node: AddressableNode | None = None) -> str:
+    def fanin_wr(self, node: AddressableNode | None = None) -> str:
+        fanin: dict[str, str] = {}
+        if node is None:
+            fanin["cpuif_wr_ack"] = "'0"
+            fanin["cpuif_wr_err"] = "'0"
+        else:
+            # Read side: ack comes from RVALID; err if RRESP[1] is set (SLVERR/DECERR)
+            fanin["cpuif_wr_ack"] = self.signal("RVALID", node, "i")
+            fanin["cpuif_wr_err"] = f"{self.signal('RRESP', node, 'i')}[1]"
+
+        return "\n".join(f"{lhs} = {rhs};" for lhs, rhs in fanin.items())
+
+    def fanin_rd(self, node: AddressableNode | None = None) -> str:
         fanin: dict[str, str] = {}
         if node is None:
             fanin["cpuif_rd_ack"] = "'0"
             fanin["cpuif_rd_err"] = "'0"
-        else:
-            # Read side: ack comes from RVALID; err if RRESP[1] is set (SLVERR/DECERR)
-            fanin["cpuif_rd_ack"] = self.signal("RVALID", node, "i")
-            fanin["cpuif_rd_err"] = f"{self.signal('RRESP', node, 'i')}[1]"
-
-        return "\n".join(f"{lhs} = {rhs};" for lhs, rhs in fanin.items())
-
-    def readback(self, node: AddressableNode | None = None) -> str:
-        fanin: dict[str, str] = {}
-        if node is None:
             fanin["cpuif_rd_data"] = "'0"
         else:
+            fanin["cpuif_rd_ack"] = self.signal("RVALID", node, "i")
+            fanin["cpuif_rd_err"] = f"{self.signal('RRESP', node, 'i')}[1]"
             fanin["cpuif_rd_data"] = self.signal("RDATA", node, "i")
 
         return "\n".join(f"{lhs} = {rhs};" for lhs, rhs in fanin.items())

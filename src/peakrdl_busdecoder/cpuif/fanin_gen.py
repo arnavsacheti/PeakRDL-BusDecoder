@@ -20,8 +20,8 @@ class FaninGenerator(BusDecoderListener):
 
         self._stack: deque[Body] = deque()
         cb = CombinationalBody()
-        cb += cpuif.fanin()
-        cb += cpuif.readback()
+        cb += cpuif.fanin_wr()
+        cb += cpuif.fanin_rd()
         self._stack.append(cb)
 
     def enter_AddressableComponent(self, node: AddressableNode) -> WalkerAction | None:
@@ -49,14 +49,14 @@ class FaninGenerator(BusDecoderListener):
 
         ifb = IfBody()
         with ifb.cm(
-            f"cpuif_rd_sel.{get_indexed_path(self._cpuif.exp.ds.top_node, node)} || cpuif_wr_sel.{get_indexed_path(self._cpuif.exp.ds.top_node, node)}"
+            f"cpuif_wr_sel.{get_indexed_path(self._cpuif.exp.ds.top_node, node)}"
         ) as b:
-            b += self._cpuif.fanin(node)
+            b += self._cpuif.fanin_wr(node)
         self._stack[-1] += ifb
 
         ifb = IfBody()
         with ifb.cm(f"cpuif_rd_sel.{get_indexed_path(self._cpuif.exp.ds.top_node, node)}") as b:
-            b += self._cpuif.readback(node)
+            b += self._cpuif.fanin_rd(node)
         self._stack[-1] += ifb
 
         return action
