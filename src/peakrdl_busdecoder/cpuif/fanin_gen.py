@@ -72,12 +72,12 @@ class FaninGenerator(BusDecoderListener):
     def __str__(self) -> str:
         wr_ifb = IfBody()
         with wr_ifb.cm("cpuif_wr_sel.cpuif_err") as b:
-            self._cpuif.fanin_wr(error=True)
+            b += self._cpuif.fanin_wr(error=True)
         self._stack[-1] += wr_ifb
 
         rd_ifb = IfBody()
         with rd_ifb.cm("cpuif_rd_sel.cpuif_err") as b:
-            self._cpuif.fanin_rd(error=True)
+            b += self._cpuif.fanin_rd(error=True)
         self._stack[-1] += rd_ifb
 
         return "\n".join(map(str, self._stack))

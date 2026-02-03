@@ -94,6 +94,9 @@ class FaninIntermediateGenerator(BusDecoderListener):
             f"logic [{self._cpuif.data_width - 1}:0] {inst_name}_fanin_data{array_str};"
         )
 
+        # Allow CPU interface to add extra intermediate declarations (e.g., write responses)
+        self._declarations.extend(self._cpuif.fanin_intermediate_declarations(node))
+
     def _generate_intermediate_assignments(self, node: AddressableNode) -> str:
         """Generate assignments from interface array to intermediate signals."""
         inst_name = node.inst_name

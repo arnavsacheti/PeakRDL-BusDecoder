@@ -8,7 +8,8 @@ import os
 from typing import Any, Iterable
 
 import cocotb
-from cocotb.triggers import Timer
+from cocotb.clock import Clock
+from cocotb.triggers import RisingEdge, Timer
 
 from tests.cocotb_lib.handle_utils import SignalHandle, resolve_handle
 
@@ -18,6 +19,8 @@ class _Apb4SlaveShim:
 
     def __init__(self, dut):
         prefix = "s_apb"
+        self.PCLK = getattr(dut, f"{prefix}_PCLK", None)
+        self.PRESETn = getattr(dut, f"{prefix}_PRESETn", None)
         self.PSEL = getattr(dut, f"{prefix}_PSEL")
         self.PENABLE = getattr(dut, f"{prefix}_PENABLE")
         self.PWRITE = getattr(dut, f"{prefix}_PWRITE")
@@ -95,12 +98,50 @@ def _read_pattern(address: int, width: int) -> int:
     return ((address ^ 0xDEAD_BEE5) + width) & mask
 
 
+def _find_invalid_address(config: dict[str, Any]) -> int | None:
+    addr_width = config["address_width"]
+    max_addr = 1 << addr_width
+    ranges = []
+    for master in config["masters"]:
+        inst_address = master["inst_address"]
+        inst_size = master["inst_size"]
+        n_elems = 1
+        if master.get("is_array"):
+            for dim in master.get("dimensions", []):
+                n_elems *= dim
+        span = inst_size * n_elems
+        ranges.append((inst_address, inst_address + span))
+    ranges.sort()
+
+    cursor = 0
+    for start, end in ranges:
+        if cursor < start:
+            return cursor
+        cursor = max(cursor, end)
+
+    if cursor < max_addr:
+        return cursor
+    return None
+
+
+async def _start_clock(slave: _Apb4SlaveShim) -> None:
+    if slave.PCLK is None:
+        return
+    slave.PCLK.value = 0
+    cocotb.start_soon(Clock(slave.PCLK, 2, units="ns").start())
+    await RisingEdge(slave.PCLK)
+
+
 @cocotb.test()
 async def test_apb4_address_decoding(dut) -> None:
     """Drive the APB4 slave interface and verify master fanout across all sampled registers."""
     config = _load_config()
     slave = _Apb4SlaveShim(dut)
     masters = _build_master_table(dut, config["masters"])
+
+    await _start_clock(slave)
+    if slave.PRESETn is not None:
+        slave.PRESETn.value = 1
 
     slave.PSEL.value = 0
     slave.PENABLE.value = 0
@@ -116,7 +157,10 @@ async def test_apb4_address_decoding(dut) -> None:
         _set_value(entry["inputs"]["PREADY"], idx, 0)
         _set_value(entry["inputs"]["PSLVERR"], idx, 0)
 
-    await Timer(1, unit="ns")
+    if slave.PCLK is not None:
+        await RisingEdge(slave.PCLK)
+    else:
+        await Timer(1, unit="ns")
 
     addr_mask = (1 << config["address_width"]) - 1
     strobe_mask = (1 << config["byte_width"]) - 1
@@ -130,25 +174,32 @@ async def test_apb4_address_decoding(dut) -> None:
         write_data = _write_pattern(address, config["data_width"])
 
         # Prime master-side inputs for the write phase
-        _set_value(entry["inputs"]["PREADY"], index, 1)
+        _set_value(entry["inputs"]["PREADY"], index, 0)
         _set_value(entry["inputs"]["PSLVERR"], index, 0)
 
+        # ------------------------------------------------------------------
+        # Setup phase
+        # ------------------------------------------------------------------
         slave.PADDR.value = address
         slave.PWDATA.value = write_data
         slave.PSTRB.value = strobe_mask
         slave.PPROT.value = 0
         slave.PWRITE.value = 1
         slave.PSEL.value = 1
-        slave.PENABLE.value = 1
+        slave.PENABLE.value = 0
 
         dut._log.info(
             f"Starting transaction {txn['label']} to {master_name}{index} at address 0x{address:08X}"
         )
         master_address = (address - entry["inst_address"]) % entry["inst_size"]
 
-        await Timer(1, unit="ns")
+        if slave.PCLK is not None:
+            await RisingEdge(slave.PCLK)
+        else:
+            await Timer(1, unit="ns")
 
         assert _get_int(entry["outputs"]["PSEL"], index) == 1, f"{master_name} should assert PSEL for write"
+        assert _get_int(entry["outputs"]["PENABLE"], index) == 0, f"{master_name} must hold PENABLE low in setup"
         assert _get_int(entry["outputs"]["PWRITE"], index) == 1, f"{master_name} should see write intent"
         assert _get_int(entry["outputs"]["PADDR"], index) == master_address, (
             f"{master_name} must receive write address"
@@ -168,6 +219,29 @@ async def test_apb4_address_decoding(dut) -> None:
                 f"{other_name}{other_idx} should remain idle during {txn['label']}"
             )
 
+        # ------------------------------------------------------------------
+        # Access phase
+        # ------------------------------------------------------------------
+        _set_value(entry["inputs"]["PREADY"], index, 1)
+        slave.PENABLE.value = 1
+
+        if slave.PCLK is not None:
+            await RisingEdge(slave.PCLK)
+        else:
+            await Timer(1, unit="ns")
+
+        assert _get_int(entry["outputs"]["PSEL"], index) == 1, f"{master_name} must keep PSEL asserted"
+        assert _get_int(entry["outputs"]["PENABLE"], index) == 1, f"{master_name} must assert PENABLE in access"
+        assert _get_int(entry["outputs"]["PADDR"], index) == master_address, (
+            f"{master_name} must keep write address stable"
+        )
+        assert _get_int(entry["outputs"]["PWDATA"], index) == write_data, (
+            f"{master_name} must keep write data stable"
+        )
+        assert _get_int(entry["outputs"]["PSTRB"], index) == strobe_mask, (
+            f"{master_name} must keep write strobes stable"
+        )
+
         assert int(slave.PREADY.value) == 1, "Slave ready should reflect selected master"
         assert int(slave.PSLVERR.value) == 0, "No error expected during write"
 
@@ -176,24 +250,34 @@ async def test_apb4_address_decoding(dut) -> None:
         slave.PENABLE.value = 0
         slave.PWRITE.value = 0
         _set_value(entry["inputs"]["PREADY"], index, 0)
-        await Timer(1, unit="ns")
+        if slave.PCLK is not None:
+            await RisingEdge(slave.PCLK)
+        else:
+            await Timer(1, unit="ns")
 
         # ------------------------------------------------------------------
         # Read phase
         # ------------------------------------------------------------------
         read_data = _read_pattern(address, config["data_width"])
         _set_value(entry["inputs"]["PRDATA"], index, read_data)
-        _set_value(entry["inputs"]["PREADY"], index, 1)
+        _set_value(entry["inputs"]["PREADY"], index, 0)
         _set_value(entry["inputs"]["PSLVERR"], index, 0)
 
+        # ------------------------------------------------------------------
+        # Setup phase
+        # ------------------------------------------------------------------
         slave.PADDR.value = address
         slave.PWRITE.value = 0
         slave.PSEL.value = 1
-        slave.PENABLE.value = 1
+        slave.PENABLE.value = 0
 
-        await Timer(1, unit="ns")
+        if slave.PCLK is not None:
+            await RisingEdge(slave.PCLK)
+        else:
+            await Timer(1, unit="ns")
 
         assert _get_int(entry["outputs"]["PSEL"], index) == 1, f"{master_name} must assert PSEL for read"
+        assert _get_int(entry["outputs"]["PENABLE"], index) == 0, f"{master_name} must hold PENABLE low in setup"
         assert _get_int(entry["outputs"]["PWRITE"], index) == 0, (
             f"{master_name} should deassert write for reads"
         )
@@ -209,6 +293,20 @@ async def test_apb4_address_decoding(dut) -> None:
                 f"{other_name}{other_idx} must stay idle during read of {txn['label']}"
             )
 
+        # ------------------------------------------------------------------
+        # Access phase
+        # ------------------------------------------------------------------
+        _set_value(entry["inputs"]["PREADY"], index, 1)
+        slave.PENABLE.value = 1
+
+        if slave.PCLK is not None:
+            await RisingEdge(slave.PCLK)
+        else:
+            await Timer(1, unit="ns")
+
+        assert _get_int(entry["outputs"]["PSEL"], index) == 1, f"{master_name} must keep PSEL asserted"
+        assert _get_int(entry["outputs"]["PENABLE"], index) == 1, f"{master_name} must assert PENABLE in access"
+
         assert int(slave.PRDATA.value) == read_data, "Slave should observe readback data from master"
         assert int(slave.PREADY.value) == 1, "Slave ready should follow responding master"
         assert int(slave.PSLVERR.value) == 0, "Read should complete without error"
@@ -218,4 +316,66 @@ async def test_apb4_address_decoding(dut) -> None:
         slave.PENABLE.value = 0
         _set_value(entry["inputs"]["PREADY"], index, 0)
         _set_value(entry["inputs"]["PRDATA"], index, 0)
+        if slave.PCLK is not None:
+            await RisingEdge(slave.PCLK)
+        else:
+            await Timer(1, unit="ns")
+
+
+@cocotb.test()
+async def test_apb4_invalid_address_response(dut) -> None:
+    """Ensure invalid addresses yield an error response and no master select."""
+    config = _load_config()
+    slave = _Apb4SlaveShim(dut)
+    masters = _build_master_table(dut, config["masters"])
+
+    await _start_clock(slave)
+    if slave.PRESETn is not None:
+        slave.PRESETn.value = 1
+
+    slave.PSEL.value = 0
+    slave.PENABLE.value = 0
+    slave.PWRITE.value = 0
+    slave.PADDR.value = 0
+    slave.PPROT.value = 0
+    slave.PWDATA.value = 0
+    slave.PSTRB.value = 0
+
+    for master_name, idx in _all_index_pairs(masters):
+        entry = masters[master_name]
+        _set_value(entry["inputs"]["PREADY"], idx, 0)
+        _set_value(entry["inputs"]["PSLVERR"], idx, 0)
+        _set_value(entry["inputs"]["PRDATA"], idx, 0)
+
+    invalid_addr = _find_invalid_address(config)
+    if invalid_addr is None:
+        dut._log.warning("No unmapped address found; skipping invalid address test")
+        return
+
+    slave.PADDR.value = invalid_addr
+    slave.PWRITE.value = 1
+    slave.PWDATA.value = _write_pattern(invalid_addr, config["data_width"])
+    slave.PSTRB.value = (1 << config["byte_width"]) - 1
+    slave.PSEL.value = 1
+    slave.PENABLE.value = 0
+
+    if slave.PCLK is not None:
+        await RisingEdge(slave.PCLK)
+    else:
         await Timer(1, unit="ns")
+
+    slave.PENABLE.value = 1
+
+    if slave.PCLK is not None:
+        await RisingEdge(slave.PCLK)
+    else:
+        await Timer(1, unit="ns")
+
+    for master_name, idx in _all_index_pairs(masters):
+        entry = masters[master_name]
+        assert _get_int(entry["outputs"]["PSEL"], idx) == 0, (
+            f"{master_name}{idx} must stay idle for invalid address"
+        )
+
+    assert int(slave.PREADY.value) == 1, "Invalid address should still complete the transfer"
+    assert int(slave.PSLVERR.value) == 1, "Invalid address should raise PSLVERR"

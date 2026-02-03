@@ -107,6 +107,32 @@ def _read_pattern(address: int, width: int) -> int:
     return ((address ^ 0x2468_ACED) + width) & mask
 
 
+def _find_invalid_address(config: dict[str, Any]) -> int | None:
+    addr_width = config["address_width"]
+    max_addr = 1 << addr_width
+    ranges = []
+    for master in config["masters"]:
+        inst_address = master["inst_address"]
+        inst_size = master["inst_size"]
+        n_elems = 1
+        if master.get("is_array"):
+            for dim in master.get("dimensions", []):
+                n_elems *= dim
+        span = inst_size * n_elems
+        ranges.append((inst_address, inst_address + span))
+    ranges.sort()
+
+    cursor = 0
+    for start, end in ranges:
+        if cursor < start:
+            return cursor
+        cursor = max(cursor, end)
+
+    if cursor < max_addr:
+        return cursor
+    return None
+
+
 @cocotb.test()
 async def test_axi4lite_address_decoding(dut) -> None:
     """Stimulate AXI4-Lite slave channels and verify master port selection."""
@@ -150,6 +176,9 @@ async def test_axi4lite_address_decoding(dut) -> None:
         address = txn["address"] & addr_mask
         write_data = _write_pattern(address, config["data_width"])
 
+        _set_value(entry["inputs"]["BVALID"], index, 1)
+        _set_value(entry["inputs"]["BRESP"], index, 0)
+
         slave.AWADDR.value = address
         slave.AWPROT.value = 0
         slave.AWVALID.value = 1
@@ -172,6 +201,8 @@ async def test_axi4lite_address_decoding(dut) -> None:
         assert _get_int(entry["outputs"]["WVALID"], index) == 1, f"{master_name} should see WVALID asserted"
         assert _get_int(entry["outputs"]["WDATA"], index) == write_data, f"{master_name} must receive WDATA"
         assert _get_int(entry["outputs"]["WSTRB"], index) == strobe_mask, f"{master_name} must receive WSTRB"
+        assert int(slave.AWREADY.value) == 1, "AWREADY should assert when write address/data are valid"
+        assert int(slave.WREADY.value) == 1, "WREADY should assert when write address/data are valid"
 
         for other_name, other_idx in _all_index_pairs(masters):
             if other_name == master_name and other_idx == index:
@@ -184,9 +215,13 @@ async def test_axi4lite_address_decoding(dut) -> None:
                 f"{other_name}{other_idx} WVALID should remain low during {txn['label']}"
             )
 
+        assert int(slave.BVALID.value) == 1, "Slave should observe BVALID from selected master"
+        assert int(slave.BRESP.value) == 0, "BRESP should indicate OKAY on write"
+
         slave.AWVALID.value = 0
         slave.WVALID.value = 0
         slave.BREADY.value = 0
+        _set_value(entry["inputs"]["BVALID"], index, 0)
         await Timer(1, unit="ns")
 
         read_data = _read_pattern(address, config["data_width"])
@@ -205,6 +240,7 @@ async def test_axi4lite_address_decoding(dut) -> None:
         assert _get_int(entry["outputs"]["ARADDR"], index) == master_address, (
             f"{master_name} must receive ARADDR"
         )
+        assert int(slave.ARREADY.value) == 1, "ARREADY should assert when ARVALID is high"
 
         for other_name, other_idx in _all_index_pairs(masters):
             if other_name == master_name and other_idx == index:
@@ -223,3 +259,145 @@ async def test_axi4lite_address_decoding(dut) -> None:
         _set_value(entry["inputs"]["RVALID"], index, 0)
         _set_value(entry["inputs"]["RDATA"], index, 0)
         await Timer(1, unit="ns")
+
+
+@cocotb.test()
+async def test_axi4lite_invalid_write_handshake(dut) -> None:
+    """Ensure mismatched AW/W valid signals raise an error and are ignored."""
+    config = _load_config()
+    slave = _AxilSlaveShim(dut)
+    masters = _build_master_table(dut, config["masters"])
+
+    slave.AWVALID.value = 0
+    slave.AWADDR.value = 0
+    slave.AWPROT.value = 0
+    slave.WVALID.value = 0
+    slave.WDATA.value = 0
+    slave.WSTRB.value = 0
+    slave.BREADY.value = 0
+    slave.ARVALID.value = 0
+    slave.ARADDR.value = 0
+    slave.ARPROT.value = 0
+    slave.RREADY.value = 0
+
+    for master_name, idx in _all_index_pairs(masters):
+        entry = masters[master_name]
+        _set_value(entry["inputs"]["AWREADY"], idx, 0)
+        _set_value(entry["inputs"]["WREADY"], idx, 0)
+        _set_value(entry["inputs"]["BVALID"], idx, 0)
+        _set_value(entry["inputs"]["BRESP"], idx, 0)
+        _set_value(entry["inputs"]["ARREADY"], idx, 0)
+        _set_value(entry["inputs"]["RVALID"], idx, 0)
+        _set_value(entry["inputs"]["RDATA"], idx, 0)
+        _set_value(entry["inputs"]["RRESP"], idx, 0)
+
+    await Timer(1, unit="ns")
+
+    if not config["transactions"]:
+        dut._log.warning("No transactions available; skipping invalid handshake test")
+        return
+
+    bad_addr = config["transactions"][0]["address"] & ((1 << config["address_width"]) - 1)
+    slave.AWADDR.value = bad_addr
+    slave.AWPROT.value = 0
+    slave.AWVALID.value = 1
+    slave.WVALID.value = 0
+    slave.BREADY.value = 1
+
+    await Timer(1, unit="ns")
+
+    for master_name, idx in _all_index_pairs(masters):
+        entry = masters[master_name]
+        assert _get_int(entry["outputs"]["AWVALID"], idx) == 0, (
+            f"{master_name}{idx} must not see AWVALID on invalid handshake"
+        )
+        assert _get_int(entry["outputs"]["WVALID"], idx) == 0, (
+            f"{master_name}{idx} must not see WVALID on invalid handshake"
+        )
+
+    assert int(slave.AWREADY.value) == 0, "AWREADY must remain low on invalid write handshake"
+    assert int(slave.WREADY.value) == 0, "WREADY must remain low on invalid write handshake"
+    assert int(slave.BVALID.value) == 1, "Invalid write handshake should return BVALID"
+    assert int(slave.BRESP.value) == 2, "Invalid write handshake should return SLVERR"
+
+
+@cocotb.test()
+async def test_axi4lite_invalid_address_response(dut) -> None:
+    """Ensure unmapped addresses return error responses and do not select a master."""
+    config = _load_config()
+    slave = _AxilSlaveShim(dut)
+    masters = _build_master_table(dut, config["masters"])
+
+    slave.AWVALID.value = 0
+    slave.AWADDR.value = 0
+    slave.AWPROT.value = 0
+    slave.WVALID.value = 0
+    slave.WDATA.value = 0
+    slave.WSTRB.value = 0
+    slave.BREADY.value = 0
+    slave.ARVALID.value = 0
+    slave.ARADDR.value = 0
+    slave.ARPROT.value = 0
+    slave.RREADY.value = 0
+
+    for master_name, idx in _all_index_pairs(masters):
+        entry = masters[master_name]
+        _set_value(entry["inputs"]["AWREADY"], idx, 0)
+        _set_value(entry["inputs"]["WREADY"], idx, 0)
+        _set_value(entry["inputs"]["BVALID"], idx, 0)
+        _set_value(entry["inputs"]["BRESP"], idx, 0)
+        _set_value(entry["inputs"]["ARREADY"], idx, 0)
+        _set_value(entry["inputs"]["RVALID"], idx, 0)
+        _set_value(entry["inputs"]["RDATA"], idx, 0)
+        _set_value(entry["inputs"]["RRESP"], idx, 0)
+
+    await Timer(1, unit="ns")
+
+    invalid_addr = _find_invalid_address(config)
+    if invalid_addr is None:
+        dut._log.warning("No unmapped address found; skipping invalid address test")
+        return
+
+    # Invalid read
+    slave.ARADDR.value = invalid_addr
+    slave.ARPROT.value = 0
+    slave.ARVALID.value = 1
+    slave.RREADY.value = 1
+
+    await Timer(1, unit="ns")
+
+    for master_name, idx in _all_index_pairs(masters):
+        entry = masters[master_name]
+        assert _get_int(entry["outputs"]["ARVALID"], idx) == 0, (
+            f"{master_name}{idx} must stay idle for invalid read address"
+        )
+
+    assert int(slave.RVALID.value) == 1, "Invalid read should return RVALID"
+    assert int(slave.RRESP.value) == 2, "Invalid read should return SLVERR"
+
+    slave.ARVALID.value = 0
+    slave.RREADY.value = 0
+    await Timer(1, unit="ns")
+
+    # Invalid write
+    slave.AWADDR.value = invalid_addr
+    slave.AWPROT.value = 0
+    slave.AWVALID.value = 1
+    slave.WDATA.value = 0xA5A5_5A5A
+    slave.WSTRB.value = (1 << config["byte_width"]) - 1
+    slave.WVALID.value = 1
+    slave.BREADY.value = 1
+
+    await Timer(1, unit="ns")
+
+    for master_name, idx in _all_index_pairs(masters):
+        entry = masters[master_name]
+        assert _get_int(entry["outputs"]["AWVALID"], idx) == 0, (
+            f"{master_name}{idx} must stay idle for invalid write address"
+        )
+        assert _get_int(entry["outputs"]["WVALID"], idx) == 0, (
+            f"{master_name}{idx} must stay idle for invalid write address"
+        )
+
+    assert int(slave.BVALID.value) == 1, "Invalid write should return BVALID"
+    assert int(slave.BRESP.value) == 2, "Invalid write should return SLVERR"
