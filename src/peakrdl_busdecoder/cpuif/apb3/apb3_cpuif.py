@@ -47,11 +47,36 @@ class APB3Cpuif(BaseCpuif):
 
         return "\n".join(f"assign {kv[0]} = {kv[1]};" for kv in fanout.items())
 
-    def fanin(self, node: AddressableNode | None = None) -> str:
+    def fanin_wr(self, node: AddressableNode | None = None, *, error: bool = False) -> str:
+        fanin: dict[str, str] = {}
+        if node is None:
+            fanin["cpuif_wr_ack"] = "'0"
+            fanin["cpuif_wr_err"] = "'0"
+            if error:
+                fanin["cpuif_wr_ack"] = "'1"
+                fanin["cpuif_wr_err"] = "cpuif_wr_sel.cpuif_err"
+        else:
+            # Use intermediate signals for interface arrays to avoid
+            # non-constant indexing of interface arrays in procedural blocks
+            if self.is_interface and node.is_array and node.array_dimensions:
+                # Generate array index string [i0][i1]... for the intermediate signal
+                array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
+                fanin["cpuif_wr_ack"] = f"{node.inst_name}_fanin_ready{array_idx}"
+                fanin["cpuif_wr_err"] = f"{node.inst_name}_fanin_err{array_idx}"
+            else:
+                fanin["cpuif_wr_ack"] = self.signal("PREADY", node, "i")
+                fanin["cpuif_wr_err"] = self.signal("PSLVERR", node, "i")
+        return "\n".join(f"{kv[0]} = {kv[1]};" for kv in fanin.items())
+
+    def fanin_rd(self, node: AddressableNode | None = None, *, error: bool = False) -> str:
         fanin: dict[str, str] = {}
         if node is None:
             fanin["cpuif_rd_ack"] = "'0"
             fanin["cpuif_rd_err"] = "'0"
+            fanin["cpuif_rd_data"] = "'0"
+            if error:
+                fanin["cpuif_rd_ack"] = "'1"
+                fanin["cpuif_rd_err"] = "cpuif_rd_sel.cpuif_err"
         else:
             # Use intermediate signals for interface arrays to avoid
             # non-constant indexing of interface arrays in procedural blocks
@@ -60,24 +85,10 @@ class APB3Cpuif(BaseCpuif):
                 array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
                 fanin["cpuif_rd_ack"] = f"{node.inst_name}_fanin_ready{array_idx}"
                 fanin["cpuif_rd_err"] = f"{node.inst_name}_fanin_err{array_idx}"
+                fanin["cpuif_rd_data"] = f"{node.inst_name}_fanin_data{array_idx}"
             else:
                 fanin["cpuif_rd_ack"] = self.signal("PREADY", node, "i")
                 fanin["cpuif_rd_err"] = self.signal("PSLVERR", node, "i")
-
-        return "\n".join(f"{kv[0]} = {kv[1]};" for kv in fanin.items())
-
-    def readback(self, node: AddressableNode | None = None) -> str:
-        fanin: dict[str, str] = {}
-        if node is None:
-            fanin["cpuif_rd_data"] = "'0"
-        else:
-            # Use intermediate signals for interface arrays to avoid
-            # non-constant indexing of interface arrays in procedural blocks
-            if self.is_interface and node.is_array and node.array_dimensions:
-                # Generate array index string [i0][i1]... for the intermediate signal
-                array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
-                fanin["cpuif_rd_data"] = f"{node.inst_name}_fanin_data{array_idx}"
-            else:
                 fanin["cpuif_rd_data"] = self.signal("PRDATA", node, "i")
 
         return "\n".join(f"{kv[0]} = {kv[1]};" for kv in fanin.items())
