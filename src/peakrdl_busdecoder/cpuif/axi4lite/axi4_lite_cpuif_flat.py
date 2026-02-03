@@ -82,8 +82,8 @@ class AXI4LiteCpuifFlat(BaseCpuif):
                 fanin["cpuif_wr_err"] = "cpuif_wr_sel.cpuif_err"
         else:
             # Read side: ack comes from RVALID; err if RRESP[1] is set (SLVERR/DECERR)
-            fanin["cpuif_wr_ack"] = self.signal("RVALID", node, "i")
-            fanin["cpuif_wr_err"] = f"{self.signal('RRESP', node, 'i')}[1]"
+            fanin["cpuif_wr_ack"] = self.signal("BVALID", node, "i")
+            fanin["cpuif_wr_err"] = f"{self.signal('BRESP', node, 'i')}[1]"
 
         return "\n".join(f"{lhs} = {rhs};" for lhs, rhs in fanin.items())
 
