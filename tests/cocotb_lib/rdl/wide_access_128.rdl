@@ -1,0 +1,75 @@
+reg payload128_reg_t {
+    regwidth = 128;
+    accesswidth = 128;
+    desc = "128-bit payload register.";
+
+    field {
+        sw = rw;
+        hw = rw;
+        reset = 0x0;
+    } word0[31:0];
+
+    field {
+        sw = rw;
+        hw = rw;
+        reset = 0x0;
+    } word1[63:32];
+
+    field {
+        sw = rw;
+        hw = rw;
+        reset = 0x0;
+    } word2[95:64];
+
+    field {
+        sw = rw;
+        hw = rw;
+        reset = 0x0;
+    } word3[127:96];
+};
+
+regfile block128_rf {
+    payload128_reg_t payload @ 0x0;
+
+    reg {
+        regwidth = 128;
+        accesswidth = 128;
+        field {
+            sw = r;
+            hw = w;
+            reset = 0x0;
+        } status0[31:0];
+
+        field {
+            sw = r;
+            hw = w;
+            reset = 0x0;
+        } status1[63:32];
+
+        field {
+            sw = r;
+            hw = w;
+            reset = 0x0;
+        } status2[95:64];
+
+        field {
+            sw = r;
+            hw = w;
+            reset = 0x0;
+        } status3[127:96];
+    } status @ 0x10;
+};
+
+addrmap wide_access_128 {
+    block128_rf blocks[2] @ 0x0 += 0x40;
+
+    reg {
+        regwidth = 64;
+        accesswidth = 64;
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } id[63:0];
+    } id @ 0x100;
+};

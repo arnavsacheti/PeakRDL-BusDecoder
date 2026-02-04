@@ -1,0 +1,56 @@
+reg status64_reg_t {
+    regwidth = 64;
+    accesswidth = 64;
+    desc = "64-bit status register.";
+
+    field {
+        sw = r;
+        hw = w;
+        reset = 0x0;
+    } status_lo[31:0];
+
+    field {
+        sw = r;
+        hw = w;
+        reset = 0x0;
+    } status_hi[63:32];
+};
+
+regfile channel64_rf {
+    status64_reg_t status @ 0x0;
+
+    reg {
+        regwidth = 64;
+        accesswidth = 64;
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x1;
+        } enable[0:0];
+
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } mode[2:1];
+
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } threshold[63:3];
+    } control @ 0x8;
+};
+
+addrmap wide_access_64 {
+    channel64_rf channels[4] @ 0x0 += 0x20;
+
+    reg {
+        regwidth = 32;
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } flags[31:0];
+    } flags @ 0x100;
+};

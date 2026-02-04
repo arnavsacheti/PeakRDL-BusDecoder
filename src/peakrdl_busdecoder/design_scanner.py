@@ -44,3 +44,14 @@ class DesignScanner(RDLListener):
             self.ds.has_external_addressable = True
             if not isinstance(node, RegNode):
                 self.ds.has_external_block = True
+
+    def enter_Reg(self, node: RegNode) -> None:
+        if node.external and node != self.top_node:
+            return
+
+        accesswidth = node.get_property("accesswidth")
+        if accesswidth is None:
+            return
+
+        if accesswidth > self.ds.cpuif_data_width:
+            self.ds.cpuif_data_width = accesswidth

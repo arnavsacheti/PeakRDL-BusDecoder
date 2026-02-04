@@ -73,6 +73,7 @@ addrmap asymmetric_bus {
 
     reg {
         regwidth = 64;
+        accesswidth = 32;
         field {
             sw = rw;
             hw = rw;
@@ -88,11 +89,18 @@ addrmap asymmetric_bus {
 
     reg {
         regwidth = 128;
+        accesswidth = 32;
         field {
             sw = rw;
             hw = rw;
             reset = 0x0;
-        } extended_id[63:0];
+        } extended_id_low[31:0];
+
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } extended_id_high[63:32];
 
         field {
             sw = rw;
