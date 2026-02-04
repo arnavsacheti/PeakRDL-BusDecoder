@@ -69,6 +69,7 @@ regfile slice_rf {
 
     reg {
         regwidth = 64;
+        accesswidth = 32;
         field {
             sw = r;
             hw = w;

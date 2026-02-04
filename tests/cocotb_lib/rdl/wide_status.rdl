@@ -1,5 +1,6 @@
 reg status_reg_t {
     regwidth = 64;
+    accesswidth = 32;
     desc = "Status register capturing wide flags and sticky bits.";
 
     field {
@@ -7,7 +8,14 @@ reg status_reg_t {
         hw = w;
         onread = rclr;
         reset = 0x0;
-    } flags[62:0];
+    } flags_low[31:0];
+
+    field {
+        sw = r;
+        hw = w;
+        onread = rclr;
+        reset = 0x0;
+    } flags_high[62:32];
 
     field {
         sw = rw;
@@ -18,6 +26,7 @@ reg status_reg_t {
 
 reg metrics_reg_t {
     regwidth = 64;
+    accesswidth = 32;
     desc = "Metrics register pairing counters with thresholds.";
 
     field {
@@ -40,11 +49,30 @@ addrmap wide_status {
 
     reg {
         regwidth = 128;
+        accesswidth = 32;
         field {
             sw = rw;
             hw = rw;
             reset = 0x0;
-        } configuration[127:0];
+        } configuration_0[31:0];
+
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } configuration_1[63:32];
+
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } configuration_2[95:64];
+
+        field {
+            sw = rw;
+            hw = rw;
+            reset = 0x0;
+        } configuration_3[127:96];
     } configuration @ 0x800;
 
     reg {

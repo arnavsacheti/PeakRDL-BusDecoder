@@ -122,3 +122,43 @@ class TestDesignState:
 
         # Should infer 32-bit data width from field
         assert ds.cpuif_data_width == 32
+
+    def test_design_state_accesswidth_64(self, compile_rdl: Callable[..., AddrmapNode]) -> None:
+        """Test DesignState with explicit 64-bit access width."""
+        rdl_source = """
+        addrmap test {
+            reg {
+                regwidth = 64;
+                accesswidth = 64;
+                field {
+                    sw=rw;
+                    hw=r;
+                } data[63:0];
+            } my_reg @ 0x0;
+        };
+        """
+        top = compile_rdl(rdl_source, top="test")
+
+        ds = DesignState(top, {})
+
+        assert ds.cpuif_data_width == 64
+
+    def test_design_state_accesswidth_128(self, compile_rdl: Callable[..., AddrmapNode]) -> None:
+        """Test DesignState with explicit 128-bit access width."""
+        rdl_source = """
+        addrmap test {
+            reg {
+                regwidth = 128;
+                accesswidth = 128;
+                field {
+                    sw=rw;
+                    hw=r;
+                } data[127:0];
+            } my_reg @ 0x0;
+        };
+        """
+        top = compile_rdl(rdl_source, top="test")
+
+        ds = DesignState(top, {})
+
+        assert ds.cpuif_data_width == 128
