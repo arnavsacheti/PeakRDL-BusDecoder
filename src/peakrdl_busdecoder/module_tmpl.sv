@@ -15,6 +15,7 @@ module {{ds.module_name}}
 ) {%- endif %} (
     {{cpuif.port_declaration|indent(4)}}
 );
+    import {{ds.package_name}}::*; 
     //--------------------------------------------------------------------------
     // CPU Bus interface logic
     //--------------------------------------------------------------------------
