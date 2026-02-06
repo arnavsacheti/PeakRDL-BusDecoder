@@ -37,9 +37,8 @@ class APB3CpuifFlat(BaseCpuif):
 
     def fanout(self, node: AddressableNode, array_stack: deque[int]) -> str:
         fanout: dict[str, str] = {}
-        addr_comp = [f"{self.signal('PADDR')}"]
-        for i, stride in enumerate(array_stack):
-            addr_comp.append(f"(gi{i}*{SVInt(stride, self.addr_width)})")
+
+        addr_width = f"{self.exp.ds.module_name.upper()}_{node.inst_name.upper()}_ADDR_WIDTH"
 
         fanout[self.signal("PSEL", node, "gi")] = (
             f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}|cpuif_rd_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
@@ -48,9 +47,19 @@ class APB3CpuifFlat(BaseCpuif):
         fanout[self.signal("PWRITE", node, "gi")] = (
             f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
         )
-        fanout[self.signal("PADDR", node, "gi")] = (
-            f"{{{'-'.join(addr_comp)}}}[{self.exp.ds.module_name.upper()}_{node.inst_name.upper()}_ADDR_WIDTH-1:0]"
-        )
+        if self._can_truncate_addr(node, array_stack):
+            # Size is a power of 2 and aligned, so we can directly use the address bits as the slave address
+            fanout[self.signal("PADDR", node, "gi")] = (
+                f"{self.signal('PADDR')}[{addr_width}-1:0]"
+            )
+        else:
+            addr_comp = [f"{self.signal('PADDR')}", f"{SVInt(node.raw_absolute_address, self.addr_width)}"]
+            for i, stride in enumerate(array_stack):
+                addr_comp.append(f"{self.addr_width}'(gi{i}*{SVInt(stride, self.addr_width)})")
+
+            fanout[self.signal("PADDR", node, "gi")] = (
+                f"{addr_width}'({' - '.join(addr_comp)})"
+            )
         fanout[self.signal("PWDATA", node, "gi")] = "cpuif_wr_data"
 
         return "\n".join(f"assign {kv[0]} = {kv[1]};" for kv in fanout.items())

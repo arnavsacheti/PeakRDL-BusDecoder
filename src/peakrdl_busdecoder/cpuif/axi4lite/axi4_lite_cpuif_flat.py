@@ -39,21 +39,29 @@ class AXI4LiteCpuifFlat(BaseCpuif):
 
     def fanout(self, node: AddressableNode, array_stack: deque[int]) -> str:
         fanout: dict[str, str] = {}
-        waddr_comp = [f"{self.signal('AWADDR')}"]
-        raddr_comp = [f"{self.signal('ARADDR')}"]
+        waddr_comp = [f"{self.signal('AWADDR')}", f"{SVInt(node.raw_absolute_address, self.addr_width)}"]
+        raddr_comp = [f"{self.signal('ARADDR')}", f"{SVInt(node.raw_absolute_address, self.addr_width)}"]
         for i, stride in enumerate(array_stack):
-            offset = f"(gi{i}*{SVInt(stride, self.addr_width)})"
+            offset = f"{self.addr_width}'(gi{i}*{SVInt(stride, self.addr_width)})"
             waddr_comp.append(offset)
             raddr_comp.append(offset)
+
+        addr_width = f"{self.exp.ds.module_name.upper()}_{node.inst_name.upper()}_ADDR_WIDTH"
 
         wr_sel = f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
         rd_sel = f"cpuif_rd_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
 
         # Write address channel
         fanout[self.signal("AWVALID", node, "gi")] = wr_sel
-        fanout[self.signal("AWADDR", node, "gi")] = (
-            f"{{{'-'.join(waddr_comp)}}}[{self.exp.ds.module_name.upper()}_{node.inst_name.upper()}_ADDR_WIDTH-1:0]"
-        )
+        if self._can_truncate_addr(node, array_stack):
+            # Size is a power of 2 and aligned, so we can directly use the address bits as the slave address
+            fanout[self.signal("AWADDR", node, "gi")] = (
+                f"{self.signal('AWADDR')}[{addr_width}-1:0]"
+            )
+        else:
+            fanout[self.signal("AWADDR", node, "gi")] = (
+                f"{addr_width}'({'-'.join(waddr_comp)})"
+            )
         fanout[self.signal("AWPROT", node, "gi")] = self.signal("AWPROT")
 
         # Write data channel
@@ -66,9 +74,15 @@ class AXI4LiteCpuifFlat(BaseCpuif):
 
         # Read address channel
         fanout[self.signal("ARVALID", node, "gi")] = rd_sel
-        fanout[self.signal("ARADDR", node, "gi")] = (
-            f"{{{'-'.join(raddr_comp)}}}[{self.exp.ds.module_name.upper()}_{node.inst_name.upper()}_ADDR_WIDTH-1:0]"
-        )
+        if self._can_truncate_addr(node, array_stack):
+            # Size is a power of 2 and aligned, so we can directly use the address bits as the slave address
+            fanout[self.signal("ARADDR", node, "gi")] = (
+                f"{self.signal('ARADDR')}[{addr_width}-1:0]"
+            )
+        else:
+            fanout[self.signal("ARADDR", node, "gi")] = (
+                f"{addr_width}'({'-'.join(raddr_comp)})"
+            )
         fanout[self.signal("ARPROT", node, "gi")] = self.signal("ARPROT")
 
         # Read data channel (master -> slave)

@@ -107,6 +107,16 @@ class BaseCpuif:
 
         return f"({cpuif_addr} - 'h{addr:x})[{clog2(size) - 1}:0]"
 
+    def _can_truncate_addr(self, node: AddressableNode, array_stack: deque[int]) -> bool:
+        if node.size.bit_count() != 1:
+            return False
+        if node.raw_absolute_address % node.size != 0:
+            return False
+        for stride in array_stack:
+            if stride % node.size != 0:
+                return False
+        return True
+
     def fanout(self, node: AddressableNode, array_stack: deque[int]) -> str:
         raise NotImplementedError
 
