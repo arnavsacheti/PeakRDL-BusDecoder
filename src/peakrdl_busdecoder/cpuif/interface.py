@@ -64,17 +64,20 @@ class Interface(ABC):
 class SVInterface(Interface):
     """SystemVerilog interface-based signal handling."""
 
+    slave_modport_name = "slave"
+    master_modport_name = "master"
+
     @property
     def is_interface(self) -> bool:
         return True
 
     def get_port_declaration(self, slave_name: str, master_prefix: str) -> str:
         """Generate SystemVerilog interface port declarations."""
-        slave_ports: list[str] = [f"{self.get_interface_type()}.slave {slave_name}"]
+        slave_ports: list[str] = [f"{self.get_interface_type()}.{self.slave_modport_name} {slave_name}"]
         master_ports: list[str] = []
 
         for child in self.cpuif.addressable_children:
-            base = f"{self.get_interface_type()}.master {master_prefix}{child.inst_name}"
+            base = f"{self.get_interface_type()}.{self.master_modport_name} {master_prefix}{child.inst_name}"
 
             # When unrolled, current_idx is set - append it to the name
             if child.current_idx is not None:
