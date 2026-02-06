@@ -54,13 +54,9 @@ class AXI4LiteCpuif(BaseCpuif):
         fanout[self.signal("AWVALID", node, "gi")] = wr_sel
         if self._can_truncate_addr(node, array_stack):
             # Size is a power of 2 and aligned, so we can directly use the address bits as the slave address
-            fanout[self.signal("AWADDR", node, "gi")] = (
-                f"{self.signal('AWADDR')}[{addr_width}-1:0]"
-            )
+            fanout[self.signal("AWADDR", node, "gi")] = f"{self.signal('AWADDR')}[{addr_width}-1:0]"
         else:
-            fanout[self.signal("AWADDR", node, "gi")] = (
-                f"{addr_width}'({'-'.join(waddr_comp)})"
-            )
+            fanout[self.signal("AWADDR", node, "gi")] = f"{addr_width}'({'-'.join(waddr_comp)})"
         fanout[self.signal("AWPROT", node, "gi")] = self.signal("AWPROT")
 
         # Write data channel
@@ -75,13 +71,9 @@ class AXI4LiteCpuif(BaseCpuif):
         fanout[self.signal("ARVALID", node, "gi")] = rd_sel
         if self._can_truncate_addr(node, array_stack):
             # Size is a power of 2 and aligned, so we can directly use the address bits as the slave address
-            fanout[self.signal("ARADDR", node, "gi")] = (
-                f"{self.signal('ARADDR')}[{addr_width}-1:0]"
-            )
+            fanout[self.signal("ARADDR", node, "gi")] = f"{self.signal('ARADDR')}[{addr_width}-1:0]"
         else:
-            fanout[self.signal("ARADDR", node, "gi")] = (
-                f"{addr_width}'({'-'.join(raddr_comp)})"
-            )
+            fanout[self.signal("ARADDR", node, "gi")] = f"{addr_width}'({'-'.join(raddr_comp)})"
         fanout[self.signal("ARPROT", node, "gi")] = self.signal("ARPROT")
 
         # Read data channel (master -> slave)

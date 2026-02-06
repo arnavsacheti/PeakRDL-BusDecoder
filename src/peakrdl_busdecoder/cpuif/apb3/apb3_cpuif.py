@@ -48,17 +48,13 @@ class APB3Cpuif(BaseCpuif):
         )
         if self._can_truncate_addr(node, array_stack):
             # Size is a power of 2 and aligned, so we can directly use the address bits as the slave address
-            fanout[self.signal("PADDR", node, "gi")] = (
-                f"{self.signal('PADDR')}[{addr_width}-1:0]"
-            )
+            fanout[self.signal("PADDR", node, "gi")] = f"{self.signal('PADDR')}[{addr_width}-1:0]"
         else:
             addr_comp = [f"{self.signal('PADDR')}", f"{SVInt(node.raw_absolute_address, self.addr_width)}"]
             for i, stride in enumerate(array_stack):
                 addr_comp.append(f"{self.addr_width}'(gi{i}*{SVInt(stride, self.addr_width)})")
 
-            fanout[self.signal("PADDR", node, "gi")] = (
-                f"{addr_width}'({' - '.join(addr_comp)})"
-            )
+            fanout[self.signal("PADDR", node, "gi")] = f"{addr_width}'({' - '.join(addr_comp)})"
         fanout[self.signal("PWDATA", node, "gi")] = "cpuif_wr_data"
 
         return "\n".join(f"assign {kv[0]} = {kv[1]};" for kv in fanout.items())
