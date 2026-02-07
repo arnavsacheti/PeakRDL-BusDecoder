@@ -86,7 +86,10 @@ class SVInterface(Interface):
             # Only add array dimensions if this should be treated as an array
             if self.cpuif.check_is_array(child):
                 assert child.array_dimensions is not None
-                base = f"{base} {''.join(f'[{dim}]' for dim in child.array_dimensions)}"
+                if len(child.array_dimensions) == 1:
+                    base = f"{base} [N_{child.inst_name.upper()}S]"
+                else:
+                    base = f"{base} {''.join(f'[N_{child.inst_name.upper()}S_{i}]' for i in range(len(child.array_dimensions)))}"
 
             master_ports.append(base)
 
@@ -100,18 +103,17 @@ class SVInterface(Interface):
     ) -> str:
         """Generate SystemVerilog interface signal reference."""
 
-        # SVInterface only supports string indexers (loop variable names like "i", "gi")
-        if indexer is not None and not isinstance(indexer, str):
-            raise TypeError(f"SVInterface.signal() requires string indexer, got {type(indexer).__name__}")
-
-        if node is None or indexer is None:
-            # Node is none, so this is a slave signal
+        if node is None:
+            # Slave signal
             slave_name = self.get_slave_name()
             return f"{slave_name}.{signal}"
 
-        # Master signal
+        if indexer is not None and not isinstance(indexer, str):
+            raise TypeError(f"SVInterface.signal() requires string indexer, got {type(indexer).__name__}")
+
         master_prefix = self.get_master_prefix()
-        return f"{master_prefix}{get_indexed_path(node.parent, node, indexer, skip_kw_filter=True)}.{signal}"
+        path_indexer = indexer if indexer is not None else "i"
+        return f"{master_prefix}{get_indexed_path(node.parent, node, path_indexer, skip_kw_filter=True)}.{signal}"
 
     @abstractmethod
     def get_interface_type(self) -> str:

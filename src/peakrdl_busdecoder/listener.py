@@ -33,7 +33,8 @@ class BusDecoderListener(RDLListener):
         return False
 
     def enter_AddressableComponent(self, node: AddressableNode) -> WalkerAction | None:
-        if node.array_dimensions:
+        is_unrolled_elem = self._ds.cpuif_unroll and getattr(node, "current_idx", None) is not None
+        if node.array_dimensions and not is_unrolled_elem:
             assert node.array_stride is not None, "Array stride should be defined for arrayed components"
             current_stride = node.array_stride
             self._array_stride_stack.append(current_stride)
@@ -53,7 +54,8 @@ class BusDecoderListener(RDLListener):
         return WalkerAction.Continue
 
     def exit_AddressableComponent(self, node: AddressableNode) -> None:
-        if node.array_dimensions:
+        is_unrolled_elem = self._ds.cpuif_unroll and getattr(node, "current_idx", None) is not None
+        if node.array_dimensions and not is_unrolled_elem:
             for _ in node.array_dimensions:
                 self._array_stride_stack.pop()
 

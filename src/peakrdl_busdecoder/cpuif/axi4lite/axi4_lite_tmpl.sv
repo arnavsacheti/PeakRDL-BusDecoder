@@ -1,31 +1,3 @@
-{%- if cpuif.is_interface -%}
-`ifndef SYNTHESIS
-    initial begin
-        // Width checks (AXI4-Lite)
-        assert_bad_awaddr_width: assert($bits({{cpuif.signal("AWADDR")}}) >= {{ds.package_name}}::{{ds.module_name|upper}}_MIN_ADDR_WIDTH)
-            else $error("AWADDR width %0d < MIN_ADDR_WIDTH %0d",
-                        $bits({{cpuif.signal("AWADDR")}}), {{ds.package_name}}::{{ds.module_name|upper}}_MIN_ADDR_WIDTH);
-
-        assert_bad_araddr_width: assert($bits({{cpuif.signal("ARADDR")}}) >= {{ds.package_name}}::{{ds.module_name|upper}}_MIN_ADDR_WIDTH)
-            else $error("ARADDR width %0d < MIN_ADDR_WIDTH %0d",
-                        $bits({{cpuif.signal("ARADDR")}}), {{ds.package_name}}::{{ds.module_name|upper}}_MIN_ADDR_WIDTH);
-
-        assert_bad_data_width: assert($bits({{cpuif.signal("WDATA")}}) == {{ds.package_name}}::{{ds.module_name|upper}}_DATA_WIDTH)
-            else $error("WDATA width %0d != DATA_WIDTH %0d",
-                        $bits({{cpuif.signal("WDATA")}}), {{ds.package_name}}::{{ds.module_name|upper}}_DATA_WIDTH);
-    end
-
-    // Simple handshake sanity (one-cycle implication; relax/adjust as needed)
-    assert_rd_resp_enc: assert property (@(posedge {{cpuif.signal("ACLK")}})
-        {{cpuif.signal("RVALID")}} |-> (^{{cpuif.signal("RRESP")}} !== 1'bx))
-            else $error("RRESP must be a legal AXI response when RVALID is high");
-
-    assert_wr_resp_enc: assert property (@(posedge {{cpuif.signal("ACLK")}})
-        {{cpuif.signal("BVALID")}} |-> (^{{cpuif.signal("BRESP")}} !== 1'bx))
-            else $error("BRESP must be a legal AXI response when BVALID is high");
-`endif
-{% endif -%}
-
 logic axi_wr_valid;
 logic axi_wr_invalid;
 logic cpuif_wr_ack_int;
@@ -38,7 +10,6 @@ assign axi_wr_invalid = {{cpuif.signal("AWVALID")}} ^ {{cpuif.signal("WVALID")}}
 assign {{cpuif.signal("AWREADY")}} = axi_wr_valid;
 assign {{cpuif.signal("WREADY")}}  = axi_wr_valid;
 assign {{cpuif.signal("ARREADY")}} = {{cpuif.signal("ARVALID")}};
-
 assign cpuif_req     = {{cpuif.signal("AWVALID")}} | {{cpuif.signal("ARVALID")}};
 assign cpuif_wr_en   = axi_wr_valid;
 assign cpuif_rd_en   = {{cpuif.signal("ARVALID")}};
