@@ -1,0 +1,25 @@
+addrmap dummy_regs {
+    name = "";
+    desc = "";
+
+    reg {
+        name = "";
+        desc = "";
+
+        field {
+            name = "";
+            desc = "";
+            hw   = r;
+            sw   = rw;
+        } dummy_field[0:0] = 0x0;
+
+    } dummy_reg @ 0x0;
+};
+
+
+addrmap decode_repro {
+    name = "Efinix Quad Eth regs";
+    desc = "";
+
+    dummy_regs dummy_regs[4] @0x00 += 0x80;
+};

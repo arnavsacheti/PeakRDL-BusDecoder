@@ -9,4 +9,5 @@ RDL_CASES: list[tuple[str, str]] = [
     ("wide_access_128.rdl", "wide_access_128"),
     ("variable_layout.rdl", "variable_layout"),
     ("asymmetric_bus.rdl", "asymmetric_bus"),
+    ("array_only.rdl", "decode_repro"),
 ]

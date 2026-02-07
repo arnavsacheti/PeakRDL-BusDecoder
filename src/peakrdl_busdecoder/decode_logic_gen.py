@@ -40,6 +40,10 @@ class DecodeLogicGenerator(BusDecoderListener):
         # Initial Stack Conditions
         self._decode_stack.append(IfBody())
 
+    def _combine_conditions(self, conditions: list[str]) -> str:
+        condition = " && ".join(f"({c})" for c in conditions)
+        return condition or "1'b1"
+
     def cpuif_addr_predicate(self, node: AddressableNode, total_size: bool = True) -> list[str]:
         # Generate address bounds
         addr_width = self._ds.addr_width
@@ -108,7 +112,7 @@ class DecodeLogicGenerator(BusDecoderListener):
         conditions: list[str] = []
         conditions.extend(self.cpuif_addr_predicate(node))
         conditions.extend(self.cpuif_prot_predicate(node))
-        condition = " && ".join(f"({c})" for c in conditions)
+        condition = self._combine_conditions(conditions)
 
         # Generate condition string and manage stack
         if node.array_dimensions:
@@ -143,7 +147,7 @@ class DecodeLogicGenerator(BusDecoderListener):
         if not ifb and isinstance(ifb, IfBody):
             conditions: list[str] = []
             conditions.extend(self.cpuif_addr_predicate(node, total_size=False))
-            condition = " && ".join(f"({c})" for c in conditions)
+            condition = self._combine_conditions(conditions)
 
             with ifb.cm(condition) as b:
                 b += f"{self._flavor.cpuif_select}.{get_indexed_path(self._ds.top_node, node)} = 1'b1;"
