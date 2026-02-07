@@ -60,11 +60,15 @@ class DecodeLogicGenerator(BusDecoderListener):
         l_bound_comp = [str(l_bound)]
         u_bound_comp = [str(u_bound)]
         for i, stride in enumerate(array_stack):
-            l_bound_comp.append(f"({addr_width}'(i{i})*{SVInt(stride, addr_width)})")
-            u_bound_comp.append(f"({addr_width}'(i{i})*{SVInt(stride, addr_width)})")
+            l_bound_comp.append(f"(i{i}*{SVInt(stride, addr_width)})")
+            u_bound_comp.append(f"(i{i}*{SVInt(stride, addr_width)})")
 
-        lower_expr = f"{self._flavor.cpuif_address} >= ({'+'.join(l_bound_comp)})"
-        upper_expr = f"{self._flavor.cpuif_address} < ({'+'.join(u_bound_comp)})"
+        if len(l_bound_comp) == 1:
+            lower_expr = f"{self._flavor.cpuif_address} >= {l_bound_comp[0]}"
+            upper_expr = f"{self._flavor.cpuif_address} < {u_bound_comp[0]}"
+        else:
+            lower_expr = f"{self._flavor.cpuif_address} >= {self._ds.addr_width}'({'+'.join(l_bound_comp)})"
+            upper_expr = f"{self._flavor.cpuif_address} < {self._ds.addr_width}'({'+'.join(u_bound_comp)})"
 
         predicates: list[str] = []
         # Avoid generating a redundant >= 0 comparison, which triggers Verilator warnings.
