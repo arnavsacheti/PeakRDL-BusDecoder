@@ -40,10 +40,6 @@ class DecodeLogicGenerator(BusDecoderListener):
         # Initial Stack Conditions
         self._decode_stack.append(IfBody())
 
-    def _combine_conditions(self, conditions: list[str]) -> str:
-        condition = " && ".join(f"({c})" for c in conditions)
-        return condition or "1'b1"
-
     def cpuif_addr_predicate(self, node: AddressableNode, total_size: bool = True) -> list[str]:
         # Generate address bounds
         addr_width = self._ds.addr_width
@@ -82,6 +78,10 @@ class DecodeLogicGenerator(BusDecoderListener):
         if not (u_bound.value == (1 << addr_width) and len(u_bound_comp) == 1):
             predicates.append(upper_expr)
 
+        if not predicates:
+            # If there are no predicates, return a tautology to avoid generating empty conditions.
+            predicates.append("1'b1")
+
         return predicates
 
     def cpuif_prot_predicate(self, node: AddressableNode) -> list[str]:
@@ -112,7 +112,7 @@ class DecodeLogicGenerator(BusDecoderListener):
         conditions: list[str] = []
         conditions.extend(self.cpuif_addr_predicate(node))
         conditions.extend(self.cpuif_prot_predicate(node))
-        condition = self._combine_conditions(conditions)
+        condition = " && ".join(f"({c})" for c in conditions) if len(conditions) > 1 else conditions[0]
 
         # Generate condition string and manage stack
         if node.array_dimensions:
@@ -147,7 +147,7 @@ class DecodeLogicGenerator(BusDecoderListener):
         if not ifb and isinstance(ifb, IfBody):
             conditions: list[str] = []
             conditions.extend(self.cpuif_addr_predicate(node, total_size=False))
-            condition = self._combine_conditions(conditions)
+            condition = " && ".join(f"({c})" for c in conditions)
 
             with ifb.cm(condition) as b:
                 b += f"{self._flavor.cpuif_select}.{get_indexed_path(self._ds.top_node, node)} = 1'b1;"
@@ -169,9 +169,13 @@ class DecodeLogicGenerator(BusDecoderListener):
 
     def __str__(self) -> str:
         body = self._decode_stack[-1]
+
         if isinstance(body, IfBody):
             if len(body) == 0:
                 return f"{self._flavor.cpuif_select}.cpuif_err = 1'b1;"
+            elif len(body) == 1 and body._branches[0][0] == "1'b1":
+                # Special case for single-branch decoders to avoid generating redundant if statements
+                return str(body._branches[0][1])
             with body.cm(...) as b:
                 b += f"{self._flavor.cpuif_select}.cpuif_err = 1'b1;"
 
