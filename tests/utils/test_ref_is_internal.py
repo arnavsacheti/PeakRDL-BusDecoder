@@ -1,12 +1,12 @@
 from collections.abc import Callable
 
-from systemrdl.node import AddrmapNode
+from systemrdl.node import AddrmapNode, Node
 from systemrdl.rdltypes.references import PropertyReference
 
 from peakrdl_busdecoder.utils import ref_is_internal
 
 
-def _find_child_by_name(node: AddrmapNode, inst_name: str):
+def _find_child_by_name(node: AddrmapNode, inst_name: str) -> Node:
     for child in node.children():
         if child.inst_name == inst_name:
             return child

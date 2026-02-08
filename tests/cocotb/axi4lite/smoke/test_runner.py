@@ -7,8 +7,7 @@ import logging
 from pathlib import Path
 
 import pytest
-
-from peakrdl_busdecoder.cpuif.axi4lite.axi4_lite_cpuif_flat import AXI4LiteCpuifFlat
+from peakrdl_busdecoder.cpuif.axi4lite.axi4_lite_cpuif import AXI4LiteCpuifFlat
 
 try:  # pragma: no cover - optional dependency shim
     from cocotb.runner import get_runner
