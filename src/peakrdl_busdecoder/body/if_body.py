@@ -72,12 +72,14 @@ class IfBody(Body):
     def __str__(self) -> str:
         out: list[str] = []
         for i, (cond, body) in enumerate(self._branches):
-            if i == 0 and cond is not None:
+            if cond is None:
+                assert i != 0, "Else branch cannot be the first branch."
+                out[-1] += " else begin"
+            elif i == 0:
                 out.append(f"if ({cond}) begin")
-            elif cond is not None:
-                out.append(f"else if ({cond}) begin")
             else:
-                out.append("else begin")
+                out[-1] += f" else if ({cond}) begin"
+
             body_str = str(body)
             if body_str:
                 out.extend(indent(ln, "    ") for ln in body_str.splitlines())
