@@ -1,5 +1,6 @@
 from collections import deque
 from enum import Enum
+from textwrap import indent
 from typing import cast
 
 from systemrdl.node import AddressableNode
@@ -10,6 +11,10 @@ from .design_state import DesignState
 from .listener import BusDecoderListener
 from .sv_int import SVInt
 from .utils import get_indexed_path
+
+# Minimum number of branches at which binary search tree generation is used
+# instead of a linear if-else-if chain. Groups of this size or smaller use linear.
+_BINARY_SEARCH_THRESHOLD = 3
 
 
 class DecodeLogicFlavor(Enum):
@@ -36,6 +41,9 @@ class DecodeLogicGenerator(BusDecoderListener):
 
         self._decode_stack: deque[Body] = deque()  # Tracks decoder body
         self._cond_stack: deque[str] = deque()  # Tracks conditions nested for loops
+
+        # Track start addresses for branches in the root IfBody (for binary search optimization)
+        self._root_branch_addrs: list[int] = []
 
         # Initial Stack Conditions
         self._decode_stack.append(IfBody())
@@ -131,6 +139,8 @@ class DecodeLogicGenerator(BusDecoderListener):
             self._decode_stack.append(IfBody())
         elif isinstance(self._decode_stack[-1], IfBody):
             # non-arrayed component with if-body
+            if len(self._decode_stack) == 1:
+                self._root_branch_addrs.append(node.raw_absolute_address)
             ifb = cast(IfBody, self._decode_stack[-1])
             with ifb.cm(condition) as b:
                 b += f"{self._flavor.cpuif_select}.{get_indexed_path(self._ds.top_node, node)} = 1'b1;"
@@ -159,6 +169,8 @@ class DecodeLogicGenerator(BusDecoderListener):
                 continue
 
             if isinstance(self._decode_stack[-1], IfBody):
+                if len(self._decode_stack) == 1:
+                    self._root_branch_addrs.append(node.raw_absolute_address)
                 ifb = cast(IfBody, self._decode_stack[-1])
                 with ifb.cm(self._cond_stack.pop()) as parent_b:
                     parent_b += b
@@ -166,6 +178,54 @@ class DecodeLogicGenerator(BusDecoderListener):
                 self._decode_stack[-1] += b
 
         super().exit_AddressableComponent(node)
+
+    def _build_binary_search(
+        self,
+        entries: list[tuple[int, tuple]],
+        err_line: str,
+    ) -> str:
+        """Build a binary search tree of if-else statements for address decoding.
+
+        For small numbers of entries (<= _BINARY_SEARCH_THRESHOLD), generates a
+        linear if-else-if chain. For larger numbers, recursively splits entries by
+        address midpoint to produce a balanced binary tree of comparisons, reducing
+        worst-case comparison depth from O(N) to O(log N).
+        """
+        if len(entries) <= _BINARY_SEARCH_THRESHOLD:
+            # Base case: linear if-else-if with error else
+            out: list[str] = []
+            for i, (_, (cond, body)) in enumerate(entries):
+                if i == 0:
+                    out.append(f"if ({cond}) begin")
+                else:
+                    out.append(f"else if ({cond}) begin")
+                body_str = str(body)
+                if body_str:
+                    out.append(indent(body_str, "    "))
+                out.append("end")
+            out.append("else begin")
+            out.append(f"    {err_line}")
+            out.append("end")
+            return "\n".join(out)
+
+        # Recursive case: split at midpoint address
+        mid = len(entries) // 2
+        left = entries[:mid]
+        right = entries[mid:]
+
+        split_addr = right[0][0]
+        split_sv = SVInt(split_addr, self._ds.addr_width)
+
+        left_str = self._build_binary_search(left, err_line)
+        right_str = self._build_binary_search(right, err_line)
+
+        out: list[str] = []
+        out.append(f"if ({self._flavor.cpuif_address} < {split_sv}) begin")
+        out.append(indent(left_str, "    "))
+        out.append("end else begin")
+        out.append(indent(right_str, "    "))
+        out.append("end")
+        return "\n".join(out)
 
     def __str__(self) -> str:
         body = self._decode_stack[-1]
@@ -176,7 +236,19 @@ class DecodeLogicGenerator(BusDecoderListener):
             elif len(body) == 1 and body._branches[0][0] == "1'b1":
                 # Special case for single-branch decoders to avoid generating redundant if statements
                 return str(body._branches[0][1])
+
+            err_line = f"{self._flavor.cpuif_select}.cpuif_err = 1'b1;"
+
+            # Use binary search tree if we have address metadata for all branches
+            if (
+                len(self._root_branch_addrs) == len(body._branches)
+                and len(body._branches) > _BINARY_SEARCH_THRESHOLD
+            ):
+                entries = list(zip(self._root_branch_addrs, body._branches))
+                return self._build_binary_search(entries, err_line)
+
+            # Linear if-else-if (original behavior)
             with body.cm(...) as b:
-                b += f"{self._flavor.cpuif_select}.cpuif_err = 1'b1;"
+                b += err_line
 
         return str(body)
