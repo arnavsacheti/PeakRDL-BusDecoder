@@ -102,6 +102,13 @@ class APB3Cpuif(APB3CpuifFlat):
         super().__init__(exp)
         self._interface = APB3SVInterface(self)
 
+    @property
+    def port_declaration(self) -> str:
+        """
+        Returns the port declaration for the APB3 interface.
+        """
+        return self._interface.get_port_declaration("s_apb", "m_apb_")
+
     def fanin_wr(self, node: AddressableNode | None = None, *, error: bool = False) -> str:
         fanin_wr = super().fanin_wr(node, error=error)
         if node is not None and self.is_interface and node.is_array and node.array_dimensions:
