@@ -196,8 +196,33 @@ def prepare_cpuif_case(
     config["address_width"] = exporter.cpuif.addr_width
     config["data_width"] = exporter.cpuif.data_width
     config["byte_width"] = exporter.cpuif.data_width // 8
+    config["cpuif_style"] = "interface" if exporter.cpuif.is_interface else "flat"
 
     return module_path, package_path, config
+
+
+def _derive_port_prefix(
+    cpuif: BaseCpuif, control_signal: str, node: AddressableNode
+) -> str:
+    """Derive the port prefix (handle name) for a master node.
+
+    For flat CPUIF, the signal looks like ``m_apb_tiles_PSEL[N_TILESS]`` and
+    the prefix is ``m_apb_tiles``.  For interface CPUIF, a dummy indexer is
+    used to obtain ``m_apb_tiles[i0].PSEL`` and the prefix is extracted as
+    the part before any ``[`` or ``.`` separator.
+    """
+    if cpuif.is_interface:
+        signal_ref = cpuif.signal(control_signal, node, "i")
+        # e.g. "m_apb_tiles.PSEL" or "m_apb_tiles[i0].PSEL"
+        handle_part = signal_ref.rsplit(".", 1)[0]
+        return handle_part.split("[", 1)[0]
+
+    signal = cpuif.signal(control_signal, node)
+    base = signal.split("[", 1)[0]
+    suffix = f"_{control_signal}"
+    if not base.endswith(suffix):
+        raise ValueError(f"Unable to derive port prefix from '{signal}'")
+    return base[: -len(suffix)]
 
 
 def _build_case_config(
@@ -210,13 +235,7 @@ def _build_case_config(
     master_entries: dict[str, dict[str, Any]] = {}
 
     for child in cpuif.addressable_children:
-        signal = cpuif.signal(control_signal, child)
-        # Example: m_apb_tiles_PSEL[N_TILESS] -> m_apb_tiles
-        base = signal.split("[", 1)[0]
-        suffix = f"_{control_signal}"
-        if not base.endswith(suffix):
-            raise ValueError(f"Unable to derive port prefix from '{signal}'")
-        port_prefix = base[: -len(suffix)]
+        port_prefix = _derive_port_prefix(cpuif, control_signal, child)
 
         master_entries[child.inst_name] = {
             "inst_name": child.inst_name,
@@ -243,12 +262,7 @@ def _build_case_config(
             inst_name = master.inst_name
             if inst_name not in master_entries:
                 # Handles cases where the register itself is the master (direct child of top)
-                signal = cpuif.signal(control_signal, master)
-                base = signal.split("[", 1)[0]
-                suffix = f"_{control_signal}"
-                if not base.endswith(suffix):
-                    raise ValueError(f"Unable to derive port prefix from '{signal}'")
-                port_prefix = base[: -len(suffix)]
+                port_prefix = _derive_port_prefix(cpuif, control_signal, master)
                 master_entries[inst_name] = {
                     "inst_name": inst_name,
                     "port_prefix": port_prefix,

@@ -7,7 +7,7 @@ from typing import Any
 import cocotb
 from cocotb.triggers import Timer
 
-from tests.cocotb_lib.handle_utils import SignalHandle
+from tests.cocotb_lib.handle_utils import make_signal_handle
 from tests.cocotb_lib.protocol_utils import (
     all_index_pairs,
     find_invalid_address,
@@ -20,55 +20,79 @@ from tests.cocotb_lib.protocol_utils import (
 class _AxilSlaveShim:
     """Accessor for AXI4-Lite slave ports on the DUT."""
 
-    def __init__(self, dut):
-        prefix = "s_axil"
-        self.AWREADY = getattr(dut, f"{prefix}_AWREADY")
-        self.AWVALID = getattr(dut, f"{prefix}_AWVALID")
-        self.AWADDR = getattr(dut, f"{prefix}_AWADDR")
-        self.AWPROT = getattr(dut, f"{prefix}_AWPROT")
-        self.WREADY = getattr(dut, f"{prefix}_WREADY")
-        self.WVALID = getattr(dut, f"{prefix}_WVALID")
-        self.WDATA = getattr(dut, f"{prefix}_WDATA")
-        self.WSTRB = getattr(dut, f"{prefix}_WSTRB")
-        self.BREADY = getattr(dut, f"{prefix}_BREADY")
-        self.BVALID = getattr(dut, f"{prefix}_BVALID")
-        self.BRESP = getattr(dut, f"{prefix}_BRESP")
-        self.ARREADY = getattr(dut, f"{prefix}_ARREADY")
-        self.ARVALID = getattr(dut, f"{prefix}_ARVALID")
-        self.ARADDR = getattr(dut, f"{prefix}_ARADDR")
-        self.ARPROT = getattr(dut, f"{prefix}_ARPROT")
-        self.RREADY = getattr(dut, f"{prefix}_RREADY")
-        self.RVALID = getattr(dut, f"{prefix}_RVALID")
-        self.RDATA = getattr(dut, f"{prefix}_RDATA")
-        self.RRESP = getattr(dut, f"{prefix}_RRESP")
+    def __init__(self, dut, *, is_interface: bool = False):
+        if is_interface:
+            intf = dut.s_axil
+            self.AWREADY = intf.AWREADY
+            self.AWVALID = intf.AWVALID
+            self.AWADDR = intf.AWADDR
+            self.AWPROT = intf.AWPROT
+            self.WREADY = intf.WREADY
+            self.WVALID = intf.WVALID
+            self.WDATA = intf.WDATA
+            self.WSTRB = intf.WSTRB
+            self.BREADY = intf.BREADY
+            self.BVALID = intf.BVALID
+            self.BRESP = intf.BRESP
+            self.ARREADY = intf.ARREADY
+            self.ARVALID = intf.ARVALID
+            self.ARADDR = intf.ARADDR
+            self.ARPROT = intf.ARPROT
+            self.RREADY = intf.RREADY
+            self.RVALID = intf.RVALID
+            self.RDATA = intf.RDATA
+            self.RRESP = intf.RRESP
+        else:
+            prefix = "s_axil"
+            self.AWREADY = getattr(dut, f"{prefix}_AWREADY")
+            self.AWVALID = getattr(dut, f"{prefix}_AWVALID")
+            self.AWADDR = getattr(dut, f"{prefix}_AWADDR")
+            self.AWPROT = getattr(dut, f"{prefix}_AWPROT")
+            self.WREADY = getattr(dut, f"{prefix}_WREADY")
+            self.WVALID = getattr(dut, f"{prefix}_WVALID")
+            self.WDATA = getattr(dut, f"{prefix}_WDATA")
+            self.WSTRB = getattr(dut, f"{prefix}_WSTRB")
+            self.BREADY = getattr(dut, f"{prefix}_BREADY")
+            self.BVALID = getattr(dut, f"{prefix}_BVALID")
+            self.BRESP = getattr(dut, f"{prefix}_BRESP")
+            self.ARREADY = getattr(dut, f"{prefix}_ARREADY")
+            self.ARVALID = getattr(dut, f"{prefix}_ARVALID")
+            self.ARADDR = getattr(dut, f"{prefix}_ARADDR")
+            self.ARPROT = getattr(dut, f"{prefix}_ARPROT")
+            self.RREADY = getattr(dut, f"{prefix}_RREADY")
+            self.RVALID = getattr(dut, f"{prefix}_RVALID")
+            self.RDATA = getattr(dut, f"{prefix}_RDATA")
+            self.RRESP = getattr(dut, f"{prefix}_RRESP")
 
 
-def _build_master_table(dut, masters_cfg: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+def _build_master_table(
+    dut, masters_cfg: list[dict[str, Any]], *, is_interface: bool = False
+) -> dict[str, dict[str, Any]]:
     table: dict[str, dict[str, Any]] = {}
     for master in masters_cfg:
         prefix = master["port_prefix"]
         entry = {
             "indices": [tuple(idx) for idx in master["indices"]] or [tuple()],
             "outputs": {
-                "AWVALID": SignalHandle(dut, f"{prefix}_AWVALID"),
-                "AWADDR": SignalHandle(dut, f"{prefix}_AWADDR"),
-                "AWPROT": SignalHandle(dut, f"{prefix}_AWPROT"),
-                "WVALID": SignalHandle(dut, f"{prefix}_WVALID"),
-                "WDATA": SignalHandle(dut, f"{prefix}_WDATA"),
-                "WSTRB": SignalHandle(dut, f"{prefix}_WSTRB"),
-                "ARVALID": SignalHandle(dut, f"{prefix}_ARVALID"),
-                "ARADDR": SignalHandle(dut, f"{prefix}_ARADDR"),
-                "ARPROT": SignalHandle(dut, f"{prefix}_ARPROT"),
+                "AWVALID": make_signal_handle(dut, prefix, "AWVALID", is_interface=is_interface),
+                "AWADDR": make_signal_handle(dut, prefix, "AWADDR", is_interface=is_interface),
+                "AWPROT": make_signal_handle(dut, prefix, "AWPROT", is_interface=is_interface),
+                "WVALID": make_signal_handle(dut, prefix, "WVALID", is_interface=is_interface),
+                "WDATA": make_signal_handle(dut, prefix, "WDATA", is_interface=is_interface),
+                "WSTRB": make_signal_handle(dut, prefix, "WSTRB", is_interface=is_interface),
+                "ARVALID": make_signal_handle(dut, prefix, "ARVALID", is_interface=is_interface),
+                "ARADDR": make_signal_handle(dut, prefix, "ARADDR", is_interface=is_interface),
+                "ARPROT": make_signal_handle(dut, prefix, "ARPROT", is_interface=is_interface),
             },
             "inputs": {
-                "AWREADY": SignalHandle(dut, f"{prefix}_AWREADY"),
-                "WREADY": SignalHandle(dut, f"{prefix}_WREADY"),
-                "BVALID": SignalHandle(dut, f"{prefix}_BVALID"),
-                "BRESP": SignalHandle(dut, f"{prefix}_BRESP"),
-                "ARREADY": SignalHandle(dut, f"{prefix}_ARREADY"),
-                "RVALID": SignalHandle(dut, f"{prefix}_RVALID"),
-                "RDATA": SignalHandle(dut, f"{prefix}_RDATA"),
-                "RRESP": SignalHandle(dut, f"{prefix}_RRESP"),
+                "AWREADY": make_signal_handle(dut, prefix, "AWREADY", is_interface=is_interface),
+                "WREADY": make_signal_handle(dut, prefix, "WREADY", is_interface=is_interface),
+                "BVALID": make_signal_handle(dut, prefix, "BVALID", is_interface=is_interface),
+                "BRESP": make_signal_handle(dut, prefix, "BRESP", is_interface=is_interface),
+                "ARREADY": make_signal_handle(dut, prefix, "ARREADY", is_interface=is_interface),
+                "RVALID": make_signal_handle(dut, prefix, "RVALID", is_interface=is_interface),
+                "RDATA": make_signal_handle(dut, prefix, "RDATA", is_interface=is_interface),
+                "RRESP": make_signal_handle(dut, prefix, "RRESP", is_interface=is_interface),
             },
             "inst_size": master["inst_size"],
             "inst_address": master["inst_address"],
@@ -91,8 +115,9 @@ def _read_pattern(address: int, width: int) -> int:
 async def test_axi4lite_address_decoding(dut) -> None:
     """Stimulate AXI4-Lite slave channels and verify master port selection."""
     config = load_config()
-    slave = _AxilSlaveShim(dut)
-    masters = _build_master_table(dut, config["masters"])
+    is_intf = config.get("cpuif_style") == "interface"
+    slave = _AxilSlaveShim(dut, is_interface=is_intf)
+    masters = _build_master_table(dut, config["masters"], is_interface=is_intf)
 
     slave.AWVALID.value = 0
     slave.AWADDR.value = 0
@@ -219,8 +244,9 @@ async def test_axi4lite_address_decoding(dut) -> None:
 async def test_axi4lite_invalid_write_handshake(dut) -> None:
     """Ensure mismatched AW/W valid signals raise an error and are ignored."""
     config = load_config()
-    slave = _AxilSlaveShim(dut)
-    masters = _build_master_table(dut, config["masters"])
+    is_intf = config.get("cpuif_style") == "interface"
+    slave = _AxilSlaveShim(dut, is_interface=is_intf)
+    masters = _build_master_table(dut, config["masters"], is_interface=is_intf)
 
     slave.AWVALID.value = 0
     slave.AWADDR.value = 0
@@ -279,8 +305,9 @@ async def test_axi4lite_invalid_write_handshake(dut) -> None:
 async def test_axi4lite_invalid_address_response(dut) -> None:
     """Ensure unmapped addresses return error responses and do not select a master."""
     config = load_config()
-    slave = _AxilSlaveShim(dut)
-    masters = _build_master_table(dut, config["masters"])
+    is_intf = config.get("cpuif_style") == "interface"
+    slave = _AxilSlaveShim(dut, is_interface=is_intf)
+    masters = _build_master_table(dut, config["masters"], is_interface=is_intf)
 
     slave.AWVALID.value = 0
     slave.AWADDR.value = 0

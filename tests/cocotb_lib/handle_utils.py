@@ -57,11 +57,45 @@ class SignalHandle:
         raise AttributeError(f"Unable to resolve handle '{path}' via dut._id") from errors[-1]
 
 
+class InterfaceSignalHandle:
+    """
+    Wrapper for accessing signals through SystemVerilog interface hierarchy.
+
+    For interface ports (e.g. ``apb3_intf.master m_apb_tiles [2]``), signals
+    are accessed via the interface instance rather than as flat top-level ports:
+    ``dut.m_apb_tiles[idx].PSEL`` instead of ``dut.m_apb_tiles_PSEL[idx]``.
+    """
+
+    def __init__(self, dut, intf_name: str, signal_name: str) -> None:
+        self._dut = dut
+        self._intf_name = intf_name
+        self._signal_name = signal_name
+        self._cache: dict[tuple[int, ...], Any] = {}
+
+    def resolve(self, indices: tuple[int, ...]):
+        if indices not in self._cache:
+            self._cache[indices] = self._resolve_impl(indices)
+        return self._cache[indices]
+
+    def _resolve_impl(self, indices: tuple[int, ...]):
+        intf = getattr(self._dut, self._intf_name)
+        for idx in indices:
+            intf = intf[idx]
+        return getattr(intf, self._signal_name)
+
+
+def make_signal_handle(dut, base_name: str, signal_name: str, *, is_interface: bool = False):
+    """Create the appropriate signal handle for flat or interface CPUIF styles."""
+    if is_interface:
+        return InterfaceSignalHandle(dut, base_name, signal_name)
+    return SignalHandle(dut, f"{base_name}_{signal_name}")
+
+
 def resolve_handle(handle, indices: Iterable[int]):
     """Resolve either a regular cocotb handle or a ``SignalHandle`` wrapper."""
     index_tuple = tuple(indices)
 
-    if isinstance(handle, SignalHandle):
+    if isinstance(handle, (SignalHandle, InterfaceSignalHandle)):
         return handle.resolve(index_tuple)
 
     ref = handle
