@@ -17,6 +17,7 @@ except ImportError:  # pragma: no cover
 
 from tests.cocotb_lib import RDL_CASES
 from tests.cocotb_lib.utils import colorize_cocotb_log, get_verilog_sources, prepare_cpuif_case
+from tests.cocotb_lib.wrapper_gen import generate_verilator_intf_wrapper
 
 
 @pytest.mark.simulation
@@ -36,11 +37,34 @@ def test_apb3_intf_smoke(tmp_path: Path, rdl_file: str, top_name: str) -> None:
         control_signal="PSEL",
     )
 
+    # Generate Verilator wrapper (Verilator can't have SV interface ports at top level)
+    children = [
+        {
+            "inst_name": m["inst_name"],
+            "child_size": m["child_size"],
+            "is_array": m["is_array"],
+            "dimensions": m["dimensions"],
+        }
+        for m in config["masters"]
+    ]
+    wrapper_path = generate_verilator_intf_wrapper(
+        module_name=module_path.stem,
+        protocol="apb3",
+        children=children,
+        global_addr_width=config["address_width"],
+        global_data_width=config["data_width"],
+        output_dir=build_root,
+    )
+
+    # Override cpuif_style since wrapper exposes flat ports
+    config["cpuif_style"] = "flat"
+
     sources = get_verilog_sources(
         module_path,
         package_path,
         [repo_root / "hdl-src" / "apb3_intf.sv"],
     )
+    sources.append(str(wrapper_path))
 
     runner = get_runner("verilator")
     sim_build = build_root / "sim_build"
@@ -51,7 +75,7 @@ def test_apb3_intf_smoke(tmp_path: Path, rdl_file: str, top_name: str) -> None:
     try:
         runner.build(
             sources=sources,
-            hdl_toplevel=module_path.stem,
+            hdl_toplevel=wrapper_path.stem,
             build_dir=sim_build,
             log_file=str(build_log_file),
         )
@@ -68,7 +92,7 @@ def test_apb3_intf_smoke(tmp_path: Path, rdl_file: str, top_name: str) -> None:
 
     try:
         runner.test(
-            hdl_toplevel=module_path.stem,
+            hdl_toplevel=wrapper_path.stem,
             test_module="tests.cocotb.apb3.smoke.test_register_access",
             build_dir=sim_build,
             log_file=str(sim_log_file),
