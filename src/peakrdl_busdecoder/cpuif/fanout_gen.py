@@ -31,11 +31,8 @@ class FanoutGenerator(BusDecoderListener):
             else:
                 should_generate = True
 
-        if not should_generate:
-            return action
-
         if node.array_dimensions:
-            for i, dim in enumerate(node.array_dimensions):
+            for i, dim in enumerate(node.array_dimensions, len(self._stack) - 1):
                 fb = ForLoopBody(
                     "genvar",
                     f"gi{i}",
@@ -43,7 +40,8 @@ class FanoutGenerator(BusDecoderListener):
                 )
                 self._stack.append(fb)
 
-        self._stack[-1] += self._cpuif.fanout(node, self._array_stride_stack)
+        if should_generate:
+            self._stack[-1] += self._cpuif.fanout(node, self._array_stride_stack)
 
         return action
 

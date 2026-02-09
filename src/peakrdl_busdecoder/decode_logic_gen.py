@@ -1,6 +1,5 @@
 from collections import deque
 from enum import Enum
-from typing import cast
 
 from systemrdl.node import AddressableNode
 from systemrdl.walker import WalkerAction
@@ -94,7 +93,6 @@ class DecodeLogicGenerator(BusDecoderListener):
 
     def enter_AddressableComponent(self, node: AddressableNode) -> WalkerAction | None:
         action = super().enter_AddressableComponent(node)
-
         should_decode = action == WalkerAction.SkipDescendants
 
         if not should_decode and self._ds.max_decode_depth == 0:
@@ -105,10 +103,6 @@ class DecodeLogicGenerator(BusDecoderListener):
             else:
                 should_decode = True
 
-        # Only generate select logic if we're at the decode boundary
-        if not should_decode:
-            return action
-
         conditions: list[str] = []
         conditions.extend(self.cpuif_addr_predicate(node))
         conditions.extend(self.cpuif_prot_predicate(node))
@@ -118,9 +112,7 @@ class DecodeLogicGenerator(BusDecoderListener):
         if node.array_dimensions:
             # arrayed component with new if-body
             self._cond_stack.append(condition)
-            for i, dim in enumerate(
-                node.array_dimensions,
-            ):
+            for i, dim in enumerate(node.array_dimensions, len(self._decode_stack) - 1):
                 fb = ForLoopBody(
                     "int",
                     f"i{i}",
@@ -129,13 +121,11 @@ class DecodeLogicGenerator(BusDecoderListener):
                 self._decode_stack.append(fb)
 
             self._decode_stack.append(IfBody())
-        elif isinstance(self._decode_stack[-1], IfBody):
+        elif should_decode and isinstance(self._decode_stack[-1], IfBody):
             # non-arrayed component with if-body
-            ifb = cast(IfBody, self._decode_stack[-1])
+            ifb = self._decode_stack[-1]
             with ifb.cm(condition) as b:
                 b += f"{self._flavor.cpuif_select}.{get_indexed_path(self._ds.top_node, node)} = 1'b1;"
-        else:
-            raise RuntimeError("Invalid decode stack state")
 
         return action
 
@@ -159,7 +149,7 @@ class DecodeLogicGenerator(BusDecoderListener):
                 continue
 
             if isinstance(self._decode_stack[-1], IfBody):
-                ifb = cast(IfBody, self._decode_stack[-1])
+                ifb = self._decode_stack[-1]
                 with ifb.cm(self._cond_stack.pop()) as parent_b:
                     parent_b += b
             else:

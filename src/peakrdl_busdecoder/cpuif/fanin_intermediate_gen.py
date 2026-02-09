@@ -33,6 +33,7 @@ class FaninIntermediateGenerator(BusDecoderListener):
 
     def enter_AddressableComponent(self, node: AddressableNode) -> WalkerAction | None:
         action = super().enter_AddressableComponent(node)
+        should_generate = action == WalkerAction.SkipDescendants
 
         # Only generate intermediates for interface arrays
         # Check if cpuif has is_interface attribute (some implementations don't)
@@ -45,7 +46,7 @@ class FaninIntermediateGenerator(BusDecoderListener):
 
         # Generate assignment logic using generate loops
         if node.array_dimensions:
-            for i, dim in enumerate(node.array_dimensions):
+            for i, dim in enumerate(node.array_dimensions, len(self._stack) - 1):
                 fb = ForLoopBody(
                     "genvar",
                     f"gi{i}",
@@ -53,8 +54,9 @@ class FaninIntermediateGenerator(BusDecoderListener):
                 )
                 self._stack.append(fb)
 
-        # Generate assignments from interface array to intermediates
-        self._stack[-1] += self._generate_intermediate_assignments(node)
+        if should_generate:
+            # Generate assignments from interface array to intermediates
+            self._stack[-1] += self._generate_intermediate_assignments(node)
 
         return action
 
