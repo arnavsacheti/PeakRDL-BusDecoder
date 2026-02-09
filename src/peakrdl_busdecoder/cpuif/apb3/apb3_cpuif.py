@@ -118,7 +118,7 @@ class APB3Cpuif(APB3CpuifFlat):
             fanin["cpuif_wr_ack"] = f"{node.inst_name}_fanin_ready{array_idx}"
             fanin["cpuif_wr_err"] = f"{node.inst_name}_fanin_err{array_idx}"
 
-            fanin_wr += "\n" + "\n".join(f"{kv[0]} = {kv[1]};" for kv in fanin.items())
+            fanin_wr = "\n" + "\n".join([f"{lhs} = {rhs};" for lhs, rhs in fanin.items()])
         return fanin_wr
 
     def fanin_rd(self, node: AddressableNode | None = None, *, error: bool = False) -> str:
@@ -130,7 +130,8 @@ class APB3Cpuif(APB3CpuifFlat):
             fanin["cpuif_rd_ack"] = f"{node.inst_name}_fanin_ready{array_idx}"
             fanin["cpuif_rd_err"] = f"{node.inst_name}_fanin_err{array_idx}"
             fanin["cpuif_rd_data"] = f"{node.inst_name}_fanin_data{array_idx}"
-            fanin_rd = "\n" + "\n".join(f"{kv[0]} = {kv[1]};" for kv in fanin.items()) + "\n" + fanin_rd
+
+            fanin_rd = "\n" + "\n".join([f"{lhs} = {rhs};" for lhs, rhs in fanin.items()])
         return fanin_rd
 
     def fanin_intermediate_assignments(

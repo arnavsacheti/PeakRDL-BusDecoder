@@ -134,7 +134,8 @@ class AXI4LiteCpuif(AXI4LiteCpuifFlat):
             array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
             fanin["cpuif_wr_ack"] = f"{node.inst_name}_fanin_wr_valid{array_idx}"
             fanin["cpuif_wr_err"] = f"{node.inst_name}_fanin_wr_err{array_idx}"
-            fanin_wr = "\n".join([fanin_wr] + [f"{lhs} = {rhs};" for lhs, rhs in fanin.items()])
+
+            fanin_wr = "\n" + "\n".join([f"{lhs} = {rhs};" for lhs, rhs in fanin.items()])
 
         return fanin_wr
 
@@ -147,7 +148,8 @@ class AXI4LiteCpuif(AXI4LiteCpuifFlat):
             fanin["cpuif_rd_ack"] = f"{node.inst_name}_fanin_ready{array_idx}"
             fanin["cpuif_rd_err"] = f"{node.inst_name}_fanin_err{array_idx}"
             fanin["cpuif_rd_data"] = f"{node.inst_name}_fanin_data{array_idx}"
-            fanin_rd = "\n".join([fanin_rd] + [f"{lhs} = {rhs};" for lhs, rhs in fanin.items()])
+
+            fanin_rd = "\n" + "\n".join([f"{lhs} = {rhs};" for lhs, rhs in fanin.items()])
 
         return fanin_rd
 
