@@ -38,19 +38,22 @@ class FaninIntermediateGenerator(BusDecoderListener):
         # Only generate intermediates for interface arrays
         # Check if cpuif has is_interface attribute (some implementations don't)
         is_interface = getattr(self._cpuif, "is_interface", False)
-        if not is_interface or not node.array_dimensions:
+        if not is_interface or not node.array_dimensions or not self._cpuif.check_is_array(node):
             return action
 
         # Generate intermediate signal declarations
         self._generate_intermediate_declarations(node)
 
         # Generate assignment logic using generate loops
-        if node.array_dimensions:
-            for i, dim in enumerate(node.array_dimensions, len(self._stack) - 1):
+        if node.array_dimensions and not self._ds.cpuif_unroll:
+            for i_raw in range(len(node.array_dimensions)):
+                i = len(self._stack) + i_raw - 1
                 fb = ForLoopBody(
                     "genvar",
                     f"gi{i}",
-                    dim,
+                    f"N_{node.inst_name.upper()}S_{i}"
+                    if len(node.array_dimensions) > 1
+                    else f"N_{node.inst_name.upper()}S",
                 )
                 self._stack.append(fb)
 
@@ -62,7 +65,7 @@ class FaninIntermediateGenerator(BusDecoderListener):
 
     def exit_AddressableComponent(self, node: AddressableNode) -> None:
         is_interface = getattr(self._cpuif, "is_interface", False)
-        if is_interface and node.array_dimensions:
+        if is_interface and node.array_dimensions and not self._ds.cpuif_unroll:
             for _ in node.array_dimensions:
                 b = self._stack.pop()
                 if not b:
@@ -79,13 +82,17 @@ class FaninIntermediateGenerator(BusDecoderListener):
         if not node.array_dimensions:
             return
 
-        # Calculate total array size
-        array_size = 1
-        for dim in node.array_dimensions:
-            array_size *= dim
-
         # Create array dimension string
-        array_str = "".join(f"[{dim}]" for dim in node.array_dimensions)
+        if self._ds.cpuif_unroll:
+            assert node.current_idx is not None
+            array_str = "_" + "_".join(str(idx) for idx in node.current_idx)
+        else:
+            if len(node.array_dimensions) == 1:
+                array_str = f"[N_{node.inst_name.upper()}S]"
+            else:
+                array_str = "".join(
+                    f"[N_{node.inst_name.upper()}S_{i}]" for i, _ in enumerate(node.array_dimensions)
+                )
 
         # Generate declarations for each fanin signal
         # For APB3/4: PREADY, PSLVERR, PRDATA
@@ -115,7 +122,11 @@ class FaninIntermediateGenerator(BusDecoderListener):
             return ""
 
         # Create indexed signal names for left-hand side
-        array_idx = "".join(f"[gi{i}]" for i in range(len(node.array_dimensions)))
+        if self._ds.cpuif_unroll:
+            assert node.current_idx is not None
+            array_idx = "_" + "_".join(str(idx) for idx in node.current_idx)
+        else:
+            array_idx = "".join(f"[gi{i}]" for i in range(len(node.array_dimensions)))
 
         # Delegate to cpuif to get the appropriate assignments for this interface type
         assignments = self._cpuif.fanin_intermediate_assignments(

@@ -1,11 +1,14 @@
 import inspect
-import os
 from collections import deque
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import jinja2 as jj
 from systemrdl.node import AddressableNode
 
+from ..body import Body, InitialBody, SupportsStr
+from ..sv_assertion import Operator, SVAssertion
+from ..sv_parameters import SVLocalParam, SVParameter
 from ..utils import clog2, get_indexed_path, is_pow2, roundup_pow2
 from .fanin_gen import FaninGenerator
 from .fanin_intermediate_gen import FaninIntermediateGenerator
@@ -45,26 +48,35 @@ class BaseCpuif:
         raise NotImplementedError()
 
     @property
-    def parameters(self) -> list[str]:
+    def parameters(self) -> list[SVParameter | SVLocalParam]:
         """
         Optional list of additional parameters this CPU interface provides to
         the module's definition
         """
-        array_parameters = [
-            f"localparam N_{child.inst_name.upper()}S = {child.n_elements}"
-            for child in self.addressable_children
-            if self.check_is_array(child)
-        ]
-        return array_parameters
+        array_parameters = []
+        for child in self.addressable_children:
+            if not self.check_is_array(child):
+                continue
+            if child.array_dimensions is None or len(child.array_dimensions) == 1:
+                array_parameters.append(SVParameter(f"N_{child.inst_name.upper()}S", child.n_elements))
+            else:
+                for i, dim in enumerate(child.array_dimensions):
+                    array_parameters.append(SVParameter(f"N_{child.inst_name.upper()}S_{i}", dim))
 
-    def _get_template_path_class_dir(self) -> str:
+            # Compute total number of elements for MAX_N_{child.inst_name.upper()}S
+            # Should be sane, as this tells us information about the maximum address space,
+            # this should be the same as n_elements
+            array_parameters.append(SVLocalParam(f"MAX_N_{child.inst_name.upper()}S", child.n_elements))
+        return sorted(array_parameters)
+
+    def _get_template_path_class_dir(self) -> Path:
         """
         Traverse up the MRO and find the first class that explicitly assigns
         template_path. Returns the directory that contains the class definition.
         """
         for cls in inspect.getmro(self.__class__):
             if "template_path" in cls.__dict__:
-                class_dir = os.path.dirname(inspect.getfile(cls))
+                class_dir = Path(inspect.getfile(cls)).parent
                 return class_dir
         raise RuntimeError
 
@@ -150,3 +162,58 @@ class BaseCpuif:
     def fanin_intermediate_declarations(self, node: AddressableNode) -> list[str]:
         """Optional extra intermediate signal declarations for interface arrays."""
         return []
+
+    def get_assertions(self) -> list[SupportsStr]:
+        """
+        Optional list of assertions to include in the CPU interface module
+        """
+        return []
+
+    def get_initial_assertions(self) -> list[SupportsStr]:
+        """
+        Optional list of initial assertions to include in the CPU interface module
+        """
+        initial_assertions = []
+
+        for child in self.addressable_children:
+            if not self.check_is_array(child):
+                continue
+
+            array_params = []
+
+            if child.array_dimensions is None or len(child.array_dimensions) == 1:
+                array_params.append(f"N_{child.inst_name.upper()}S")
+            else:
+                for i, _ in enumerate(child.array_dimensions):
+                    array_params.append(f"N_{child.inst_name.upper()}S_{i}")
+
+            initial_assertions.append(
+                SVAssertion(
+                    left_expr=f"MAX_N_{child.inst_name.upper()}S",
+                    right_expr=" * ".join(array_params),
+                    operator=Operator.GREATER_EQUAL,
+                    name=f"assert_max_n_{child.inst_name.lower()}s",
+                    message=f"MAX_N_{child.inst_name.upper()}S must be at least the product of its dimension parameters.",
+                )
+            )
+
+        return initial_assertions
+
+    def get_assertion_block(self) -> str:
+        """
+        Optional assertion block to include in the CPU interface module
+        """
+
+        assertion_block = Body()
+
+        if initial_assertions := self.get_initial_assertions():
+            init_body = InitialBody()
+            for assertion in initial_assertions:
+                init_body += f"{assertion!s}"
+            assertion_block += init_body
+
+        if assertions := self.get_assertions():
+            for assertion in assertions:
+                assertion_block += f"{assertion!s}"
+
+        return str(assertion_block)

@@ -355,3 +355,28 @@ def _sample_addresses(addresses: list[int], max_samples: int) -> list[int]:
 
     samples.sort()
     return samples
+
+
+def write_parameterized_rdl(output_dir: Path, *, reg_count: int, bank_count: int) -> tuple[Path, str]:
+    """Generate a parameterized RDL design with arrayed top-level registers."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    top_name = f"param_r{reg_count}_b{bank_count}"
+    rdl_source = """
+addrmap __TOP__ {
+    reg {
+        field { sw=rw; hw=r; } data[31:0];
+    } regs[__REG__] @ 0x0 += 0x4;
+
+    reg {
+        field { sw=rw; hw=r; } data[15:0];
+    } banks[__BANK__] @ 0x100 += 0x4;
+};
+"""
+    rdl_source = (
+        rdl_source.replace("__TOP__", top_name)
+        .replace("__REG__", str(reg_count))
+        .replace("__BANK__", str(bank_count))
+    )
+    rdl_path = output_dir / f"{top_name}.rdl"
+    rdl_path.write_text(rdl_source)
+    return rdl_path, top_name
