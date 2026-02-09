@@ -7,7 +7,7 @@ from typing import Any
 import cocotb
 from cocotb.triggers import RisingEdge, Timer
 
-from tests.cocotb_lib.handle_utils import SignalHandle
+from tests.cocotb_lib.handle_utils import make_signal_handle
 from tests.cocotb_lib.protocol_utils import (
     all_index_pairs,
     find_invalid_address,
@@ -21,23 +21,40 @@ from tests.cocotb_lib.protocol_utils import (
 class _Apb4SlaveShim:
     """Lightweight accessor for the APB4 slave side of the DUT."""
 
-    def __init__(self, dut):
-        prefix = "s_apb"
-        self.PCLK = getattr(dut, f"{prefix}_PCLK", None)
-        self.PRESETn = getattr(dut, f"{prefix}_PRESETn", None)
-        self.PSEL = getattr(dut, f"{prefix}_PSEL")
-        self.PENABLE = getattr(dut, f"{prefix}_PENABLE")
-        self.PWRITE = getattr(dut, f"{prefix}_PWRITE")
-        self.PADDR = getattr(dut, f"{prefix}_PADDR")
-        self.PPROT = getattr(dut, f"{prefix}_PPROT")
-        self.PWDATA = getattr(dut, f"{prefix}_PWDATA")
-        self.PSTRB = getattr(dut, f"{prefix}_PSTRB")
-        self.PRDATA = getattr(dut, f"{prefix}_PRDATA")
-        self.PREADY = getattr(dut, f"{prefix}_PREADY")
-        self.PSLVERR = getattr(dut, f"{prefix}_PSLVERR")
+    def __init__(self, dut, *, is_interface: bool = False):
+        if is_interface:
+            intf = dut.s_apb
+            self.PCLK = getattr(intf, "PCLK", None)
+            self.PRESETn = getattr(intf, "PRESETn", None)
+            self.PSEL = intf.PSEL
+            self.PENABLE = intf.PENABLE
+            self.PWRITE = intf.PWRITE
+            self.PADDR = intf.PADDR
+            self.PPROT = intf.PPROT
+            self.PWDATA = intf.PWDATA
+            self.PSTRB = intf.PSTRB
+            self.PRDATA = intf.PRDATA
+            self.PREADY = intf.PREADY
+            self.PSLVERR = intf.PSLVERR
+        else:
+            prefix = "s_apb"
+            self.PCLK = getattr(dut, f"{prefix}_PCLK", None)
+            self.PRESETn = getattr(dut, f"{prefix}_PRESETn", None)
+            self.PSEL = getattr(dut, f"{prefix}_PSEL")
+            self.PENABLE = getattr(dut, f"{prefix}_PENABLE")
+            self.PWRITE = getattr(dut, f"{prefix}_PWRITE")
+            self.PADDR = getattr(dut, f"{prefix}_PADDR")
+            self.PPROT = getattr(dut, f"{prefix}_PPROT")
+            self.PWDATA = getattr(dut, f"{prefix}_PWDATA")
+            self.PSTRB = getattr(dut, f"{prefix}_PSTRB")
+            self.PRDATA = getattr(dut, f"{prefix}_PRDATA")
+            self.PREADY = getattr(dut, f"{prefix}_PREADY")
+            self.PSLVERR = getattr(dut, f"{prefix}_PSLVERR")
 
 
-def _build_master_table(dut, masters_cfg: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+def _build_master_table(
+    dut, masters_cfg: list[dict[str, Any]], *, is_interface: bool = False
+) -> dict[str, dict[str, Any]]:
     table: dict[str, dict[str, Any]] = {}
     for master in masters_cfg:
         port_prefix = master["port_prefix"]
@@ -45,18 +62,18 @@ def _build_master_table(dut, masters_cfg: list[dict[str, Any]]) -> dict[str, dic
             "port_prefix": port_prefix,
             "indices": [tuple(idx) for idx in master["indices"]] or [tuple()],
             "outputs": {
-                "PSEL": SignalHandle(dut, f"{port_prefix}_PSEL"),
-                "PENABLE": SignalHandle(dut, f"{port_prefix}_PENABLE"),
-                "PWRITE": SignalHandle(dut, f"{port_prefix}_PWRITE"),
-                "PADDR": SignalHandle(dut, f"{port_prefix}_PADDR"),
-                "PPROT": SignalHandle(dut, f"{port_prefix}_PPROT"),
-                "PWDATA": SignalHandle(dut, f"{port_prefix}_PWDATA"),
-                "PSTRB": SignalHandle(dut, f"{port_prefix}_PSTRB"),
+                "PSEL": make_signal_handle(dut, port_prefix, "PSEL", is_interface=is_interface),
+                "PENABLE": make_signal_handle(dut, port_prefix, "PENABLE", is_interface=is_interface),
+                "PWRITE": make_signal_handle(dut, port_prefix, "PWRITE", is_interface=is_interface),
+                "PADDR": make_signal_handle(dut, port_prefix, "PADDR", is_interface=is_interface),
+                "PPROT": make_signal_handle(dut, port_prefix, "PPROT", is_interface=is_interface),
+                "PWDATA": make_signal_handle(dut, port_prefix, "PWDATA", is_interface=is_interface),
+                "PSTRB": make_signal_handle(dut, port_prefix, "PSTRB", is_interface=is_interface),
             },
             "inputs": {
-                "PRDATA": SignalHandle(dut, f"{port_prefix}_PRDATA"),
-                "PREADY": SignalHandle(dut, f"{port_prefix}_PREADY"),
-                "PSLVERR": SignalHandle(dut, f"{port_prefix}_PSLVERR"),
+                "PRDATA": make_signal_handle(dut, port_prefix, "PRDATA", is_interface=is_interface),
+                "PREADY": make_signal_handle(dut, port_prefix, "PREADY", is_interface=is_interface),
+                "PSLVERR": make_signal_handle(dut, port_prefix, "PSLVERR", is_interface=is_interface),
             },
             "inst_size": master["inst_size"],
             "inst_address": master["inst_address"],
@@ -79,8 +96,9 @@ def _read_pattern(address: int, width: int) -> int:
 async def test_apb4_address_decoding(dut) -> None:
     """Drive the APB4 slave interface and verify master fanout across all sampled registers."""
     config = load_config()
-    slave = _Apb4SlaveShim(dut)
-    masters = _build_master_table(dut, config["masters"])
+    is_intf = config.get("cpuif_style") == "interface"
+    slave = _Apb4SlaveShim(dut, is_interface=is_intf)
+    masters = _build_master_table(dut, config["masters"], is_interface=is_intf)
 
     await start_clock(slave.PCLK)
     if slave.PRESETn is not None:
@@ -277,8 +295,9 @@ async def test_apb4_address_decoding(dut) -> None:
 async def test_apb4_invalid_address_response(dut) -> None:
     """Ensure invalid addresses yield an error response and no master select."""
     config = load_config()
-    slave = _Apb4SlaveShim(dut)
-    masters = _build_master_table(dut, config["masters"])
+    is_intf = config.get("cpuif_style") == "interface"
+    slave = _Apb4SlaveShim(dut, is_interface=is_intf)
+    masters = _build_master_table(dut, config["masters"], is_interface=is_intf)
 
     await start_clock(slave.PCLK)
     if slave.PRESETn is not None:

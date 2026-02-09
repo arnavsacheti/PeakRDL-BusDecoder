@@ -7,7 +7,7 @@ from typing import Any
 import cocotb
 from cocotb.triggers import RisingEdge, Timer
 
-from tests.cocotb_lib.handle_utils import SignalHandle
+from tests.cocotb_lib.handle_utils import make_signal_handle
 from tests.cocotb_lib.protocol_utils import (
     all_index_pairs,
     find_invalid_address,
@@ -21,37 +21,52 @@ from tests.cocotb_lib.protocol_utils import (
 class _Apb3SlaveShim:
     """Accessor for the APB3 slave signals on the DUT."""
 
-    def __init__(self, dut):
-        prefix = "s_apb"
-        self.PCLK = getattr(dut, f"{prefix}_PCLK", None)
-        self.PRESETn = getattr(dut, f"{prefix}_PRESETn", None)
-        self.PSEL = getattr(dut, f"{prefix}_PSEL")
-        self.PENABLE = getattr(dut, f"{prefix}_PENABLE")
-        self.PWRITE = getattr(dut, f"{prefix}_PWRITE")
-        self.PADDR = getattr(dut, f"{prefix}_PADDR")
-        self.PWDATA = getattr(dut, f"{prefix}_PWDATA")
-        self.PRDATA = getattr(dut, f"{prefix}_PRDATA")
-        self.PREADY = getattr(dut, f"{prefix}_PREADY")
-        self.PSLVERR = getattr(dut, f"{prefix}_PSLVERR")
+    def __init__(self, dut, *, is_interface: bool = False):
+        if is_interface:
+            intf = dut.s_apb
+            self.PCLK = getattr(intf, "PCLK", None)
+            self.PRESETn = getattr(intf, "PRESETn", None)
+            self.PSEL = intf.PSEL
+            self.PENABLE = intf.PENABLE
+            self.PWRITE = intf.PWRITE
+            self.PADDR = intf.PADDR
+            self.PWDATA = intf.PWDATA
+            self.PRDATA = intf.PRDATA
+            self.PREADY = intf.PREADY
+            self.PSLVERR = intf.PSLVERR
+        else:
+            prefix = "s_apb"
+            self.PCLK = getattr(dut, f"{prefix}_PCLK", None)
+            self.PRESETn = getattr(dut, f"{prefix}_PRESETn", None)
+            self.PSEL = getattr(dut, f"{prefix}_PSEL")
+            self.PENABLE = getattr(dut, f"{prefix}_PENABLE")
+            self.PWRITE = getattr(dut, f"{prefix}_PWRITE")
+            self.PADDR = getattr(dut, f"{prefix}_PADDR")
+            self.PWDATA = getattr(dut, f"{prefix}_PWDATA")
+            self.PRDATA = getattr(dut, f"{prefix}_PRDATA")
+            self.PREADY = getattr(dut, f"{prefix}_PREADY")
+            self.PSLVERR = getattr(dut, f"{prefix}_PSLVERR")
 
 
-def _build_master_table(dut, masters_cfg: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+def _build_master_table(
+    dut, masters_cfg: list[dict[str, Any]], *, is_interface: bool = False
+) -> dict[str, dict[str, Any]]:
     table: dict[str, dict[str, Any]] = {}
     for master in masters_cfg:
         prefix = master["port_prefix"]
         entry = {
             "indices": [tuple(idx) for idx in master["indices"]] or [tuple()],
             "outputs": {
-                "PSEL": SignalHandle(dut, f"{prefix}_PSEL"),
-                "PENABLE": SignalHandle(dut, f"{prefix}_PENABLE"),
-                "PWRITE": SignalHandle(dut, f"{prefix}_PWRITE"),
-                "PADDR": SignalHandle(dut, f"{prefix}_PADDR"),
-                "PWDATA": SignalHandle(dut, f"{prefix}_PWDATA"),
+                "PSEL": make_signal_handle(dut, prefix, "PSEL", is_interface=is_interface),
+                "PENABLE": make_signal_handle(dut, prefix, "PENABLE", is_interface=is_interface),
+                "PWRITE": make_signal_handle(dut, prefix, "PWRITE", is_interface=is_interface),
+                "PADDR": make_signal_handle(dut, prefix, "PADDR", is_interface=is_interface),
+                "PWDATA": make_signal_handle(dut, prefix, "PWDATA", is_interface=is_interface),
             },
             "inputs": {
-                "PRDATA": SignalHandle(dut, f"{prefix}_PRDATA"),
-                "PREADY": SignalHandle(dut, f"{prefix}_PREADY"),
-                "PSLVERR": SignalHandle(dut, f"{prefix}_PSLVERR"),
+                "PRDATA": make_signal_handle(dut, prefix, "PRDATA", is_interface=is_interface),
+                "PREADY": make_signal_handle(dut, prefix, "PREADY", is_interface=is_interface),
+                "PSLVERR": make_signal_handle(dut, prefix, "PSLVERR", is_interface=is_interface),
             },
             "inst_size": master["inst_size"],
             "inst_address": master["inst_address"],
@@ -74,8 +89,9 @@ def _read_pattern(address: int, width: int) -> int:
 async def test_apb3_address_decoding(dut) -> None:
     """Exercise the APB3 slave interface against sampled register addresses."""
     config = load_config()
-    slave = _Apb3SlaveShim(dut)
-    masters = _build_master_table(dut, config["masters"])
+    is_intf = config.get("cpuif_style") == "interface"
+    slave = _Apb3SlaveShim(dut, is_interface=is_intf)
+    masters = _build_master_table(dut, config["masters"], is_interface=is_intf)
 
     await start_clock(slave.PCLK)
     if slave.PRESETn is not None:
@@ -258,8 +274,9 @@ async def test_apb3_address_decoding(dut) -> None:
 async def test_apb3_invalid_address_response(dut) -> None:
     """Ensure invalid addresses yield an error response and no master select."""
     config = load_config()
-    slave = _Apb3SlaveShim(dut)
-    masters = _build_master_table(dut, config["masters"])
+    is_intf = config.get("cpuif_style") == "interface"
+    slave = _Apb3SlaveShim(dut, is_interface=is_intf)
+    masters = _build_master_table(dut, config["masters"], is_interface=is_intf)
 
     await start_clock(slave.PCLK)
     if slave.PRESETn is not None:
