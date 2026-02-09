@@ -46,7 +46,8 @@ class FaninIntermediateGenerator(BusDecoderListener):
 
         # Generate assignment logic using generate loops
         if node.array_dimensions and not self._ds.cpuif_unroll:
-            for i, dim in enumerate(node.array_dimensions, len(self._stack) - 1):
+            for i_raw in range(len(node.array_dimensions)):
+                i = len(self._stack) + i_raw - 1
                 fb = ForLoopBody(
                     "genvar",
                     f"gi{i}",

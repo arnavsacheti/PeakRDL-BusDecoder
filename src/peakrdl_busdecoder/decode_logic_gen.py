@@ -129,7 +129,8 @@ class DecodeLogicGenerator(BusDecoderListener):
         if node.array_dimensions and not is_unrolled_elem:
             # arrayed component with new if-body
             self._cond_stack.append(condition)
-            for i, dim in enumerate(node.array_dimensions, len(self._decode_stack) - 1):
+            for i_raw in range(len(node.array_dimensions)):
+                i = len(self._decode_stack) + i_raw - 1
                 fb = ForLoopBody(
                     "int",
                     f"i{i}",
