@@ -17,10 +17,10 @@ from peakrdl_busdecoder.cpuif.apb3 import APB3Cpuif
 from peakrdl_busdecoder.cpuif.apb4 import APB4Cpuif
 from peakrdl_busdecoder.design_state import DesignState
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _export(top: AddrmapNode, **kwargs) -> None:
     """Export via APB4 into a throwaway directory; raises on validation errors."""
@@ -253,9 +253,7 @@ class TestSharedExtBus:
         with pytest.raises(RDLCompileError, match="Unable to export"):
             _export(top)
 
-    def test_sharedextbus_on_child_addrmap_rejected(
-        self, compile_rdl: Callable[..., AddrmapNode]
-    ) -> None:
+    def test_sharedextbus_on_child_addrmap_rejected(self, compile_rdl: Callable[..., AddrmapNode]) -> None:
         """A child addrmap with sharedextbus (that is not external) must fail."""
         rdl = """
         addrmap inner {
@@ -329,9 +327,7 @@ class TestAddressWidthTooSmall:
         with pytest.raises(RDLCompileError, match="address width"):
             DesignState(top, {"address_width": min_width - 1})
 
-    def test_address_width_exact_minimum_passes(
-        self, compile_rdl: Callable[..., AddrmapNode]
-    ) -> None:
+    def test_address_width_exact_minimum_passes(self, compile_rdl: Callable[..., AddrmapNode]) -> None:
         """address_width equal to the minimum should pass."""
         rdl = """
         addrmap test {
@@ -349,9 +345,7 @@ class TestAddressWidthTooSmall:
         ds_explicit = DesignState(top, {"address_width": min_width})
         assert ds_explicit.addr_width == min_width
 
-    def test_address_width_larger_than_minimum_passes(
-        self, compile_rdl: Callable[..., AddrmapNode]
-    ) -> None:
+    def test_address_width_larger_than_minimum_passes(self, compile_rdl: Callable[..., AddrmapNode]) -> None:
         """address_width larger than the minimum should pass and be honored."""
         rdl = """
         addrmap test {
@@ -434,9 +428,7 @@ class TestExporterStrayKwargs:
         with pytest.raises(TypeError, match="unexpected keyword argument"):
             BusDecoderExporter(foo="bar", baz=123)
 
-    def test_export_stray_kwarg_alongside_valid(
-        self, compile_rdl: Callable[..., AddrmapNode]
-    ) -> None:
+    def test_export_stray_kwarg_alongside_valid(self, compile_rdl: Callable[..., AddrmapNode]) -> None:
         """A mix of valid and invalid kwargs must raise TypeError for the invalid one."""
         rdl = """
         addrmap test {
@@ -610,9 +602,7 @@ class TestEdgeCaseAlignments:
         with pytest.raises(RDLCompileError, match="Unable to export"):
             _export(top)
 
-    def test_64bit_bus_proper_alignment_passes(
-        self, compile_rdl: Callable[..., AddrmapNode]
-    ) -> None:
+    def test_64bit_bus_proper_alignment_passes(self, compile_rdl: Callable[..., AddrmapNode]) -> None:
         """On a 64-bit bus, offset 0x8 (8-byte aligned) should pass."""
         rdl = """
         addrmap test {
@@ -628,9 +618,7 @@ class TestEdgeCaseAlignments:
         top = compile_rdl(rdl, top="test")
         _export(top)
 
-    def test_multiple_alignment_errors_still_fatal(
-        self, compile_rdl: Callable[..., AddrmapNode]
-    ) -> None:
+    def test_multiple_alignment_errors_still_fatal(self, compile_rdl: Callable[..., AddrmapNode]) -> None:
         """Multiple unaligned registers should all be reported, then a fatal is raised."""
         rdl = """
         addrmap test {
@@ -675,9 +663,7 @@ class TestDesignStateEdgeCases:
         ds = DesignState(top, {})
         assert ds.cpuif_data_width == 64
 
-    def test_default_module_name_from_addrmap(
-        self, compile_rdl: Callable[..., AddrmapNode]
-    ) -> None:
+    def test_default_module_name_from_addrmap(self, compile_rdl: Callable[..., AddrmapNode]) -> None:
         """Module name should default to the addrmap name."""
         rdl = """
         addrmap my_custom_name {
@@ -765,8 +751,9 @@ class TestRootNodeHandling:
             my_reg_t my_reg @ 0x0;
         };
         """
-        from systemrdl import RDLCompiler
         from tempfile import NamedTemporaryFile
+
+        from systemrdl import RDLCompiler
 
         compiler = RDLCompiler()
         with NamedTemporaryFile("w", suffix=".rdl", delete=False) as f:

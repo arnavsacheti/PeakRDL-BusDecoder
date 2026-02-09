@@ -1,5 +1,5 @@
 from collections import deque
-from typing import TYPE_CHECKING, overload
+from typing import TYPE_CHECKING
 
 from systemrdl.node import AddressableNode
 
@@ -7,18 +7,20 @@ from peakrdl_busdecoder.sv_int import SVInt
 
 from ...utils import get_indexed_path
 from ..base_cpuif import BaseCpuif
-from .axi4_lite_interface import AXI4LiteSVInterface
+from .axi4_lite_interface import AXI4LiteFlatInterface, AXI4LiteSVInterface
 
 if TYPE_CHECKING:
     from ...exporter import BusDecoderExporter
 
 
-class AXI4LiteCpuif(BaseCpuif):
+class AXI4LiteCpuifFlat(BaseCpuif):
+    """Verilator-friendly variant that flattens the AXI4-Lite interface ports."""
+
     template_path = "axi4_lite_tmpl.sv"
 
     def __init__(self, exp: "BusDecoderExporter") -> None:
         super().__init__(exp)
-        self._interface = AXI4LiteSVInterface(self)
+        self._interface = AXI4LiteFlatInterface(self)
 
     @property
     def is_interface(self) -> bool:
@@ -27,13 +29,14 @@ class AXI4LiteCpuif(BaseCpuif):
     @property
     def port_declaration(self) -> str:
         """Returns the port declaration for the AXI4-Lite interface."""
-        return self._interface.get_port_declaration("s_axil", "m_axil_")
+        return self._interface.get_port_declaration("s_axil_", "m_axil_")
 
-    @overload
-    def signal(self, signal: str, node: None = None, indexer: None = None) -> str: ...
-    @overload
-    def signal(self, signal: str, node: AddressableNode, indexer: str | None = None) -> str: ...
-    def signal(self, signal: str, node: AddressableNode | None = None, indexer: str | None = None) -> str:
+    def signal(
+        self,
+        signal: str,
+        node: AddressableNode | None = None,
+        indexer: str | None = None,
+    ) -> str:
         return self._interface.signal(signal, node, indexer)
 
     def fanout(self, node: AddressableNode, array_stack: deque[int]) -> str:
@@ -90,17 +93,9 @@ class AXI4LiteCpuif(BaseCpuif):
                 fanin["cpuif_wr_ack"] = "'1"
                 fanin["cpuif_wr_err"] = "cpuif_wr_sel.cpuif_err"
         else:
-            # Use intermediate signals for interface arrays to avoid
-            # non-constant indexing of interface arrays in procedural blocks
-            if self.is_interface and node.is_array and node.array_dimensions:
-                # Generate array index string [i0][i1]... for the intermediate signal
-                array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
-                fanin["cpuif_wr_ack"] = f"{node.inst_name}_fanin_wr_valid{array_idx}"
-                fanin["cpuif_wr_err"] = f"{node.inst_name}_fanin_wr_err{array_idx}"
-            else:
-                # Read side: ack comes from RVALID; err if RRESP[1] is set (SLVERR/DECERR)
-                fanin["cpuif_wr_ack"] = self.signal("BVALID", node, "i")
-                fanin["cpuif_wr_err"] = f"{self.signal('BRESP', node, 'i')}[1]"
+            # Read side: ack comes from RVALID; err if RRESP[1] is set (SLVERR/DECERR)
+            fanin["cpuif_wr_ack"] = self.signal("BVALID", node, "i")
+            fanin["cpuif_wr_err"] = f"{self.signal('BRESP', node, 'i')}[1]"
 
         return "\n".join(f"{lhs} = {rhs};" for lhs, rhs in fanin.items())
 
@@ -114,20 +109,49 @@ class AXI4LiteCpuif(BaseCpuif):
                 fanin["cpuif_rd_ack"] = "'1"
                 fanin["cpuif_rd_err"] = "cpuif_rd_sel.cpuif_err"
         else:
-            # Use intermediate signals for interface arrays to avoid
-            # non-constant indexing of interface arrays in procedural blocks
-            if self.is_interface and node.is_array and node.array_dimensions:
-                # Generate array index string [i0][i1]... for the intermediate signal
-                array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
-                fanin["cpuif_rd_ack"] = f"{node.inst_name}_fanin_ready{array_idx}"
-                fanin["cpuif_rd_err"] = f"{node.inst_name}_fanin_err{array_idx}"
-                fanin["cpuif_rd_data"] = f"{node.inst_name}_fanin_data{array_idx}"
-            else:
-                fanin["cpuif_rd_ack"] = self.signal("RVALID", node, "i")
-                fanin["cpuif_rd_err"] = f"{self.signal('RRESP', node, 'i')}[1]"
-                fanin["cpuif_rd_data"] = self.signal("RDATA", node, "i")
+            fanin["cpuif_rd_ack"] = self.signal("RVALID", node, "i")
+            fanin["cpuif_rd_err"] = f"{self.signal('RRESP', node, 'i')}[1]"
+            fanin["cpuif_rd_data"] = self.signal("RDATA", node, "i")
 
         return "\n".join(f"{lhs} = {rhs};" for lhs, rhs in fanin.items())
+
+
+class AXI4LiteCpuif(AXI4LiteCpuifFlat):
+    def __init__(self, exp: "BusDecoderExporter") -> None:
+        super().__init__(exp)
+        self._interface = AXI4LiteSVInterface(self)
+
+    @property
+    def port_declaration(self) -> str:
+        """Returns the port declaration for the AXI4-Lite interface."""
+        return self._interface.get_port_declaration("s_axil", "m_axil_")
+
+    def fanin_wr(self, node: AddressableNode | None = None, *, error: bool = False) -> str:
+        fanin_wr = super().fanin_wr(node, error=error)
+        if node is not None and self.is_interface and node.is_array and node.array_dimensions:
+            fanin: dict[str, str] = {}
+            # Generate array index string [i0][i1]... for the intermediate signal
+            array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
+            fanin["cpuif_wr_ack"] = f"{node.inst_name}_fanin_wr_valid{array_idx}"
+            fanin["cpuif_wr_err"] = f"{node.inst_name}_fanin_wr_err{array_idx}"
+
+            fanin_wr = "\n" + "\n".join([f"{lhs} = {rhs};" for lhs, rhs in fanin.items()])
+
+        return fanin_wr
+
+    def fanin_rd(self, node: AddressableNode | None = None, *, error: bool = False) -> str:
+        fanin_rd = super().fanin_rd(node, error=error)
+        if node is not None and self.is_interface and node.is_array and node.array_dimensions:
+            fanin: dict[str, str] = {}
+            # Generate array index string [i0][i1]... for the intermediate signal
+            array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
+            fanin["cpuif_rd_ack"] = f"{node.inst_name}_fanin_ready{array_idx}"
+            fanin["cpuif_rd_err"] = f"{node.inst_name}_fanin_err{array_idx}"
+            fanin["cpuif_rd_data"] = f"{node.inst_name}_fanin_data{array_idx}"
+
+            fanin_rd = "\n" + "\n".join([f"{lhs} = {rhs};" for lhs, rhs in fanin.items()])
+
+        return fanin_rd
 
     def fanin_intermediate_assignments(
         self, node: AddressableNode, inst_name: str, array_idx: str, master_prefix: str, indexed_path: str

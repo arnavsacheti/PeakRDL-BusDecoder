@@ -10,7 +10,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 import pytest
-from systemrdl import RDLCompileError, RDLCompiler  # type:ignore
+from systemrdl import RDLCompileError, RDLCompiler
 from systemrdl.node import AddrmapNode
 
 _SHIM_DIR = Path(__file__).resolve().parents[1] / "tools" / "shims"
@@ -47,14 +47,14 @@ def compile_rdl(tmp_path: Path) -> Callable[..., AddrmapNode]:
                     defines=defines,
                 )
                 if top is not None:
-                    root = compiler.elaborate(top)  # type:ignore
+                    root = compiler.elaborate(top)
                     return root.top
-                root = compiler.elaborate()  # type:ignore
+                root = compiler.elaborate()
                 return root.top
             except RDLCompileError:
                 # Print error messages if available
                 if hasattr(compiler, "print_messages"):
-                    compiler.print_messages()  # type:ignore
+                    compiler.print_messages()
                 raise
 
     return _compile

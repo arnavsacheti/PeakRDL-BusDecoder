@@ -1,38 +1,46 @@
 from collections import deque
-from typing import TYPE_CHECKING, overload
+from typing import TYPE_CHECKING
 
 from systemrdl.node import AddressableNode
 
 from ...sv_int import SVInt
 from ...utils import get_indexed_path
 from ..base_cpuif import BaseCpuif
-from .apb3_interface import APB3SVInterface
+from .apb3_interface import APB3FlatInterface, APB3SVInterface
 
 if TYPE_CHECKING:
     from ...exporter import BusDecoderExporter
 
 
-class APB3Cpuif(BaseCpuif):
+class APB3CpuifFlat(BaseCpuif):
     template_path = "apb3_tmpl.sv"
 
     def __init__(self, exp: "BusDecoderExporter") -> None:
         super().__init__(exp)
-        self._interface = APB3SVInterface(self)
+
+        self._interface = APB3FlatInterface(self)
 
     @property
     def is_interface(self) -> bool:
+        """
+        Returns True if the CPU interface is an interface, False if it is a module.
+        """
         return self._interface.is_interface
 
     @property
     def port_declaration(self) -> str:
-        return self._interface.get_port_declaration("s_apb", "m_apb_")
+        """
+        Returns the port declaration for the APB3 interface.
+        """
+        return self._interface.get_port_declaration("s_apb_", "m_apb_")
 
-    @overload
-    def signal(self, signal: str, node: None = None, indexer: None = None) -> str: ...
-    @overload
-    def signal(self, signal: str, node: AddressableNode, indexer: str) -> str: ...
-    def signal(self, signal: str, node: AddressableNode | None = None, indexer: str | None = None) -> str:
-        return self._interface.signal(signal, node, indexer)
+    def signal(
+        self,
+        signal: str,
+        node: AddressableNode | None = None,
+        idx: str | int | None = None,
+    ) -> str:
+        return self._interface.signal(signal, node, idx)
 
     def fanout(self, node: AddressableNode, array_stack: deque[int]) -> str:
         fanout: dict[str, str] = {}
@@ -68,16 +76,8 @@ class APB3Cpuif(BaseCpuif):
                 fanin["cpuif_wr_ack"] = "'1"
                 fanin["cpuif_wr_err"] = "cpuif_wr_sel.cpuif_err"
         else:
-            # Use intermediate signals for interface arrays to avoid
-            # non-constant indexing of interface arrays in procedural blocks
-            if self.is_interface and node.is_array and node.array_dimensions:
-                # Generate array index string [i0][i1]... for the intermediate signal
-                array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
-                fanin["cpuif_wr_ack"] = f"{node.inst_name}_fanin_ready{array_idx}"
-                fanin["cpuif_wr_err"] = f"{node.inst_name}_fanin_err{array_idx}"
-            else:
-                fanin["cpuif_wr_ack"] = self.signal("PREADY", node, "i")
-                fanin["cpuif_wr_err"] = self.signal("PSLVERR", node, "i")
+            fanin["cpuif_wr_ack"] = self.signal("PREADY", node, "i")
+            fanin["cpuif_wr_err"] = self.signal("PSLVERR", node, "i")
         return "\n".join(f"{kv[0]} = {kv[1]};" for kv in fanin.items())
 
     def fanin_rd(self, node: AddressableNode | None = None, *, error: bool = False) -> str:
@@ -90,25 +90,54 @@ class APB3Cpuif(BaseCpuif):
                 fanin["cpuif_rd_ack"] = "'1"
                 fanin["cpuif_rd_err"] = "cpuif_rd_sel.cpuif_err"
         else:
-            # Use intermediate signals for interface arrays to avoid
-            # non-constant indexing of interface arrays in procedural blocks
-            if self.is_interface and node.is_array and node.array_dimensions:
-                # Generate array index string [i0][i1]... for the intermediate signal
-                array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
-                fanin["cpuif_rd_ack"] = f"{node.inst_name}_fanin_ready{array_idx}"
-                fanin["cpuif_rd_err"] = f"{node.inst_name}_fanin_err{array_idx}"
-                fanin["cpuif_rd_data"] = f"{node.inst_name}_fanin_data{array_idx}"
-            else:
-                fanin["cpuif_rd_ack"] = self.signal("PREADY", node, "i")
-                fanin["cpuif_rd_err"] = self.signal("PSLVERR", node, "i")
-                fanin["cpuif_rd_data"] = self.signal("PRDATA", node, "i")
+            fanin["cpuif_rd_ack"] = self.signal("PREADY", node, "i")
+            fanin["cpuif_rd_err"] = self.signal("PSLVERR", node, "i")
+            fanin["cpuif_rd_data"] = self.signal("PRDATA", node, "i")
 
         return "\n".join(f"{kv[0]} = {kv[1]};" for kv in fanin.items())
+
+
+class APB3Cpuif(APB3CpuifFlat):
+    def __init__(self, exp: "BusDecoderExporter") -> None:
+        super().__init__(exp)
+        self._interface = APB3SVInterface(self)
+
+    @property
+    def port_declaration(self) -> str:
+        """
+        Returns the port declaration for the APB3 interface.
+        """
+        return self._interface.get_port_declaration("s_apb", "m_apb_")
+
+    def fanin_wr(self, node: AddressableNode | None = None, *, error: bool = False) -> str:
+        fanin_wr = super().fanin_wr(node, error=error)
+        if node is not None and self.is_interface and node.is_array and node.array_dimensions:
+            fanin: dict[str, str] = {}
+            # Generate array index string [i0][i1]... for the intermediate signal
+            array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
+            fanin["cpuif_wr_ack"] = f"{node.inst_name}_fanin_ready{array_idx}"
+            fanin["cpuif_wr_err"] = f"{node.inst_name}_fanin_err{array_idx}"
+
+            fanin_wr = "\n" + "\n".join([f"{lhs} = {rhs};" for lhs, rhs in fanin.items()])
+        return fanin_wr
+
+    def fanin_rd(self, node: AddressableNode | None = None, *, error: bool = False) -> str:
+        fanin_rd = super().fanin_rd(node, error=error)
+        if node is not None and self.is_interface and node.is_array and node.array_dimensions:
+            fanin: dict[str, str] = {}
+            # Generate array index string [i0][i1]... for the intermediate signal
+            array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
+            fanin["cpuif_rd_ack"] = f"{node.inst_name}_fanin_ready{array_idx}"
+            fanin["cpuif_rd_err"] = f"{node.inst_name}_fanin_err{array_idx}"
+            fanin["cpuif_rd_data"] = f"{node.inst_name}_fanin_data{array_idx}"
+
+            fanin_rd = "\n" + "\n".join([f"{lhs} = {rhs};" for lhs, rhs in fanin.items()])
+        return fanin_rd
 
     def fanin_intermediate_assignments(
         self, node: AddressableNode, inst_name: str, array_idx: str, master_prefix: str, indexed_path: str
     ) -> list[str]:
-        """Generate intermediate signal assignments for APB3 interface arrays."""
+        """Generate intermediate signal assignments for APB4 interface arrays."""
         return [
             f"assign {inst_name}_fanin_ready{array_idx} = {master_prefix}{indexed_path}.PREADY;",
             f"assign {inst_name}_fanin_err{array_idx} = {master_prefix}{indexed_path}.PSLVERR;",
