@@ -446,7 +446,7 @@ class TestArrayedComponentsWithDepth:
         # Should have for loop for arrayed decode
         assert "blocks[i0]" in content or "blocks" in content
         # Array select signal
-        assert "logic blocks[4];" in content
+        assert "logic blocks[N_BLOCKSS];" in content
 
     def test_depth_2_descends_into_arrayed_addrmap(
         self, compile_rdl: Callable[..., AddrmapNode]

@@ -43,7 +43,7 @@ def test_parameterized_generation_in_module_ports(
         content = module_file.read_text()
 
         assert "module top #(" in content
-        assert "localparam N_REGSS = 4" in content
+        assert "parameter N_REGSS = 4" in content
         assert f"{master_prefix}regs_{signal}[N_REGSS]" in content
 
 
@@ -69,8 +69,8 @@ def test_parameter_list_contains_each_array_size(compile_rdl: Callable[..., Addr
         content = module_file.read_text()
 
         assert "module top #(" in content
-        assert "localparam N_REGSS = 4" in content
-        assert "localparam N_BLOCKSS = 2" in content
+        assert "parameter N_REGSS = 4" in content
+        assert "parameter N_BLOCKSS = 2" in content
 
 
 def test_no_parameters_when_no_arrays(compile_rdl: Callable[..., AddrmapNode]) -> None:
@@ -92,4 +92,4 @@ def test_no_parameters_when_no_arrays(compile_rdl: Callable[..., AddrmapNode]) -
         content = module_file.read_text()
 
         assert "module simple #(" not in content
-        assert "localparam N_" not in content
+        assert "parameter N_" not in content

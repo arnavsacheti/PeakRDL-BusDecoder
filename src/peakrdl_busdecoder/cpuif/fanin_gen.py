@@ -37,9 +37,6 @@ class FaninGenerator(BusDecoderListener):
             else:
                 should_generate = True
 
-        if not should_generate:
-            return action
-
         if node.array_dimensions and not is_unrolled_elem:
             for i in range(len(node.array_dimensions)):
                 fb = ForLoopBody(
