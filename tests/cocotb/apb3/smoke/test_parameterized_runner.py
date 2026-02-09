@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from peakrdl_busdecoder.cpuif.apb3.apb3_cpuif_flat import APB3CpuifFlat
+from peakrdl_busdecoder.cpuif.apb3 import APB3CpuifFlat
 
 try:  # pragma: no cover - optional dependency shim
     from cocotb.runner import get_runner

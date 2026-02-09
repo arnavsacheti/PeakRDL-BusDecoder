@@ -6,9 +6,9 @@ import pytest
 from systemrdl.node import AddrmapNode
 
 from peakrdl_busdecoder import BusDecoderExporter
-from peakrdl_busdecoder.cpuif.apb3.apb3_cpuif_flat import APB3CpuifFlat
-from peakrdl_busdecoder.cpuif.apb4.apb4_cpuif_flat import APB4CpuifFlat
-from peakrdl_busdecoder.cpuif.axi4lite.axi4_lite_cpuif_flat import AXI4LiteCpuifFlat
+from peakrdl_busdecoder.cpuif.apb3 import APB3CpuifFlat
+from peakrdl_busdecoder.cpuif.apb4 import APB4CpuifFlat
+from peakrdl_busdecoder.cpuif.axi4lite import AXI4LiteCpuifFlat
 
 
 PARAMETERIZED_CPUIFS = [
