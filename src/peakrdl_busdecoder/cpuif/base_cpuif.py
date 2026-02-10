@@ -48,14 +48,51 @@ class BaseCpuif:
     def parameters(self) -> list[str]:
         """
         Optional list of additional parameters this CPU interface provides to
-        the module's definition
+        the module's definition.
+
+        Includes:
+        - Existing array element count localparams (N_<NAME>S)
+        - DIRECT RDL parameters: passed through as SV parameters
+        - ADDRESS_MODIFYING RDL parameters: exposed as SV parameters with
+          max-value constraints (n <= N)
         """
-        array_parameters = [
-            f"localparam N_{child.inst_name.upper()}S = {child.n_elements}"
-            for child in self.addressable_children
-            if self.check_is_array(child)
-        ]
-        return array_parameters
+        from ..rdl_params import ParameterUsage
+
+        params: list[str] = []
+        ds = self.exp.ds
+
+        # Collect node paths that are covered by enable RDL parameters
+        # so we can skip the redundant auto-generated localparams for them.
+        enable_covered_paths: set[str] = set()
+        for rdl_param in ds.rdl_params:
+            if rdl_param.usage == ParameterUsage.ADDRESS_MODIFYING:
+                for ae in rdl_param.array_enables:
+                    enable_covered_paths.add(ae.node_path)
+
+        # Existing array element count localparams (skip if covered by an
+        # RDL enable parameter to avoid duplicate declarations)
+        for child in self.addressable_children:
+            if not self.check_is_array(child):
+                continue
+            child_path = child.get_rel_path(ds.top_node)
+            if child_path in enable_covered_paths:
+                continue
+            params.append(
+                f"localparam N_{child.inst_name.upper()}S = {child.n_elements}"
+            )
+
+        # RDL parameters
+        for rdl_param in ds.rdl_params:
+            if rdl_param.usage == ParameterUsage.DIRECT:
+                params.append(
+                    f"parameter {rdl_param.sv_type} {rdl_param.name} = {rdl_param.sv_value}"
+                )
+            elif rdl_param.usage == ParameterUsage.ADDRESS_MODIFYING:
+                params.append(
+                    f"parameter {rdl_param.sv_type} {rdl_param.name} = {rdl_param.sv_value}"
+                )
+
+        return params
 
     def _get_template_path_class_dir(self) -> str:
         """
