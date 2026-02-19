@@ -4,6 +4,7 @@
 **/.coverage
 **/*.rpt
 **/.pytest_cache
+**/.hypothesis
 **/_build
 **/*.out
 **/transcript
