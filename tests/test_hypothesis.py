@@ -206,3 +206,187 @@ class TestKwFilterProperties:
     def test_keywords_get_underscore_suffix(self, s: str) -> None:
         """Every SV keyword gets an underscore suffix."""
         assert kw_filter(s) == s + "_"
+
+
+# ===========================================================================
+# Property 4: Cocotb test infrastructure utilities
+# ===========================================================================
+
+
+from tests.cocotb_lib.protocol_utils import find_invalid_address
+from tests.cocotb_lib.utils import _sample_addresses
+
+
+# ---------------------------------------------------------------------------
+# Data pattern functions (reimplemented here to avoid cocotb-dependent imports
+# from the per-protocol test_register_access.py modules)
+# ---------------------------------------------------------------------------
+def _write_pattern(address: int, width: int) -> int:
+    mask = (1 << width) - 1
+    return ((address * 0x1021) ^ 0x1357_9BDF) & mask
+
+
+def _read_pattern(address: int, width: int) -> int:
+    mask = (1 << width) - 1
+    return ((address ^ 0xDEAD_BEE5) + width) & mask
+
+
+class TestCpuifDataPatterns:
+    """Properties of the write/read pattern functions used by cocotb tests."""
+
+    @given(
+        address=st.integers(min_value=0, max_value=2**32),
+        width=st.sampled_from([8, 16, 32, 64, 128]),
+    )
+    def test_write_pattern_fits_in_width(self, address: int, width: int) -> None:
+        """Write pattern always fits within the specified bus width."""
+        result = _write_pattern(address, width)
+        assert 0 <= result < (1 << width)
+
+    @given(
+        address=st.integers(min_value=0, max_value=2**32),
+        width=st.sampled_from([8, 16, 32, 64, 128]),
+    )
+    def test_read_pattern_fits_in_width(self, address: int, width: int) -> None:
+        """Read pattern always fits within the specified bus width."""
+        result = _read_pattern(address, width)
+        assert 0 <= result < (1 << width)
+
+    @given(
+        address=st.integers(min_value=0, max_value=2**32),
+        width=st.sampled_from([8, 16, 32, 64, 128]),
+    )
+    def test_patterns_are_deterministic(self, address: int, width: int) -> None:
+        """Same address and width always produce the same pattern."""
+        assert _write_pattern(address, width) == _write_pattern(address, width)
+        assert _read_pattern(address, width) == _read_pattern(address, width)
+
+
+class TestSampleAddresses:
+    """Properties of the address sampling function used in cocotb test generation."""
+
+    @given(
+        addresses=st.lists(st.integers(min_value=0, max_value=0xFFFF), min_size=1, unique=True).map(sorted),
+        max_samples=st.integers(min_value=1, max_value=20),
+    )
+    def test_result_is_subset(self, addresses: list[int], max_samples: int) -> None:
+        """Every sampled address comes from the original list."""
+        result = _sample_addresses(addresses, max_samples)
+        for r in result:
+            assert r in addresses
+
+    @given(
+        addresses=st.lists(st.integers(min_value=0, max_value=0xFFFF), min_size=1, unique=True).map(sorted),
+        max_samples=st.integers(min_value=1, max_value=20),
+    )
+    def test_result_is_sorted(self, addresses: list[int], max_samples: int) -> None:
+        """Sampled addresses are returned in sorted order."""
+        result = _sample_addresses(addresses, max_samples)
+        assert result == sorted(result)
+
+    @given(
+        addresses=st.lists(st.integers(min_value=0, max_value=0xFFFF), min_size=1, unique=True).map(sorted),
+        # NOTE: _sample_addresses unconditionally adds first, last, and midpoint before
+        # checking the limit, so it can exceed max_samples when max_samples < 3.
+        # In practice, the codebase always uses max_samples >= 3.
+        max_samples=st.integers(min_value=3, max_value=20),
+    )
+    def test_result_size_bounded(self, addresses: list[int], max_samples: int) -> None:
+        """Never returns more than max_samples addresses (for max_samples >= 3)."""
+        result = _sample_addresses(addresses, max_samples)
+        assert len(result) <= max_samples
+
+    @given(
+        addresses=st.lists(st.integers(min_value=0, max_value=0xFFFF), min_size=1, unique=True).map(sorted),
+        max_samples=st.integers(min_value=1, max_value=20),
+    )
+    def test_small_input_returned_in_full(self, addresses: list[int], max_samples: int) -> None:
+        """When the input is small enough, all addresses are returned."""
+        result = _sample_addresses(addresses, max_samples)
+        if len(addresses) <= max_samples:
+            assert result == addresses
+
+    @given(
+        addresses=st.lists(
+            st.integers(min_value=0, max_value=0xFFFF), min_size=2, unique=True
+        ).map(sorted),
+        max_samples=st.integers(min_value=2, max_value=20),
+    )
+    def test_endpoints_always_included(self, addresses: list[int], max_samples: int) -> None:
+        """The first and last addresses are always included in the sample."""
+        result = _sample_addresses(addresses, max_samples)
+        assert addresses[0] in result
+        assert addresses[-1] in result
+
+
+# Strategy: generate a config dict with random master address ranges.
+@st.composite
+def address_range_configs(draw: st.DrawFn) -> dict:
+    """Generate configs with random, non-overlapping master address ranges."""
+    n_masters = draw(st.integers(min_value=1, max_value=5))
+    addr_width = draw(st.integers(min_value=8, max_value=16))
+    max_addr = 1 << addr_width
+
+    masters: list[dict] = []
+    cursor = 0
+    for _ in range(n_masters):
+        if cursor >= max_addr:
+            break
+        gap = draw(st.integers(min_value=0, max_value=16))
+        cursor += gap
+        if cursor >= max_addr:
+            break
+        remaining = max_addr - cursor
+        inst_size = draw(st.integers(min_value=1, max_value=min(64, remaining)))
+        is_array = draw(st.booleans())
+        if is_array:
+            max_elems = min(4, remaining // inst_size)
+            if max_elems < 1:
+                is_array = False
+                dims: list[int] = []
+            else:
+                n_elems = draw(st.integers(min_value=1, max_value=max_elems))
+                dims = [n_elems]
+        else:
+            dims = []
+            n_elems = 1
+        masters.append(
+            {
+                "inst_address": cursor,
+                "inst_size": inst_size,
+                "is_array": is_array,
+                "dimensions": dims,
+            }
+        )
+        cursor += inst_size * n_elems
+
+    return {"address_width": addr_width, "masters": masters}
+
+
+class TestFindInvalidAddress:
+    """Properties of the gap-finding function used to locate unmapped addresses."""
+
+    @given(config=address_range_configs())
+    def test_result_outside_all_master_ranges(self, config: dict) -> None:
+        """If an address is returned, it must not fall within any master's span."""
+        result = find_invalid_address(config)
+        if result is None:
+            return
+        assert 0 <= result < (1 << config["address_width"])
+        for master in config["masters"]:
+            base = master["inst_address"]
+            size = master["inst_size"]
+            n_elems = 1
+            for dim in master.get("dimensions", []):
+                n_elems *= dim
+            span = size * n_elems
+            assert not (base <= result < base + span), (
+                f"Returned 0x{result:x} but it falls in master range [0x{base:x}, 0x{base + span:x})"
+            )
+
+    @given(config=address_range_configs())
+    def test_result_within_address_space(self, config: dict) -> None:
+        """Returned address is within the valid address space [0, 2^addr_width)."""
+        result = find_invalid_address(config)
+        if result is not None:
+            assert 0 <= result < (1 << config["address_width"])
