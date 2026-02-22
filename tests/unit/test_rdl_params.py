@@ -24,8 +24,8 @@ class TestRdlParameterExtractor:
         params = extractor.extract()
         assert params == []
 
-    def test_direct_parameter(self, compile_rdl: Callable[..., AddrmapNode]) -> None:
-        """A parameter that doesn't affect array dimensions should be DIRECT."""
+    def test_non_address_parameter_ignored(self, compile_rdl: Callable[..., AddrmapNode]) -> None:
+        """A parameter that doesn't affect array dimensions is ignored."""
         rdl = """
         addrmap direct_param #(longint unsigned RESET_VAL = 42) {
             reg {
@@ -36,12 +36,7 @@ class TestRdlParameterExtractor:
         top = compile_rdl(rdl, top="direct_param")
         extractor = RdlParameterExtractor(top)
         params = extractor.extract()
-        assert len(params) == 1
-        p = params[0]
-        assert p.name == "RESET_VAL"
-        assert p.value == 42
-        assert p.usage == ParameterUsage.DIRECT
-        assert p.array_enables == []
+        assert params == []
 
     def test_address_modifying_parameter(
         self, compile_rdl: Callable[..., AddrmapNode]
@@ -67,8 +62,10 @@ class TestRdlParameterExtractor:
         assert ae.max_elements == 4
         assert ae.dimension_index == 0
 
-    def test_mixed_parameters(self, compile_rdl: Callable[..., AddrmapNode]) -> None:
-        """An addrmap with both direct and address-modifying parameters."""
+    def test_mixed_parameters_only_address_modifying(
+        self, compile_rdl: Callable[..., AddrmapNode]
+    ) -> None:
+        """Only address-modifying params are extracted; others are ignored."""
         rdl = """
         addrmap mixed_params #(
             longint unsigned N_ENGINES = 3,
@@ -82,15 +79,13 @@ class TestRdlParameterExtractor:
         top = compile_rdl(rdl, top="mixed_params")
         extractor = RdlParameterExtractor(top)
         params = extractor.extract()
-        assert len(params) == 2
+        assert len(params) == 1
 
-        by_name = {p.name: p for p in params}
-        assert by_name["N_ENGINES"].usage == ParameterUsage.ADDRESS_MODIFYING
-        assert by_name["N_ENGINES"].value == 3
-        assert len(by_name["N_ENGINES"].array_enables) == 1
-
-        assert by_name["DEFAULT_MODE"].usage == ParameterUsage.DIRECT
-        assert by_name["DEFAULT_MODE"].value == 7
+        p = params[0]
+        assert p.name == "N_ENGINES"
+        assert p.usage == ParameterUsage.ADDRESS_MODIFYING
+        assert p.value == 3
+        assert len(p.array_enables) == 1
 
 
 class TestRdlParameterSvProperties:
@@ -98,12 +93,13 @@ class TestRdlParameterSvProperties:
 
     def test_int_param_sv_type(self, compile_rdl: Callable[..., AddrmapNode]) -> None:
         rdl = """
-        addrmap sv_int #(longint unsigned VAL = 10) {
-            reg { field { sw=rw; hw=r; reset=VAL; } d[31:0]; } r0 @ 0x0;
+        addrmap sv_int #(longint unsigned N = 10) {
+            reg { field { sw=rw; hw=r; } d[31:0]; } regs[N] @ 0x0;
         };
         """
         top = compile_rdl(rdl, top="sv_int")
         params = RdlParameterExtractor(top).extract()
+        assert len(params) == 1
         assert params[0].sv_type == "int"
         assert params[0].sv_value == "10"
 
@@ -111,10 +107,10 @@ class TestRdlParameterSvProperties:
 class TestRdlParameterIntegration:
     """Tests for end-to-end parameter integration in the exporter."""
 
-    def test_direct_param_in_module_output(
+    def test_non_address_param_not_in_module(
         self, compile_rdl: Callable[..., AddrmapNode], tmp_path: Path
     ) -> None:
-        """DIRECT parameters should appear as SV parameters on the module."""
+        """Non-address parameters should NOT appear in the generated module."""
         rdl = """
         addrmap direct_test #(longint unsigned MY_RESET = 0xFF) {
             reg { field { sw=rw; hw=r; reset=MY_RESET; } data[31:0]; } r0 @ 0x0;
@@ -125,7 +121,7 @@ class TestRdlParameterIntegration:
         exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif)
 
         module = (tmp_path / "direct_test.sv").read_text()
-        assert "parameter int MY_RESET = 255" in module
+        assert "MY_RESET" not in module
 
     def test_enable_param_in_module_output(
         self, compile_rdl: Callable[..., AddrmapNode], tmp_path: Path

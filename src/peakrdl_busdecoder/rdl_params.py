@@ -1,14 +1,15 @@
 """
-SystemRDL Parameter extraction and classification for BusDecoder generation.
+SystemRDL Parameter extraction for BusDecoder generation.
 
 Monkeypatches the SystemRDL compiler's ParameterRef.get_value() to trace
 which root-level addrmap parameters are referenced throughout the component
-tree, then classifies each parameter as either:
+tree, then identifies address-modifying parameters:
 
-- ADDRESS_MODIFYING: affects array dimensions, address offsets, or strides.
-  These become enable parameters where the runtime value n <= N (elaborated max).
-- DIRECT: does not affect the address map layout. These are passed through
-  as RTL parameters on the generated module.
+- ADDRESS_MODIFYING: affects array dimensions.  These become enable
+  parameters where the runtime value n <= N (elaborated max).
+
+Only address-modifying parameters are relevant to the decoder; non-address
+parameters (reset values, field widths, etc.) are silently ignored.
 """
 
 from __future__ import annotations
@@ -83,10 +84,13 @@ class RdlParameterExtractor:
 
     def extract(self) -> list[RdlParameter]:
         """
-        Extract and classify all root-level parameters.
+        Extract address-modifying root-level parameters.
 
-        Returns a list of RdlParameter objects describing each parameter,
-        its elaborated value, and how it's used in the design.
+        Only parameters that drive array dimensions are relevant to the
+        decoder.  Non-address parameters are silently ignored.
+
+        Returns a list of RdlParameter objects for each address-modifying
+        parameter found.
         """
         raw_params = self.top_node.parameters
         if not raw_params:
@@ -95,11 +99,13 @@ class RdlParameterExtractor:
         # Phase 1: Monkeypatch and trace parameter references
         self._trace_parameter_usage()
 
-        # Phase 2: Classify each parameter
+        # Phase 2: Keep only address-modifying parameters
         result: list[RdlParameter] = []
         for param_name, param_value in raw_params.items():
             param_obj = self.top_node.inst.parameters_dict[param_name]
             usage, array_enables = self._classify_parameter(param_name, param_value)
+            if usage != ParameterUsage.ADDRESS_MODIFYING:
+                continue
             result.append(
                 RdlParameter(
                     name=param_name,

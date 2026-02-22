@@ -107,13 +107,11 @@ class DesignState:
         return None
 
     @property
-    def direct_rdl_params(self) -> list[RdlParameter]:
-        """Root parameters that are passed through as RTL parameters."""
-        return [p for p in self.rdl_params if p.usage == ParameterUsage.DIRECT]
-
-    @property
     def enable_rdl_params(self) -> list[RdlParameter]:
-        """Root parameters that become enable constraints (n <= N)."""
+        """Root parameters that become enable constraints (n <= N).
+
+        Only address-modifying parameters are relevant to the decoder.
+        """
         return [p for p in self.rdl_params if p.usage == ParameterUsage.ADDRESS_MODIFYING]
 
     def get_addressable_children_at_depth(self, unroll: bool = False) -> list[AddressableNode]:

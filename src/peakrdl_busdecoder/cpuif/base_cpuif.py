@@ -52,7 +52,6 @@ class BaseCpuif:
 
         Includes:
         - Existing array element count localparams (N_<NAME>S)
-        - DIRECT RDL parameters: passed through as SV parameters
         - ADDRESS_MODIFYING RDL parameters: exposed as SV parameters with
           max-value constraints (n <= N)
         """
@@ -81,16 +80,11 @@ class BaseCpuif:
                 f"localparam N_{child.inst_name.upper()}S = {child.n_elements}"
             )
 
-        # RDL parameters
-        for rdl_param in ds.rdl_params:
-            if rdl_param.usage == ParameterUsage.DIRECT:
-                params.append(
-                    f"parameter {rdl_param.sv_type} {rdl_param.name} = {rdl_param.sv_value}"
-                )
-            elif rdl_param.usage == ParameterUsage.ADDRESS_MODIFYING:
-                params.append(
-                    f"parameter {rdl_param.sv_type} {rdl_param.name} = {rdl_param.sv_value}"
-                )
+        # Only address-modifying RDL parameters are relevant to the decoder
+        for rdl_param in ds.enable_rdl_params:
+            params.append(
+                f"parameter {rdl_param.sv_type} {rdl_param.name} = {rdl_param.sv_value}"
+            )
 
         return params
 
