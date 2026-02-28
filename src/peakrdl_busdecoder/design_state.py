@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import TypedDict
 
 from systemrdl.node import AddressableNode, AddrmapNode
@@ -5,6 +7,7 @@ from systemrdl.rdltypes.user_enum import UserEnum
 
 from .design_scanner import DesignScanner
 from .identifier_filter import kw_filter as kwf
+from .rdl_params import ParameterUsage, RdlParameter, RdlParameterExtractor
 from .utils import clog2
 
 
@@ -66,12 +69,50 @@ class DesignState:
         # Min address width encloses the total size AND at least 1 useful address bit
         self.addr_width = max(clog2(self.top_node.size), clog2(self.cpuif_data_width // 8) + 1)
 
-        if user_addr_width is None:
-            return
+        if user_addr_width is not None:
+            if user_addr_width < self.addr_width:
+                msg.fatal(f"User-specified address width shall be greater than or equal to {self.addr_width}.")
+            self.addr_width = user_addr_width
 
-        if user_addr_width < self.addr_width:
-            msg.fatal(f"User-specified address width shall be greater than or equal to {self.addr_width}.")
-        self.addr_width = user_addr_width
+        # ------------------------
+        # Extract root-level RDL parameters
+        # ------------------------
+        extractor = RdlParameterExtractor(self.top_node)
+        self.rdl_params: list[RdlParameter] = extractor.extract()
+
+        # Build lookup: node rel_path -> list of (param, ArrayEnableInfo)
+        self._enable_params_by_path: dict[str, list[tuple[RdlParameter, int]]] = {}
+        for param in self.rdl_params:
+            if param.usage == ParameterUsage.ADDRESS_MODIFYING:
+                for ae in param.array_enables:
+                    key = ae.node_path
+                    self._enable_params_by_path.setdefault(key, []).append(
+                        (param, ae.dimension_index)
+                    )
+
+    def get_enable_param_for_dimension(
+        self, node: AddressableNode, dim_index: int
+    ) -> RdlParameter | None:
+        """
+        Look up the enable parameter for a specific array dimension of a node.
+
+        Returns the RdlParameter if this dimension is controlled by a
+        root-level ADDRESS_MODIFYING parameter, or None otherwise.
+        """
+        node_path = node.get_rel_path(self.top_node)
+        entries = self._enable_params_by_path.get(node_path, [])
+        for param, di in entries:
+            if di == dim_index:
+                return param
+        return None
+
+    @property
+    def enable_rdl_params(self) -> list[RdlParameter]:
+        """Root parameters that become enable constraints (n <= N).
+
+        Only address-modifying parameters are relevant to the decoder.
+        """
+        return [p for p in self.rdl_params if p.usage == ParameterUsage.ADDRESS_MODIFYING]
 
     def get_addressable_children_at_depth(self, unroll: bool = False) -> list[AddressableNode]:
         """

@@ -75,6 +75,7 @@ Links
 
     self
     architecture
+    parameters
     configuring
     limitations
     licensing

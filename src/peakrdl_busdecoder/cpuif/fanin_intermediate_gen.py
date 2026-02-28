@@ -47,10 +47,17 @@ class FaninIntermediateGenerator(BusDecoderListener):
         # Generate assignment logic using generate loops
         if node.array_dimensions:
             for i, dim in enumerate(node.array_dimensions, len(self._stack) - 1):
+                enable_param = self._ds.get_enable_param_for_dimension(
+                    node, i - (len(self._stack) - 1)
+                )
+                loop_bound: int | str = dim
+                if enable_param is not None:
+                    loop_bound = enable_param.name
+
                 fb = ForLoopBody(
                     "genvar",
                     f"gi{i}",
-                    dim,
+                    loop_bound,
                 )
                 self._stack.append(fb)
 
