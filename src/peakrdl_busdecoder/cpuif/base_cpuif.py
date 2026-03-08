@@ -76,15 +76,11 @@ class BaseCpuif:
             child_path = child.get_rel_path(ds.top_node)
             if child_path in enable_covered_paths:
                 continue
-            params.append(
-                f"localparam N_{child.inst_name.upper()}S = {child.n_elements}"
-            )
+            params.append(f"localparam N_{child.inst_name.upper()}S = {child.n_elements}")
 
         # Only address-modifying RDL parameters are relevant to the decoder
         for rdl_param in ds.enable_rdl_params:
-            params.append(
-                f"parameter {rdl_param.sv_type} {rdl_param.name} = {rdl_param.sv_value}"
-            )
+            params.append(f"parameter {rdl_param.sv_type} {rdl_param.name} = {rdl_param.sv_value}")
 
         return params
 

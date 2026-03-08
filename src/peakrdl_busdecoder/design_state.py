@@ -71,7 +71,9 @@ class DesignState:
 
         if user_addr_width is not None:
             if user_addr_width < self.addr_width:
-                msg.fatal(f"User-specified address width shall be greater than or equal to {self.addr_width}.")
+                msg.fatal(
+                    f"User-specified address width shall be greater than or equal to {self.addr_width}."
+                )
             self.addr_width = user_addr_width
 
         # ------------------------
@@ -86,13 +88,9 @@ class DesignState:
             if param.usage == ParameterUsage.ADDRESS_MODIFYING:
                 for ae in param.array_enables:
                     key = ae.node_path
-                    self._enable_params_by_path.setdefault(key, []).append(
-                        (param, ae.dimension_index)
-                    )
+                    self._enable_params_by_path.setdefault(key, []).append((param, ae.dimension_index))
 
-    def get_enable_param_for_dimension(
-        self, node: AddressableNode, dim_index: int
-    ) -> RdlParameter | None:
+    def get_enable_param_for_dimension(self, node: AddressableNode, dim_index: int) -> RdlParameter | None:
         """
         Look up the enable parameter for a specific array dimension of a node.
 

@@ -125,7 +125,6 @@ class RdlParameterExtractor:
         re-evaluation to trigger the tracking.
         """
         from systemrdl.ast.references import ParameterRef
-        from systemrdl.core.parameter import Parameter
 
         root_def = self._root_original_def
         usage_map = self._usage_map
@@ -136,7 +135,7 @@ class RdlParameterExtractor:
             self_ref: ParameterRef,
             eval_width: int | None = None,
             assignee_node: Node | None = None,
-        ) -> Any:
+        ) -> Any:  # noqa: ANN401
             if self_ref.ref_root is root_def:
                 if assignee_node is not None:
                     usage_map[self_ref.param_name][id(assignee_node)] = assignee_node
@@ -191,7 +190,9 @@ class RdlParameterExtractor:
                         pass
 
     def _classify_parameter(
-        self, param_name: str, param_value: Any
+        self,
+        param_name: str,
+        param_value: Any,  # noqa: ANN401
     ) -> tuple[ParameterUsage, list[ArrayEnableInfo]]:
         """
         Classify a root parameter based on how it's used in the design.
