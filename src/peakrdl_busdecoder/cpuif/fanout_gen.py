@@ -32,8 +32,9 @@ class FanoutGenerator(BusDecoderListener):
                 should_generate = True
 
         if node.array_dimensions:
-            for i, dim in enumerate(node.array_dimensions, len(self._stack) - 1):
-                enable_param = self._ds.get_enable_param_for_dimension(node, i - (len(self._stack) - 1))
+            s_len = len(self._stack)
+            for i, dim in enumerate(node.array_dimensions, s_len - 1):
+                enable_param = self._ds.get_enable_param_for_dimension(node, i - (s_len - 1))
                 loop_bound: int | str = dim
                 if enable_param is not None:
                     loop_bound = enable_param.name
