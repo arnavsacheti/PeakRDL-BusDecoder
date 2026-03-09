@@ -34,15 +34,10 @@ class FanoutGenerator(BusDecoderListener):
         if node.array_dimensions:
             s_len = len(self._stack)
             for i, dim in enumerate(node.array_dimensions, s_len - 1):
-                enable_param = self._ds.get_enable_param_for_dimension(node, i - (s_len - 1))
-                loop_bound: int | str = dim
-                if enable_param is not None:
-                    loop_bound = enable_param.name
-
                 fb = ForLoopBody(
                     "genvar",
                     f"gi{i}",
-                    loop_bound,
+                    self._ds.resolve_loop_bound(node, i - (s_len - 1), dim),
                 )
                 self._stack.append(fb)
 

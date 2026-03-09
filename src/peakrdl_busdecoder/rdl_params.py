@@ -14,22 +14,21 @@ parameters (reset values, field widths, etc.) are silently ignored.
 
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from systemrdl.node import AddressableNode, AddrmapNode, Node
 
-if TYPE_CHECKING:
-    pass
+logger = logging.getLogger(__name__)
 
 
 class ParameterUsage(Enum):
     """How a root-level RDL parameter is used in the design."""
 
     ADDRESS_MODIFYING = auto()
-    DIRECT = auto()
 
 
 @dataclass
@@ -99,19 +98,25 @@ class RdlParameterExtractor:
         # Phase 1: Monkeypatch and trace parameter references
         self._trace_parameter_usage()
 
-        # Phase 2: Keep only address-modifying parameters
+        # Phase 2: Pre-collect arrayed addressable nodes (single tree walk)
+        self._arrayed_nodes: list[AddressableNode] = [
+            node for node in self.top_node.descendants()
+            if isinstance(node, AddressableNode) and node.is_array and node.array_dimensions
+        ]
+
+        # Phase 3: Keep only address-modifying parameters
         result: list[RdlParameter] = []
         for param_name, param_value in raw_params.items():
             param_obj = self.top_node.inst.parameters_dict[param_name]
-            usage, array_enables = self._classify_parameter(param_name, param_value)
-            if usage != ParameterUsage.ADDRESS_MODIFYING:
+            array_enables = self._find_array_enables(param_name, param_value)
+            if not array_enables:
                 continue
             result.append(
                 RdlParameter(
                     name=param_name,
                     value=param_value,
                     param_type=param_obj.param_type,
-                    usage=usage,
+                    usage=ParameterUsage.ADDRESS_MODIFYING,
                     array_enables=array_enables,
                 )
             )
@@ -187,63 +192,104 @@ class RdlParameterExtractor:
                         # Some parameters may not re-evaluate cleanly
                         # (e.g., if their expressions reference resolved-only state).
                         # That's OK — we've already captured what we need.
-                        pass
+                        logger.debug(
+                            "Could not re-evaluate param %s on %s",
+                            param, node, exc_info=True,
+                        )
 
-    def _classify_parameter(
+    def _find_array_enables(
         self,
         param_name: str,
         param_value: Any,  # noqa: ANN401
-    ) -> tuple[ParameterUsage, list[ArrayEnableInfo]]:
+    ) -> list[ArrayEnableInfo]:
         """
-        Classify a root parameter based on how it's used in the design.
+        Find array dimensions driven by this parameter.
 
-        A parameter is ADDRESS_MODIFYING if it was traced and its value
-        matches an array dimension of a traced node (or one of its descendants).
-        Otherwise it's DIRECT.
+        Returns a non-empty list if the parameter is address-modifying.
+        When the monkeypatch traced specific nodes for this parameter,
+        only those nodes (and their descendants) are checked.  When no
+        trace data is available (e.g. references were resolved during
+        elaboration), a value-match heuristic over all arrayed nodes
+        is used as a fallback — but only if the parameter name appears
+        in the component definition's original parameter list, reducing
+        false positives.
         """
         if not isinstance(param_value, int):
-            return ParameterUsage.DIRECT, []
+            return []
 
         array_enables: list[ArrayEnableInfo] = []
         traced_nodes_dict = self._usage_map.get(param_name, {})
-        if not traced_nodes_dict:
-            return ParameterUsage.DIRECT, []
-
         traced_nodes = list(traced_nodes_dict.values())
         traced_node_ids = set(traced_nodes_dict.keys())
+        has_trace = bool(traced_nodes_dict)
 
-        # Check all arrayed descendants to see if this parameter drives
-        # an array dimension.
-        for node in self.top_node.descendants():
-            if not isinstance(node, AddressableNode):
-                continue
-            if not node.is_array or not node.array_dimensions:
-                continue
+        # Pre-compute which children reference this param in array dim expressions
+        orig_array_children = self._param_in_original_array_dims(param_name) if not has_trace else set()
 
-            # Check if this node (or an ancestor that was traced) connects
-            # to the root parameter
-            node_is_traced = id(node) in traced_node_ids or any(
-                self._is_ancestor_of(traced, node) for traced in traced_nodes
-            )
-            if not node_is_traced:
-                continue
+        for node in self._arrayed_nodes:
+            if has_trace:
+                # Only consider nodes that were traced or are descendants
+                # of traced nodes
+                node_is_traced = id(node) in traced_node_ids or any(
+                    self._is_ancestor_of(traced, node) for traced in traced_nodes
+                )
+                if not node_is_traced:
+                    continue
+            else:
+                # Fallback: check the addrmap's original (pre-elaboration) AST
+                # to see if this parameter appears in array dimension expressions.
+                # This avoids false-positive value matches.
+                if node.inst_name not in orig_array_children:
+                    continue
 
             # Match the parameter value to specific array dimensions
             for dim_idx, dim in enumerate(node.array_dimensions):
                 if dim == param_value:
-                    node_path = node.get_rel_path(self.top_node)
                     array_enables.append(
                         ArrayEnableInfo(
-                            node_path=node_path,
+                            node_path=node.get_rel_path(self.top_node),
                             max_elements=dim,
                             dimension_index=dim_idx,
                         )
                     )
 
-        if array_enables:
-            return ParameterUsage.ADDRESS_MODIFYING, array_enables
+        return array_enables
 
-        return ParameterUsage.DIRECT, []
+    def _param_in_original_array_dims(self, param_name: str) -> set[str]:
+        """Find child inst_names whose array dims reference this parameter in the original AST."""
+        from systemrdl.ast.references import ParameterRef
+
+        orig = self._root_original_def
+        matches: set[str] = set()
+        for child in getattr(orig, "children", []):
+            dims = getattr(child, "array_dimensions", None)
+            if not dims:
+                continue
+            for dim_expr in dims:
+                if self._expr_references_param(dim_expr, param_name, ParameterRef):
+                    matches.add(child.inst_name)
+                    break
+        return matches
+
+    @staticmethod
+    def _expr_references_param(expr: Any, param_name: str, param_ref_cls: type) -> bool:
+        """Recursively check if an AST expression references a parameter by name."""
+        if isinstance(expr, param_ref_cls) and expr.param_name == param_name:
+            return True
+        # Walk known AST expression attributes
+        for attr in ("v", "op_a", "op_b", "n"):
+            child = getattr(expr, attr, None)
+            if child is not None and hasattr(child, "get_value"):
+                if RdlParameterExtractor._expr_references_param(child, param_name, param_ref_cls):
+                    return True
+        for attr in ("operands",):
+            children = getattr(expr, attr, None)
+            if children:
+                for child in children:
+                    if hasattr(child, "get_value"):
+                        if RdlParameterExtractor._expr_references_param(child, param_name, param_ref_cls):
+                            return True
+        return False
 
     @staticmethod
     def _is_ancestor_of(ancestor: Node, descendant: Node) -> bool:

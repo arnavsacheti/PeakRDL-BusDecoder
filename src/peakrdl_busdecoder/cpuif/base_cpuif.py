@@ -55,18 +55,15 @@ class BaseCpuif:
         - ADDRESS_MODIFYING RDL parameters: exposed as SV parameters with
           max-value constraints (n <= N)
         """
-        from ..rdl_params import ParameterUsage
-
         params: list[str] = []
         ds = self.exp.ds
 
-        # Collect node paths that are covered by enable RDL parameters
-        # so we can skip the redundant auto-generated localparams for them.
+        # Collect node paths covered by enable RDL parameters so we can
+        # skip the redundant auto-generated localparams for them.
         enable_covered_paths: set[str] = set()
-        for rdl_param in ds.rdl_params:
-            if rdl_param.usage == ParameterUsage.ADDRESS_MODIFYING:
-                for ae in rdl_param.array_enables:
-                    enable_covered_paths.add(ae.node_path)
+        for rdl_param in ds.enable_rdl_params:
+            for ae in rdl_param.array_enables:
+                enable_covered_paths.add(ae.node_path)
 
         # Existing array element count localparams (skip if covered by an
         # RDL enable parameter to avoid duplicate declarations)
@@ -78,7 +75,7 @@ class BaseCpuif:
                 continue
             params.append(f"localparam N_{child.inst_name.upper()}S = {child.n_elements}")
 
-        # Only address-modifying RDL parameters are relevant to the decoder
+        # Address-modifying RDL parameters as SV module parameters
         for rdl_param in ds.enable_rdl_params:
             params.append(f"parameter {rdl_param.sv_type} {rdl_param.name} = {rdl_param.sv_value}")
 

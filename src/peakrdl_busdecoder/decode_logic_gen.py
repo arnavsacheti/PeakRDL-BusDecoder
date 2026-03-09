@@ -114,19 +114,10 @@ class DecodeLogicGenerator(BusDecoderListener):
             self._cond_stack.append(condition)
             ds_len = len(self._decode_stack)
             for i, dim in enumerate(node.array_dimensions, ds_len - 1):
-                # If this dimension is controlled by an address-modifying RDL
-                # parameter, use the parameter name as the loop bound so that
-                # the RTL can reduce the active element count at instantiation
-                # time (n <= N).
-                enable_param = self._ds.get_enable_param_for_dimension(node, i - (ds_len - 1))
-                loop_bound: int | str = dim
-                if enable_param is not None:
-                    loop_bound = enable_param.name
-
                 fb = ForLoopBody(
                     "int",
                     f"i{i}",
-                    loop_bound,
+                    self._ds.resolve_loop_bound(node, i - (ds_len - 1), dim),
                 )
                 self._decode_stack.append(fb)
 
