@@ -109,7 +109,7 @@ class BaseCpuif:
             loader=loader,
             undefined=jj.StrictUndefined,
         )
-        jj_env.tests["array"] = self.check_is_array
+        jj_env.tests["array"] = self.check_is_array  # type: ignore
         jj_env.filters["clog2"] = clog2
         jj_env.filters["is_pow2"] = is_pow2
         jj_env.filters["roundup_pow2"] = roundup_pow2

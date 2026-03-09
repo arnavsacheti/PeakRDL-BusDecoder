@@ -151,7 +151,7 @@ class RdlParameterExtractor:
             self._force_reevaluation()
         finally:
             # Always restore original method
-            ParameterRef.get_value = original_param_ref_get_value  # type: ignore[assignment]
+            ParameterRef.get_value = original_param_ref_get_value
 
     def _clear_parameter_caches(self) -> None:
         """Clear _cached_value on all Parameter objects in the tree."""
