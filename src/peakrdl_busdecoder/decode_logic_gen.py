@@ -118,9 +118,7 @@ class DecodeLogicGenerator(BusDecoderListener):
                 # parameter, use the parameter name as the loop bound so that
                 # the RTL can reduce the active element count at instantiation
                 # time (n <= N).
-                enable_param = self._ds.get_enable_param_for_dimension(
-                    node, i - (ds_len - 1)
-                )
+                enable_param = self._ds.get_enable_param_for_dimension(node, i - (ds_len - 1))
                 loop_bound: int | str = dim
                 if enable_param is not None:
                     loop_bound = enable_param.name
