@@ -82,13 +82,21 @@ class DesignState:
         extractor = RdlParameterExtractor(self.top_node)
         self.rdl_params: list[RdlParameter] = extractor.extract()
 
-        # Build lookup: node rel_path -> list of (param, ArrayEnableInfo)
-        self._enable_params_by_path: dict[str, list[tuple[RdlParameter, int]]] = {}
+        # Build lookup: (node rel_path, dimension index) -> enable parameter.
+        # If multiple parameters map to the same dimension, mark ambiguous so
+        # we can safely fall back to static bounds instead of picking one by order.
+        self._enable_params_by_node_dim: dict[tuple[str, int], RdlParameter | None] = {}
         for param in self.rdl_params:
             if param.usage == ParameterUsage.ADDRESS_MODIFYING:
                 for ae in param.array_enables:
-                    key = ae.node_path
-                    self._enable_params_by_path.setdefault(key, []).append((param, ae.dimension_index))
+                    key = (ae.node_path, ae.dimension_index)
+                    existing = self._enable_params_by_node_dim.get(key)
+                    if existing is None and key in self._enable_params_by_node_dim:
+                        continue
+                    if existing is not None and existing.name != param.name:
+                        self._enable_params_by_node_dim[key] = None
+                    else:
+                        self._enable_params_by_node_dim[key] = param
 
     def get_enable_param_for_dimension(self, node: AddressableNode, dim_index: int) -> RdlParameter | None:
         """
@@ -98,11 +106,7 @@ class DesignState:
         root-level ADDRESS_MODIFYING parameter, or None otherwise.
         """
         node_path = node.get_rel_path(self.top_node)
-        entries = self._enable_params_by_path.get(node_path, [])
-        for param, di in entries:
-            if di == dim_index:
-                return param
-        return None
+        return self._enable_params_by_node_dim.get((node_path, dim_index))
 
     @property
     def enable_rdl_params(self) -> list[RdlParameter]:

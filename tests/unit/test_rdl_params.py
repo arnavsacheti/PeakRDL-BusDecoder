@@ -87,6 +87,30 @@ class TestRdlParameterExtractor:
         assert p.value == 3
         assert len(p.array_enables) == 1
 
+    def test_same_value_non_array_param_not_misclassified(
+        self, compile_rdl: Callable[..., AddrmapNode]
+    ) -> None:
+        """A non-array parameter sharing the same value must stay DIRECT."""
+        rdl = """
+        addrmap collision_params #(
+            longint unsigned N_UNUSED = 4,
+            longint unsigned N_REAL = 4
+        ) {
+            reg {
+                field { sw=rw; hw=r; reset=N_UNUSED; } cfg[31:0];
+            } cfg @ 0x0;
+
+            reg {
+                field { sw=rw; hw=r; } data[31:0];
+            } regs[N_REAL] @ 0x10;
+        };
+        """
+        top = compile_rdl(rdl, top="collision_params")
+        params = RdlParameterExtractor(top).extract()
+
+        assert len(params) == 1
+        assert params[0].name == "N_REAL"
+
 
 class TestRdlParameterSvProperties:
     """Tests for SV type/value rendering."""
@@ -244,3 +268,31 @@ class TestRdlParameterIntegration:
 
         module = (tmp_path / "kept_test.sv").read_text()
         assert "localparam N_REGSS = 4" in module
+
+    def test_same_value_non_array_param_not_used_for_loop_bound(
+        self, compile_rdl: Callable[..., AddrmapNode], tmp_path: Path
+    ) -> None:
+        """Loop bounds should bind to the traced array parameter, not by value."""
+        rdl = """
+        addrmap loop_collision #(
+            longint unsigned N_UNUSED = 4,
+            longint unsigned N_REAL = 4
+        ) {
+            reg {
+                field { sw=rw; hw=r; reset=N_UNUSED; } cfg[31:0];
+            } cfg @ 0x0;
+
+            reg {
+                field { sw=rw; hw=r; } data[31:0];
+            } regs[N_REAL] @ 0x10;
+        };
+        """
+        top = compile_rdl(rdl, top="loop_collision")
+        exporter = BusDecoderExporter()
+        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif)
+
+        module = (tmp_path / "loop_collision.sv").read_text()
+        assert "parameter int N_REAL = 4" in module
+        assert "parameter int N_UNUSED = 4" not in module
+        assert "i0 < N_REAL" in module
+        assert "i0 < N_UNUSED" not in module

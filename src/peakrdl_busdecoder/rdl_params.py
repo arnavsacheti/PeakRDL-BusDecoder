@@ -197,15 +197,18 @@ class RdlParameterExtractor:
         """
         Classify a root parameter based on how it's used in the design.
 
-        A parameter is ADDRESS_MODIFYING if its value matches an array
-        dimension (or product of dimensions) of any node that the
-        monkeypatch traced it to. Otherwise it's DIRECT.
+        A parameter is ADDRESS_MODIFYING if it was traced and its value
+        matches an array dimension of a traced node (or one of its descendants).
+        Otherwise it's DIRECT.
         """
         if not isinstance(param_value, int):
             return ParameterUsage.DIRECT, []
 
         array_enables: list[ArrayEnableInfo] = []
         traced_nodes_dict = self._usage_map.get(param_name, {})
+        if not traced_nodes_dict:
+            return ParameterUsage.DIRECT, []
+
         traced_nodes = list(traced_nodes_dict.values())
         traced_node_ids = set(traced_nodes_dict.keys())
 
@@ -223,9 +226,7 @@ class RdlParameterExtractor:
                 self._is_ancestor_of(traced, node) for traced in traced_nodes
             )
             if not node_is_traced:
-                # Fallback heuristic: value match on array dimensions
-                if param_value not in node.array_dimensions:
-                    continue
+                continue
 
             # Match the parameter value to specific array dimensions
             for dim_idx, dim in enumerate(node.array_dimensions):
