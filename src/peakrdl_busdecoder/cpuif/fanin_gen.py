@@ -40,7 +40,7 @@ class FaninGenerator(BusDecoderListener):
                 fb = ForLoopBody(
                     "int",
                     f"i{i}",
-                    dim,
+                    self._ds.resolve_loop_bound(node, i, dim),
                 )
                 self._stack.append(fb)
 

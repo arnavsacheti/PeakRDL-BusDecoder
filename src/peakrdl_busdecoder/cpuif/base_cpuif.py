@@ -48,14 +48,38 @@ class BaseCpuif:
     def parameters(self) -> list[str]:
         """
         Optional list of additional parameters this CPU interface provides to
-        the module's definition
+        the module's definition.
+
+        Includes:
+        - Existing array element count localparams (N_<NAME>S)
+        - ADDRESS_MODIFYING RDL parameters: exposed as SV parameters with
+          max-value constraints (n <= N)
         """
-        array_parameters = [
-            f"localparam N_{child.inst_name.upper()}S = {child.n_elements}"
-            for child in self.addressable_children
-            if self.check_is_array(child)
-        ]
-        return array_parameters
+        params: list[str] = []
+        ds = self.exp.ds
+
+        # Collect node paths covered by enable RDL parameters so we can
+        # skip the redundant auto-generated localparams for them.
+        enable_covered_paths: set[str] = set()
+        for rdl_param in ds.enable_rdl_params:
+            for ae in rdl_param.array_enables:
+                enable_covered_paths.add(ae.node_path)
+
+        # Existing array element count localparams (skip if covered by an
+        # RDL enable parameter to avoid duplicate declarations)
+        for child in self.addressable_children:
+            if not self.check_is_array(child):
+                continue
+            child_path = child.get_rel_path(ds.top_node)
+            if child_path in enable_covered_paths:
+                continue
+            params.append(f"localparam N_{child.inst_name.upper()}S = {child.n_elements}")
+
+        # Address-modifying RDL parameters as SV module parameters
+        for rdl_param in ds.enable_rdl_params:
+            params.append(f"parameter {rdl_param.sv_type} {rdl_param.name} = {rdl_param.sv_value}")
+
+        return params
 
     def _get_template_path_class_dir(self) -> str:
         """
@@ -82,7 +106,7 @@ class BaseCpuif:
             loader=loader,
             undefined=jj.StrictUndefined,
         )
-        jj_env.tests["array"] = self.check_is_array
+        jj_env.tests["array"] = self.check_is_array  # type: ignore
         jj_env.filters["clog2"] = clog2
         jj_env.filters["is_pow2"] = is_pow2
         jj_env.filters["roundup_pow2"] = roundup_pow2

@@ -26,6 +26,7 @@ class ExporterKwargs(TypedDict, total=False):
     package_name: str
     address_width: int
     cpuif_unroll: bool
+    parametrize: bool
     reuse_hwif_typedefs: bool
     max_decode_depth: int
 

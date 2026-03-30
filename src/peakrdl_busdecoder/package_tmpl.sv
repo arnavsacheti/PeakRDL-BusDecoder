@@ -16,5 +16,8 @@ package {{ds.package_name}};
 {%- for child in cpuif.addressable_children %}
     localparam {{ds.module_name.upper()}}_{{child.inst_name.upper()}}_ADDR_WIDTH = {{child.size|clog2}};
 {%- endfor %}
+{%- for param in ds.enable_rdl_params %}
+    localparam {{ds.module_name.upper()}}_MAX_{{param.name}} = {{param.value}};
+{%- endfor %}
 endpackage
 {# (eof newline anchor) #}

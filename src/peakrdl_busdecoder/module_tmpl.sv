@@ -15,7 +15,20 @@ module {{ds.module_name}}
 ) {%- endif %} (
     {{cpuif.port_declaration|indent(4)}}
 );
-    import {{ds.package_name}}::*; 
+    import {{ds.package_name}}::*;
+{%- if ds.enable_rdl_params %}
+
+    //--------------------------------------------------------------------------
+    // Parameter constraints (n <= N)
+    //--------------------------------------------------------------------------
+{%- for param in ds.enable_rdl_params %}
+    initial begin
+        assert ({{param.name}} >= 0 && {{param.name}} <= {{param.value}})
+            else $fatal(1, "{{param.name}} must be in range [0, {{param.value}}]");
+    end
+{%- endfor %}
+{%- endif %}
+
     //--------------------------------------------------------------------------
     // CPU Bus interface logic
     //--------------------------------------------------------------------------
