@@ -148,7 +148,7 @@ class RdlParameterExtractor:
             return original_param_ref_get_value(self_ref, eval_width, assignee_node)
 
         # Install monkeypatch
-        ParameterRef.get_value = tracked_get_value  # type: ignore[assignment]
+        ParameterRef.get_value = tracked_get_value  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
         try:
             # Clear all parameter caches to force re-evaluation

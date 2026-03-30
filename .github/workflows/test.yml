@@ -38,6 +38,9 @@ jobs:
         run: |
           apt-get update && apt-get install -y python3-dev libpython3-dev
       
+      - name: Fix git safe directory for container
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Install dependencies
         run: |
           uv sync --all-extras --group test
