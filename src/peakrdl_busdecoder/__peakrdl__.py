@@ -114,6 +114,16 @@ class Exporter(ExporterSubcommandPlugin):
         )
 
         arg_group.add_argument(
+            "--parametrize",
+            action="store_true",
+            default=False,
+            help="""Extract root-level RDL parameters that control array
+            dimensions and expose them as SystemVerilog module parameters.
+            By default, all array dimensions use their elaborated static values.
+            """,
+        )
+
+        arg_group.add_argument(
             "--max-decode-depth",
             type=int,
             default=1,
@@ -136,5 +146,6 @@ class Exporter(ExporterSubcommandPlugin):
             package_name=options.package_name,
             address_width=options.addr_width,
             cpuif_unroll=options.unroll,
+            parametrize=options.parametrize,
             max_decode_depth=options.max_decode_depth,
         )

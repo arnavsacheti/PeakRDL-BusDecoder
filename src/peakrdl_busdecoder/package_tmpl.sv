@@ -17,9 +17,7 @@ package {{ds.package_name}};
     localparam {{ds.module_name.upper()}}_{{child.inst_name.upper()}}_ADDR_WIDTH = {{child.size|clog2}};
 {%- endfor %}
 {%- for param in ds.enable_rdl_params %}
-{%- for ae in param.array_enables %}
-    localparam {{ds.module_name.upper()}}_MAX_{{param.name}} = {{ae.max_elements}};
-{%- endfor %}
+    localparam {{ds.module_name.upper()}}_MAX_{{param.name}} = {{param.value}};
 {%- endfor %}
 endpackage
 {# (eof newline anchor) #}

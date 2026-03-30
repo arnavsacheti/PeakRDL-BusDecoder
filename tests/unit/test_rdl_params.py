@@ -111,6 +111,45 @@ class TestRdlParameterExtractor:
         assert len(params) == 1
         assert params[0].name == "N_REAL"
 
+    def test_expression_dimension_not_matched(
+        self, compile_rdl: Callable[..., AddrmapNode]
+    ) -> None:
+        """A parameter used in an expression (N*2) for an array dimension
+        is not matched because the elaborated dim (8) != param value (4).
+        This documents a known limitation of value-based matching."""
+        rdl = """
+        addrmap expr_dim #(longint unsigned N = 4) {
+            reg { field { sw=rw; hw=r; } data[31:0]; } regs[N * 2] @ 0x0;
+        };
+        """
+        top = compile_rdl(rdl, top="expr_dim")
+        extractor = RdlParameterExtractor(top)
+        params = extractor.extract()
+        # N=4, dim=8 (N*2): value match fails, so no ADDRESS_MODIFYING param found
+        assert params == []
+
+    def test_one_param_controls_two_arrays(
+        self, compile_rdl: Callable[..., AddrmapNode]
+    ) -> None:
+        """A single parameter driving two separate arrays should produce
+        one RdlParameter with two ArrayEnableInfo entries."""
+        rdl = """
+        addrmap multi_array #(longint unsigned N = 4) {
+            reg { field { sw=rw; hw=r; } d1[31:0]; } regs[N] @ 0x0;
+            reg { field { sw=rw; hw=r; } d2[31:0]; } data[N] @ 0x100;
+        };
+        """
+        top = compile_rdl(rdl, top="multi_array")
+        extractor = RdlParameterExtractor(top)
+        params = extractor.extract()
+        assert len(params) == 1
+        p = params[0]
+        assert p.name == "N"
+        assert len(p.array_enables) == 2
+        paths = {ae.node_path for ae in p.array_enables}
+        assert "regs[]" in paths
+        assert "data[]" in paths
+
 
 class TestRdlParameterSvProperties:
     """Tests for SV type/value rendering."""
@@ -142,7 +181,7 @@ class TestRdlParameterIntegration:
         """
         top = compile_rdl(rdl, top="direct_test")
         exporter = BusDecoderExporter()
-        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif)
+        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif, parametrize=True)
 
         module = (tmp_path / "direct_test.sv").read_text()
         assert "MY_RESET" not in module
@@ -159,7 +198,7 @@ class TestRdlParameterIntegration:
         """
         top = compile_rdl(rdl, top="enable_test")
         exporter = BusDecoderExporter()
-        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif)
+        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif, parametrize=True)
 
         module = (tmp_path / "enable_test.sv").read_text()
         assert "parameter int N_PORTS = 4" in module
@@ -176,7 +215,7 @@ class TestRdlParameterIntegration:
         """
         top = compile_rdl(rdl, top="loop_test")
         exporter = BusDecoderExporter()
-        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif)
+        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif, parametrize=True)
 
         module = (tmp_path / "loop_test.sv").read_text()
         assert "i0 < N_REGS" in module
@@ -192,7 +231,7 @@ class TestRdlParameterIntegration:
         """
         top = compile_rdl(rdl, top="pkg_test")
         exporter = BusDecoderExporter()
-        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif)
+        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif, parametrize=True)
 
         package = (tmp_path / "pkg_test_pkg.sv").read_text()
         assert "PKG_TEST_MAX_N_CH = 6" in package
@@ -208,7 +247,7 @@ class TestRdlParameterIntegration:
         """
         top = compile_rdl(rdl, top="no_param")
         exporter = BusDecoderExporter()
-        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif)
+        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif, parametrize=True)
 
         module = (tmp_path / "no_param.sv").read_text()
         assert "module no_param" in module
@@ -227,7 +266,7 @@ class TestRdlParameterIntegration:
         """
         top = compile_rdl(rdl, top="struct_test")
         exporter = BusDecoderExporter()
-        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif)
+        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif, parametrize=True)
 
         module = (tmp_path / "struct_test.sv").read_text()
         # The struct member should use the static max dimension
@@ -245,7 +284,7 @@ class TestRdlParameterIntegration:
         """
         top = compile_rdl(rdl, top="replaced_test")
         exporter = BusDecoderExporter()
-        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif)
+        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif, parametrize=True)
 
         module = (tmp_path / "replaced_test.sv").read_text()
         # The RDL parameter replaces the auto-generated localparam
@@ -264,7 +303,7 @@ class TestRdlParameterIntegration:
         """
         top = compile_rdl(rdl, top="kept_test")
         exporter = BusDecoderExporter()
-        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif)
+        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif, parametrize=True)
 
         module = (tmp_path / "kept_test.sv").read_text()
         assert "localparam N_REGSS = 4" in module
@@ -289,10 +328,56 @@ class TestRdlParameterIntegration:
         """
         top = compile_rdl(rdl, top="loop_collision")
         exporter = BusDecoderExporter()
-        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif)
+        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif, parametrize=True)
 
         module = (tmp_path / "loop_collision.sv").read_text()
         assert "parameter int N_REAL = 4" in module
         assert "parameter int N_UNUSED = 4" not in module
         assert "i0 < N_REAL" in module
         assert "i0 < N_UNUSED" not in module
+
+    def test_parametrize_off_produces_static_output(
+        self, compile_rdl: Callable[..., AddrmapNode], tmp_path: Path
+    ) -> None:
+        """When parametrize=False (default), RDL params are ignored; output is static."""
+        rdl = """
+        addrmap static_test #(longint unsigned N_CH = 4) {
+            reg { field { sw=rw; hw=r; } data[31:0]; } ch[N_CH] @ 0x0;
+        };
+        """
+        top = compile_rdl(rdl, top="static_test")
+        exporter = BusDecoderExporter()
+        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif)
+
+        module = (tmp_path / "static_test.sv").read_text()
+        assert "parameter int N_CH" not in module
+        assert "N_CH >= 0" not in module
+        package = (tmp_path / "static_test_pkg.sv").read_text()
+        assert "MAX_N_CH" not in package
+
+    def test_one_param_two_arrays_integration(
+        self, compile_rdl: Callable[..., AddrmapNode], tmp_path: Path
+    ) -> None:
+        """One param controlling two arrays should emit a single parameter
+        declaration, both loops use param name, and a single MAX constant."""
+        rdl = """
+        addrmap multi_arr #(longint unsigned N = 4) {
+            reg { field { sw=rw; hw=r; } d1[31:0]; } regs[N] @ 0x0;
+            reg { field { sw=rw; hw=r; } d2[31:0]; } data[N] @ 0x100;
+        };
+        """
+        top = compile_rdl(rdl, top="multi_arr")
+        exporter = BusDecoderExporter()
+        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif, parametrize=True)
+
+        module = (tmp_path / "multi_arr.sv").read_text()
+        # Single parameter declaration
+        assert module.count("parameter int N = 4") == 1
+        # Both loops use N as bound
+        assert "i0 < N" in module
+        # Single assertion block
+        assert module.count("N >= 0 && N <= 4") == 1
+
+        package = (tmp_path / "multi_arr_pkg.sv").read_text()
+        # Single MAX constant
+        assert package.count("MULTI_ARR_MAX_N = 4") == 1

@@ -100,7 +100,8 @@ class RdlParameterExtractor:
 
         # Phase 2: Pre-collect arrayed addressable nodes (single tree walk)
         self._arrayed_nodes: list[AddressableNode] = [
-            node for node in self.top_node.descendants()
+            node
+            for node in self.top_node.descendants()
             if isinstance(node, AddressableNode) and node.is_array and node.array_dimensions
         ]
 
@@ -194,7 +195,9 @@ class RdlParameterExtractor:
                         # That's OK — we've already captured what we need.
                         logger.debug(
                             "Could not re-evaluate param %s on %s",
-                            param, node, exc_info=True,
+                            param,
+                            node,
+                            exc_info=True,
                         )
 
     def _find_array_enables(
@@ -243,7 +246,7 @@ class RdlParameterExtractor:
                     continue
 
             # Match the parameter value to specific array dimensions
-            for dim_idx, dim in enumerate(node.array_dimensions):
+            for dim_idx, dim in enumerate(node.array_dimensions or []):
                 if dim == param_value:
                     array_enables.append(
                         ArrayEnableInfo(
@@ -272,7 +275,7 @@ class RdlParameterExtractor:
         return matches
 
     @staticmethod
-    def _expr_references_param(expr: Any, param_name: str, param_ref_cls: type) -> bool:
+    def _expr_references_param(expr: Any, param_name: str, param_ref_cls: type) -> bool:  # noqa: ANN401
         """Recursively check if an AST expression references a parameter by name."""
         if isinstance(expr, param_ref_cls) and expr.param_name == param_name:
             return True

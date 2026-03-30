@@ -17,6 +17,7 @@ class DesignStateKwargs(TypedDict, total=False):
     package_name: str
     address_width: int
     cpuif_unroll: bool
+    parametrize: bool
     max_decode_depth: int
 
 
@@ -39,6 +40,7 @@ class DesignState:
         user_addr_width: int | None = kwargs.pop("address_width", None)
 
         self.cpuif_unroll: bool = kwargs.pop("cpuif_unroll", False)
+        self.parametrize: bool = kwargs.pop("parametrize", False)
         self.max_decode_depth: int = kwargs.pop("max_decode_depth", 1)
 
         # ------------------------
@@ -77,30 +79,39 @@ class DesignState:
             self.addr_width = user_addr_width
 
         # ------------------------
-        # Extract root-level RDL parameters
+        # Extract root-level RDL parameters (only when --parametrize is set)
         # ------------------------
-        extractor = RdlParameterExtractor(self.top_node)
-        self.rdl_params: list[RdlParameter] = extractor.extract()
+        self.rdl_params: list[RdlParameter]
+        self.enable_rdl_params: list[RdlParameter]
+        self._enable_params_by_node_dim: dict[tuple[str, int], RdlParameter | None]
 
-        # Cache the enable params list (extract() only returns ADDRESS_MODIFYING)
-        self.enable_rdl_params: list[RdlParameter] = [
-            p for p in self.rdl_params if p.usage == ParameterUsage.ADDRESS_MODIFYING
-        ]
+        if self.parametrize:
+            extractor = RdlParameterExtractor(self.top_node)
+            self.rdl_params = extractor.extract()
 
-        # Build lookup: (node rel_path, dimension index) -> enable parameter.
-        # If multiple parameters map to the same dimension, mark ambiguous so
-        # we can safely fall back to static bounds instead of picking one by order.
-        self._enable_params_by_node_dim: dict[tuple[str, int], RdlParameter | None] = {}
-        for param in self.enable_rdl_params:
-            for ae in param.array_enables:
-                key = (ae.node_path, ae.dimension_index)
-                existing = self._enable_params_by_node_dim.get(key)
-                if existing is None and key in self._enable_params_by_node_dim:
-                    continue
-                if existing is not None and existing.name != param.name:
-                    self._enable_params_by_node_dim[key] = None
-                else:
-                    self._enable_params_by_node_dim[key] = param
+            # Cache the enable params list (extract() only returns ADDRESS_MODIFYING)
+            self.enable_rdl_params = [
+                p for p in self.rdl_params if p.usage == ParameterUsage.ADDRESS_MODIFYING
+            ]
+
+            # Build lookup: (node rel_path, dimension index) -> enable parameter.
+            # If multiple parameters map to the same dimension, mark ambiguous so
+            # we can safely fall back to static bounds instead of picking one by order.
+            self._enable_params_by_node_dim = {}
+            for param in self.enable_rdl_params:
+                for ae in param.array_enables:
+                    key = (ae.node_path, ae.dimension_index)
+                    existing = self._enable_params_by_node_dim.get(key)
+                    if existing is None and key in self._enable_params_by_node_dim:
+                        continue
+                    if existing is not None and existing.name != param.name:
+                        self._enable_params_by_node_dim[key] = None
+                    else:
+                        self._enable_params_by_node_dim[key] = param
+        else:
+            self.rdl_params = []
+            self.enable_rdl_params = []
+            self._enable_params_by_node_dim = {}
 
     def get_enable_param_for_dimension(self, node: AddressableNode, dim_index: int) -> RdlParameter | None:
         """
