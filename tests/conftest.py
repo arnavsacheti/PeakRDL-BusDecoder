@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-collect_ignore_glob = ["cocotb/*/smoke/test_register_access.py", "cocotb/*/smoke/test_variable_depth.py"]
+collect_ignore_glob = [
+    "cocotb/*/smoke/test_register_access.py",
+    "cocotb/*/smoke/test_variable_depth.py",
+    "cocotb/*/smoke/test_stress.py",
+]
 
 import os
 from collections.abc import Callable

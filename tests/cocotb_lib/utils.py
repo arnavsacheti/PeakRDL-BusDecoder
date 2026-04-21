@@ -332,7 +332,8 @@ def _build_case_config(
 
 
 def _sample_addresses(addresses: list[int], max_samples: int) -> list[int]:
-    if len(addresses) <= max_samples:
+    # ``max_samples <= 0`` requests every address (used by stress runners).
+    if max_samples <= 0 or len(addresses) <= max_samples:
         return addresses
 
     samples: list[int] = []
