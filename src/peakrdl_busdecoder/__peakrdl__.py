@@ -78,7 +78,7 @@ class Exporter(ExporterSubcommandPlugin):
             "--cpuif",
             choices=cpuifs.keys(),
             default="apb4",
-            help="Select the CPU interface protocol to use [apb3]",
+            help="Select the CPU interface protocol to use [apb4]",
         )
 
         arg_group.add_argument(

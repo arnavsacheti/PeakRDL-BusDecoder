@@ -26,7 +26,7 @@ class DesignValidator(RDLListener):
 
     @property
     def top_node(self) -> "AddrmapNode":
-        return self.exp.ds.top_node
+        return self.ds.top_node
 
     def do_validate(self) -> None:
         RDLWalker().walk(self.top_node, self)
