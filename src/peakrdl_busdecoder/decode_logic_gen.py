@@ -136,6 +136,7 @@ class DecodeLogicGenerator(BusDecoderListener):
 
         ifb = self._decode_stack.pop()
         if not ifb:
+            assert isinstance(ifb, IfBody), "Decode stack should only contain IfBody's in practice"
             conditions: list[str] = []
             conditions.extend(self.cpuif_addr_predicate(node, total_size=False))
             condition = " && ".join(f"({c})" for c in conditions)
