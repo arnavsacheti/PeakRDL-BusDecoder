@@ -29,6 +29,7 @@ class ExporterKwargs(TypedDict, total=False):
     parametrize: bool
     reuse_hwif_typedefs: bool
     max_decode_depth: int
+    gate_signals: bool
 
 
 if TYPE_CHECKING:
