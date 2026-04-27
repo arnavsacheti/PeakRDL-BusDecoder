@@ -27,6 +27,9 @@ class BaseCpuif:
     # Whether this cpuif uses the SystemVerilog `interface` form (vs. flat ports).
     use_sv_interface: ClassVar[bool] = False
 
+    # Whether this cpuif honors the ``apb_buffer`` exporter option.
+    supports_apb_buffer: ClassVar[bool] = False
+
     # Slave/master signal/interface names.
     slave_name_flat: ClassVar[str] = ""  # e.g. "s_apb_"
     slave_name_sv: ClassVar[str] = ""  # e.g. "s_apb"
@@ -45,6 +48,12 @@ class BaseCpuif:
         self.reset = exp.ds.top_node.cpuif_reset
         self.unroll = exp.ds.cpuif_unroll
         self.clk_src = exp.ds.clk_src
+
+        if exp.ds.apb_buffer != "none" and not self.supports_apb_buffer:
+            exp.ds.top_node.env.msg.fatal(
+                f"apb_buffer={exp.ds.apb_buffer!r} is not supported by "
+                f"{type(self).__name__}; only APB cpuifs honor this option."
+            )
 
         interface_cls: type[Interface]
         if self.use_sv_interface:

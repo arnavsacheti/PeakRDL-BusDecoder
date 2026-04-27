@@ -8,6 +8,13 @@
     end
 `endif
 {%- endif %}
+{%- if cpuif.has_apb_buffer %}
+
+//--------------------------------------------------------------------------
+// APB I/O buffer (single-flop register slice)
+//--------------------------------------------------------------------------
+{{cpuif.apb_buffer_block()}}
+{%- endif %}
 
 assign cpuif_req   = {{cpuif.signal("PSEL")}};
 assign cpuif_wr_en = {{cpuif.signal("PWRITE")}};

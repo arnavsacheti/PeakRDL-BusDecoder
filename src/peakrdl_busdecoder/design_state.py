@@ -21,6 +21,7 @@ class DesignStateKwargs(TypedDict, total=False):
     parametrize: bool
     max_decode_depth: int
     clk_src: str
+    apb_buffer: str
 
 
 class DesignState:
@@ -47,6 +48,14 @@ class DesignState:
         self.clk_src: str = kwargs.pop("clk_src", "design")
         if self.clk_src not in ("cpuif", "design"):
             msg.fatal(f"clk_src must be 'cpuif' or 'design', got {self.clk_src!r}")
+
+        self.apb_buffer: str = kwargs.pop("apb_buffer", "none")
+        if self.apb_buffer not in ("none", "in", "out", "both"):
+            msg.fatal(
+                f"apb_buffer must be one of 'none', 'in', 'out', 'both', got {self.apb_buffer!r}"
+            )
+        if self.apb_buffer != "none" and self.clk_src != "design":
+            msg.fatal("apb_buffer requires clk_src='design' (the buffer flops use the design clk/rst)")
 
         # ------------------------
         # Info about the design

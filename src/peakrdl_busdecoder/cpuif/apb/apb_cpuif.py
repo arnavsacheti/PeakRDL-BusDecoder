@@ -8,6 +8,13 @@ from ...utils import get_indexed_path
 from ..base_cpuif import BaseCpuif
 from .apb_interface import APBFlatInterface, APBSVInterface
 
+# Slave-side input signals that may be buffered. Order is the buffer-block emit order.
+_BUFFERABLE_IN_NAMES: tuple[str, ...] = ("PSEL", "PENABLE", "PWRITE", "PADDR", "PWDATA")
+# Optional input signals: name -> cpuif class attr that gates inclusion.
+_BUFFERABLE_IN_OPTIONAL: dict[str, str] = {"PPROT": "has_pprot", "PSTRB": "has_pstrb"}
+# Slave-side output signals that may be buffered.
+_BUFFERABLE_OUT_NAMES: tuple[str, ...] = ("PRDATA", "PREADY", "PSLVERR")
+
 
 class APBCpuifBase(BaseCpuif):
     """Shared APB3/APB4 cpuif. Variants differ by ``apb_interface_type`` and
@@ -20,10 +27,108 @@ class APBCpuifBase(BaseCpuif):
     slave_name_flat = "s_apb_"
     slave_name_sv = "s_apb"
     master_signal_prefix = "m_apb_"
+    supports_apb_buffer = True
 
     apb_interface_type: ClassVar[str] = ""  # set by concrete subclasses
     has_pprot: ClassVar[bool] = False
     has_pstrb: ClassVar[bool] = False
+
+    # ---- I/O buffer ----
+
+    @property
+    def _apb_buffer(self) -> str:
+        return self.exp.ds.apb_buffer
+
+    @property
+    def buffer_in(self) -> bool:
+        return self._apb_buffer in ("in", "both")
+
+    @property
+    def buffer_out(self) -> bool:
+        return self._apb_buffer in ("out", "both")
+
+    @property
+    def has_apb_buffer(self) -> bool:
+        return self.buffer_in or self.buffer_out
+
+    def _active_buffer_in_names(self) -> list[str]:
+        names = list(_BUFFERABLE_IN_NAMES)
+        for nm, attr in _BUFFERABLE_IN_OPTIONAL.items():
+            if getattr(self, attr):
+                names.append(nm)
+        return names
+
+    def _signal_width_decl(self, name: str) -> str:
+        if name in ("PSEL", "PENABLE", "PWRITE", "PREADY", "PSLVERR"):
+            return ""
+        if name == "PADDR":
+            return f"[{self.addr_width - 1}:0] "
+        if name in ("PWDATA", "PRDATA"):
+            return f"[{self.data_width - 1}:0] "
+        if name == "PSTRB":
+            return f"[{self.data_width // 8 - 1}:0] "
+        if name == "PPROT":
+            return "[2:0] "
+        raise ValueError(f"unknown APB signal {name!r}")
+
+    def signal(
+        self,
+        signal: str,
+        node: AddressableNode | None = None,
+        idx: str | int | None = None,
+    ) -> str:
+        # Slave-side reference (no node) gets redirected to the buffer wire
+        # when buffering is enabled for that direction.
+        if node is None and idx is None:
+            if self.buffer_in and signal in self._active_buffer_in_names():
+                return f"apb_in_{signal}"
+            if self.buffer_out and signal in _BUFFERABLE_OUT_NAMES:
+                return f"apb_out_{signal}"
+        return super().signal(signal, node, idx)
+
+    def apb_buffer_block(self) -> str:
+        """SV snippet that declares apb_in_*/apb_out_* wires and (when enabled)
+        flops them on/off the slave port. Returns empty string when no buffering."""
+        if not self.has_apb_buffer:
+            return ""
+
+        in_names = self._active_buffer_in_names() if self.buffer_in else []
+        out_names = list(_BUFFERABLE_OUT_NAMES) if self.buffer_out else []
+
+        lines: list[str] = []
+        for nm in in_names:
+            lines.append(f"logic {self._signal_width_decl(nm)}apb_in_{nm};")
+        for nm in out_names:
+            lines.append(f"logic {self._signal_width_decl(nm)}apb_out_{nm};")
+
+        if in_names:
+            lines.append("")
+            lines.append("always_ff @(posedge clk or posedge rst) begin")
+            lines.append("    if (rst) begin")
+            for nm in in_names:
+                lines.append(f"        apb_in_{nm} <= '0;")
+            lines.append("    end else begin")
+            for nm in in_names:
+                src = self._interface.signal(nm)
+                lines.append(f"        apb_in_{nm} <= {src};")
+            lines.append("    end")
+            lines.append("end")
+
+        if out_names:
+            lines.append("")
+            lines.append("always_ff @(posedge clk or posedge rst) begin")
+            lines.append("    if (rst) begin")
+            for nm in out_names:
+                sink = self._interface.signal(nm)
+                lines.append(f"        {sink} <= '0;")
+            lines.append("    end else begin")
+            for nm in out_names:
+                sink = self._interface.signal(nm)
+                lines.append(f"        {sink} <= apb_out_{nm};")
+            lines.append("    end")
+            lines.append("end")
+
+        return "\n".join(lines)
 
     sv_array_fanin_wr: ClassVar[list[tuple[str, str, str]]] = [
         ("cpuif_wr_ack", "_fanin_ready", "PREADY"),

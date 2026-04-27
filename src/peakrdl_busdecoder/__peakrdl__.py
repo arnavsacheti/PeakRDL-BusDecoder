@@ -124,6 +124,18 @@ class Exporter(ExporterSubcommandPlugin):
         )
 
         arg_group.add_argument(
+            "--apb-buffer",
+            choices=("none", "in", "out", "both"),
+            default="none",
+            help="""Insert a single-flop register slice on the APB slave-side
+            I/O. 'in' buffers slave-side inputs (PSEL/PENABLE/PWRITE/PADDR/
+            PWDATA/PSTRB/PPROT), 'out' buffers slave-side outputs (PRDATA/
+            PREADY/PSLVERR), 'both' buffers both, 'none' (default) disables.
+            Only applies to APB cpuifs; requires --clk-src=design.
+            """,
+        )
+
+        arg_group.add_argument(
             "--clk-src",
             choices=("cpuif", "design"),
             default="design",
@@ -162,4 +174,5 @@ class Exporter(ExporterSubcommandPlugin):
             parametrize=options.parametrize,
             max_decode_depth=options.max_decode_depth,
             clk_src=options.clk_src,
+            apb_buffer=options.apb_buffer,
         )

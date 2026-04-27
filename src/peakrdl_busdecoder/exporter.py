@@ -30,6 +30,7 @@ class ExporterKwargs(TypedDict, total=False):
     reuse_hwif_typedefs: bool
     max_decode_depth: int
     clk_src: str
+    apb_buffer: str
 
 
 if TYPE_CHECKING:
@@ -103,6 +104,12 @@ class BusDecoderExporter:
             - "design" (default): the CPU interface carries no clk/reset. The
               module exposes top-level ``clk`` and ``rst`` ports; the design
               is responsible for distributing clock/reset to downstream slaves.
+        apb_buffer: str
+            Insert a single-flop register slice on the APB slave-side I/O.
+            One of: "none" (default), "in" (slave-side inputs only), "out"
+            (slave-side outputs only), "both". Only applies to APB cpuifs;
+            requires ``clk_src='design'`` (uses the design clk/rst). APB
+            handshake is preserved via PREADY-stretching.
         """
         # If it is the root node, skip to top addrmap
         if isinstance(node, RootNode):
