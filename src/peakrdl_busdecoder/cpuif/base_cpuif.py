@@ -44,6 +44,7 @@ class BaseCpuif:
         self.exp = exp
         self.reset = exp.ds.top_node.cpuif_reset
         self.unroll = exp.ds.cpuif_unroll
+        self.clk_src = exp.ds.clk_src
 
         interface_cls: type[Interface]
         if self.use_sv_interface:
@@ -79,7 +80,10 @@ class BaseCpuif:
     @property
     def port_declaration(self) -> str:
         slave_name = self.slave_name_sv if self.use_sv_interface else self.slave_name_flat
-        return self._interface.get_port_declaration(slave_name, self.master_signal_prefix)
+        intf_ports = self._interface.get_port_declaration(slave_name, self.master_signal_prefix)
+        if self.clk_src == "design":
+            return ",\n".join(["input  logic clk", "input  logic rst", intf_ports])
+        return intf_ports
 
     def signal(
         self,

@@ -124,6 +124,19 @@ class Exporter(ExporterSubcommandPlugin):
         )
 
         arg_group.add_argument(
+            "--clk-src",
+            choices=("cpuif", "design"),
+            default="design",
+            help="""Select where the bus decoder gets its clock and reset.
+            'cpuif' bundles clk/reset with the CPU interface (slave carries
+            PCLK/PRESETn or ACLK/ARESETn, fanned out to each master).
+            'design' (default) drops clk/reset from the CPU interface and
+            exposes top-level 'clk'/'rst' ports — the design distributes
+            clock/reset to downstream slaves itself.
+            """,
+        )
+
+        arg_group.add_argument(
             "--max-decode-depth",
             type=int,
             default=1,
@@ -148,4 +161,5 @@ class Exporter(ExporterSubcommandPlugin):
             cpuif_unroll=options.unroll,
             parametrize=options.parametrize,
             max_decode_depth=options.max_decode_depth,
+            clk_src=options.clk_src,
         )

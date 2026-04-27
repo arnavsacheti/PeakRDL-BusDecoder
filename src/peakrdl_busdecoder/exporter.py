@@ -29,6 +29,7 @@ class ExporterKwargs(TypedDict, total=False):
     parametrize: bool
     reuse_hwif_typedefs: bool
     max_decode_depth: int
+    clk_src: str
 
 
 if TYPE_CHECKING:
@@ -92,6 +93,16 @@ class BusDecoderExporter:
             components. A value of 0 decodes all levels (infinite depth). A value
             of 1 decodes only top-level children. A value of 2 decodes top-level
             and one level deeper, etc. By default, the decoder descends 1 level deep.
+        clk_src: str
+            Selects where the bus decoder gets its clock and reset.
+
+            - "cpuif": clk/reset are bundled with the CPU interface. The slave
+              bus carries the protocol-defined clock/reset (PCLK/PRESETn for
+              APB, ACLK/ARESETn for AXI4-Lite) and the decoder fans them out
+              to each master interface.
+            - "design" (default): the CPU interface carries no clk/reset. The
+              module exposes top-level ``clk`` and ``rst`` ports; the design
+              is responsible for distributing clock/reset to downstream slaves.
         """
         # If it is the root node, skip to top addrmap
         if isinstance(node, RootNode):

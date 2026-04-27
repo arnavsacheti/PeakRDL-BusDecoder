@@ -45,6 +45,10 @@ class AXI4LiteCpuifFlat(BaseCpuif):
         wr_sel = f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
         rd_sel = f"cpuif_rd_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
 
+        if self.clk_src == "cpuif":
+            fanout[self.signal("ACLK", node, "gi")] = self.signal("ACLK")
+            fanout[self.signal("ARESETn", node, "gi")] = self.signal("ARESETn")
+
         # Write address channel
         fanout[self.signal("AWVALID", node, "gi")] = wr_sel
         if self._can_truncate_addr(node, array_stack):

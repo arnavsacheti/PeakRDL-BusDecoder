@@ -43,6 +43,10 @@ class APBCpuifBase(BaseCpuif):
         sel_path = get_indexed_path(self.exp.ds.top_node, node, "gi")
         sel_expr = f"cpuif_wr_sel.{sel_path}|cpuif_rd_sel.{sel_path}"
 
+        if self.clk_src == "cpuif":
+            fanout[self.signal("PCLK", node, "gi")] = self.signal("PCLK")
+            fanout[self.signal("PRESETn", node, "gi")] = self.signal("PRESETn")
+
         fanout[self.signal("PSEL", node, "gi")] = sel_expr
         fanout[self.signal("PENABLE", node, "gi")] = f"({sel_expr}) & {self.signal('PENABLE')}"
         fanout[self.signal("PWRITE", node, "gi")] = f"cpuif_wr_sel.{sel_path}"
