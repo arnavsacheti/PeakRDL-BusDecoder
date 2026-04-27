@@ -17,10 +17,12 @@ assign cpuif_wr_addr = {{cpuif.signal("PADDR")}};
 assign cpuif_rd_addr = {{cpuif.signal("PADDR")}};
 
 assign cpuif_wr_data = {{cpuif.signal("PWDATA")}};
+{%- if cpuif.has_pstrb %}
 assign cpuif_wr_byte_en = {{cpuif.signal("PSTRB")}};
+{%- endif %}
 
 assign {{cpuif.signal("PRDATA")}} = cpuif_rd_data;
-assign {{cpuif.signal("PREADY")}} = cpuif_rd_ack | cpuif_wr_ack; 
+assign {{cpuif.signal("PREADY")}} = cpuif_rd_ack | cpuif_wr_ack;
 assign {{cpuif.signal("PSLVERR")}} = cpuif_rd_err | cpuif_wr_err;
 
 //--------------------------------------------------------------------------
