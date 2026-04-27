@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any
@@ -72,6 +74,10 @@ class RdlParameterExtractor:
     Extracts root-level addrmap parameters and classifies their usage by
     monkeypatching ParameterRef.get_value() to trace references during
     a cache-cleared re-evaluation pass.
+
+    Usage: open ``trace()``, drive ``reevaluate_node`` (and optionally
+    ``record_arrayed_node``) per-node, then call ``classify()``. The
+    convenience ``extract()`` wraps the full flow with its own walk.
     """
 
     def __init__(self, top_node: AddrmapNode) -> None:
@@ -80,32 +86,80 @@ class RdlParameterExtractor:
         # Map param_name -> dict of id(node) -> node
         # (Node objects are not hashable, so we use id-keyed dicts)
         self._usage_map: dict[str, dict[int, Node]] = defaultdict(dict)
+        self._arrayed_nodes: list[AddressableNode] = []
 
     def extract(self) -> list[RdlParameter]:
-        """
-        Extract address-modifying root-level parameters.
-
-        Only parameters that drive array dimensions are relevant to the
-        decoder.  Non-address parameters are silently ignored.
-
-        Returns a list of RdlParameter objects for each address-modifying
-        parameter found.
-        """
+        """Run the full trace-and-classify flow with a self-driven walk."""
         raw_params = self.top_node.parameters
         if not raw_params:
             return []
 
-        # Phase 1: Monkeypatch and trace parameter references
-        self._trace_parameter_usage()
+        with self.trace():
+            self.reevaluate_node(self.top_node)
+            for node in self.top_node.descendants():
+                self.reevaluate_node(node)
+                self.record_arrayed_node(node)
 
-        # Phase 2: Pre-collect arrayed addressable nodes (single tree walk)
-        self._arrayed_nodes: list[AddressableNode] = [
-            node
-            for node in self.top_node.descendants()
-            if isinstance(node, AddressableNode) and node.is_array and node.array_dimensions
-        ]
+        return self.classify()
 
-        # Phase 3: Keep only address-modifying parameters
+    @contextmanager
+    def trace(self) -> Iterator[None]:
+        """Install the ParameterRef.get_value monkeypatch for the block."""
+        from systemrdl.ast.references import ParameterRef
+
+        root_def = self._root_original_def
+        usage_map = self._usage_map
+        original = ParameterRef.get_value
+
+        def tracked_get_value(
+            self_ref: ParameterRef,
+            eval_width: int | None = None,
+            assignee_node: Node | None = None,
+        ) -> Any:  # noqa: ANN401
+            if self_ref.ref_root is root_def and assignee_node is not None:
+                usage_map[self_ref.param_name][id(assignee_node)] = assignee_node
+            return original(self_ref, eval_width, assignee_node)
+
+        ParameterRef.get_value = tracked_get_value  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+        try:
+            yield
+        finally:
+            ParameterRef.get_value = original  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+
+    def reevaluate_node(self, node: Node) -> None:
+        """Clear & re-evaluate any Parameters defined on ``node``.
+
+        Forces the AST to run, which triggers the ParameterRef trace.
+        Safe to call on nodes without parameters.
+        """
+        if not hasattr(node.inst, "parameters_dict"):
+            return
+        for param in node.inst.parameters_dict.values():
+            param._cached_value = None
+            try:
+                param.get_value(node)
+            except Exception:
+                # Some parameters may not re-evaluate cleanly (e.g., expressions
+                # that reference resolved-only state). The trace already captured
+                # what we need from prior successful evaluations.
+                logger.debug(
+                    "Could not re-evaluate param %s on %s",
+                    param,
+                    node,
+                    exc_info=True,
+                )
+
+    def record_arrayed_node(self, node: Node) -> None:
+        """Add ``node`` to the arrayed-nodes list if it qualifies."""
+        if isinstance(node, AddressableNode) and node.is_array and node.array_dimensions:
+            self._arrayed_nodes.append(node)
+
+    def classify(self) -> list[RdlParameter]:
+        """Classify root parameters using the data gathered by trace + arrayed-node collection."""
+        raw_params = self.top_node.parameters
+        if not raw_params:
+            return []
+
         result: list[RdlParameter] = []
         for param_name, param_value in raw_params.items():
             param_obj = self.top_node.inst.parameters_dict[param_name]
@@ -121,84 +175,7 @@ class RdlParameterExtractor:
                     array_enables=array_enables,
                 )
             )
-
         return result
-
-    def _trace_parameter_usage(self) -> None:
-        """
-        Monkeypatch ParameterRef.get_value() to record which root parameters
-        are referenced and from which nodes, then clear caches and force
-        re-evaluation to trigger the tracking.
-        """
-        from systemrdl.ast.references import ParameterRef
-
-        root_def = self._root_original_def
-        usage_map = self._usage_map
-
-        original_param_ref_get_value = ParameterRef.get_value
-
-        def tracked_get_value(
-            self_ref: ParameterRef,
-            eval_width: int | None = None,
-            assignee_node: Node | None = None,
-        ) -> Any:  # noqa: ANN401
-            if self_ref.ref_root is root_def:
-                if assignee_node is not None:
-                    usage_map[self_ref.param_name][id(assignee_node)] = assignee_node
-            return original_param_ref_get_value(self_ref, eval_width, assignee_node)
-
-        # Install monkeypatch
-        ParameterRef.get_value = tracked_get_value  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
-
-        try:
-            # Clear all parameter caches to force re-evaluation
-            self._clear_parameter_caches()
-            # Force re-evaluation by accessing parameters throughout the tree
-            self._force_reevaluation()
-        finally:
-            # Always restore original method
-            ParameterRef.get_value = original_param_ref_get_value
-
-    def _clear_parameter_caches(self) -> None:
-        """Clear _cached_value on all Parameter objects in the tree."""
-        # Clear root parameters
-        for param in self.top_node.inst.parameters_dict.values():
-            param._cached_value = None
-
-        # Clear descendant parameters
-        for node in self.top_node.descendants():
-            if hasattr(node.inst, "parameters_dict"):
-                for param in node.inst.parameters_dict.values():
-                    param._cached_value = None
-
-    def _force_reevaluation(self) -> None:
-        """
-        Force re-evaluation of all parameter expressions in the tree.
-
-        Walk top-down: evaluate root parameters first (they have no
-        dependencies on other params), then descendant parameters which
-        may reference root params via ParameterRef expressions.
-        """
-        # Evaluate root parameters first
-        for param in self.top_node.inst.parameters_dict.values():
-            param.get_value(self.top_node)
-
-        # Then evaluate all descendants
-        for node in self.top_node.descendants():
-            if hasattr(node.inst, "parameters_dict"):
-                for param in node.inst.parameters_dict.values():
-                    try:
-                        param.get_value(node)
-                    except Exception:
-                        # Some parameters may not re-evaluate cleanly
-                        # (e.g., if their expressions reference resolved-only state).
-                        # That's OK — we've already captured what we need.
-                        logger.debug(
-                            "Could not re-evaluate param %s on %s",
-                            param,
-                            node,
-                            exc_info=True,
-                        )
 
     def _find_array_enables(
         self,

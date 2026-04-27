@@ -1,9 +1,11 @@
+from contextlib import nullcontext
 from typing import TYPE_CHECKING
 
 from systemrdl.node import AddressableNode, AddrmapNode, Node, RegNode
 from systemrdl.walker import RDLListener, RDLWalker, WalkerAction
 
 from .node_meta import NodeMeta
+from .rdl_params import RdlParameterExtractor
 
 if TYPE_CHECKING:
     from .design_state import DesignState
@@ -20,13 +22,18 @@ class DesignScanner(RDLListener):
     def __init__(self, ds: "DesignState") -> None:
         self.ds = ds
         self.msg = self.top_node.env.msg
+        self.param_extractor: RdlParameterExtractor | None = (
+            RdlParameterExtractor(self.top_node) if ds.parametrize else None
+        )
 
     @property
     def top_node(self) -> AddrmapNode:
         return self.ds.top_node
 
     def do_scan(self) -> None:
-        RDLWalker().walk(self.top_node, self)
+        trace_cm = self.param_extractor.trace() if self.param_extractor else nullcontext()
+        with trace_cm:
+            RDLWalker().walk(self.top_node, self)
         if self.msg.had_error:
             self.msg.fatal("Unable to export due to previous errors")
 
@@ -66,6 +73,10 @@ class DesignScanner(RDLListener):
 
     def enter_Component(self, node: Node) -> WalkerAction:
         self._record_meta(node)
+
+        if self.param_extractor is not None:
+            self.param_extractor.reevaluate_node(node)
+            self.param_extractor.record_arrayed_node(node)
 
         if node.external and (node != self.top_node):
             # Do not inspect external components' properties (none of my business),
