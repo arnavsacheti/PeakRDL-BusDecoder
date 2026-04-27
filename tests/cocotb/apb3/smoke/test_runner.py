@@ -33,6 +33,7 @@ def test_apb3_smoke(tmp_path: Path, rdl_file: str, top_name: str) -> None:
         build_root,
         cpuif_cls=APB3CpuifFlat,
         control_signal="PSEL",
+        exporter_kwargs={"gate_signals": True},
     )
 
     sources = get_verilog_sources(

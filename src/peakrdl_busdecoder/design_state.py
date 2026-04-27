@@ -20,6 +20,7 @@ class DesignStateKwargs(TypedDict, total=False):
     cpuif_unroll: bool
     parametrize: bool
     max_decode_depth: int
+    gate_signals: bool
 
 
 class DesignState:
@@ -43,6 +44,7 @@ class DesignState:
         self.cpuif_unroll: bool = kwargs.pop("cpuif_unroll", False)
         self.parametrize: bool = kwargs.pop("parametrize", False)
         self.max_decode_depth: int = kwargs.pop("max_decode_depth", 1)
+        self.gate_signals: bool = kwargs.pop("gate_signals", False)
 
         # ------------------------
         # Info about the design

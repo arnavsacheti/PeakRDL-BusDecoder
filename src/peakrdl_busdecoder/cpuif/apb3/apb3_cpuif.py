@@ -44,6 +44,7 @@ class APB3CpuifFlat(BaseCpuif):
 
     def fanout(self, node: AddressableNode, array_stack: deque[int]) -> str:
         fanout: dict[str, str] = {}
+        gate = self.exp.ds.gate_signals
 
         addr_width = f"{self.exp.ds.module_name.upper()}_{node.inst_name.upper()}_ADDR_WIDTH"
 
@@ -52,7 +53,9 @@ class APB3CpuifFlat(BaseCpuif):
             f"|cpuif_rd_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
         )
         fanout[self.signal("PSEL", node, "gi")] = sel_expr
-        fanout[self.signal("PENABLE", node, "gi")] = f"({sel_expr}) & {self.signal('PENABLE')}"
+        fanout[self.signal("PENABLE", node, "gi")] = (
+            f"({sel_expr}) & {self.signal('PENABLE')}" if gate else self.signal("PENABLE")
+        )
         fanout[self.signal("PWRITE", node, "gi")] = (
             f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
         )
@@ -65,8 +68,10 @@ class APB3CpuifFlat(BaseCpuif):
                 addr_comp.append(f"{self.addr_width}'(gi{i}*{SVInt(stride, self.addr_width)})")
 
             addr_value = f"{addr_width}'({' - '.join(addr_comp)})"
-        fanout[self.signal("PADDR", node, "gi")] = f"({sel_expr}) ? {addr_value} : '0"
-        fanout[self.signal("PWDATA", node, "gi")] = f"({sel_expr}) ? cpuif_wr_data : '0"
+        fanout[self.signal("PADDR", node, "gi")] = f"({sel_expr}) ? {addr_value} : '0" if gate else addr_value
+        fanout[self.signal("PWDATA", node, "gi")] = (
+            f"({sel_expr}) ? cpuif_wr_data : '0" if gate else "cpuif_wr_data"
+        )
 
         return "\n".join(f"assign {kv[0]} = {kv[1]};" for kv in fanout.items())
 

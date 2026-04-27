@@ -35,6 +35,7 @@ def test_apb4_intf_smoke(tmp_path: Path, rdl_file: str, top_name: str) -> None:
         build_root,
         cpuif_cls=APB4Cpuif,
         control_signal="PSEL",
+        exporter_kwargs={"gate_signals": True},
     )
 
     # Generate Verilator wrapper (Verilator can't have SV interface ports at top level)
