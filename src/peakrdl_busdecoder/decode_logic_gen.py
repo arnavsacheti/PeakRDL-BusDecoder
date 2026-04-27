@@ -97,10 +97,7 @@ class DecodeLogicGenerator(BusDecoderListener):
 
         if not should_decode and self._ds.max_decode_depth == 0:
             # When decoding all levels, treat leaf registers as decode boundary
-            for child in node.children():
-                if isinstance(child, AddressableNode):
-                    break
-            else:
+            if not self._ds.node_meta(node).has_addressable_children:
                 should_decode = True
 
         conditions: list[str] = []

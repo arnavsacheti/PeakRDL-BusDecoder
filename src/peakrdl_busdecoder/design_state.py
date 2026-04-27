@@ -7,6 +7,7 @@ from systemrdl.rdltypes.user_enum import UserEnum
 
 from .design_scanner import DesignScanner
 from .identifier_filter import kw_filter as kwf
+from .node_meta import NodeMeta
 from .rdl_params import ParameterUsage, RdlParameter, RdlParameterExtractor
 from .utils import clog2
 
@@ -53,6 +54,11 @@ class DesignState:
 
         self.has_external_addressable = False
         self.has_external_block = False
+
+        # Per-node facts cached during the scan walk so downstream listeners
+        # don't recompute the same predicates on each pass.
+        self._node_meta: dict[str, NodeMeta] = {}
+        self._addressable_children_cache: dict[tuple[int, bool], list[AddressableNode]] = {}
 
         # Scan the design to fill in above variables
         DesignScanner(self).do_scan()
@@ -113,6 +119,9 @@ class DesignState:
             self.enable_rdl_params = []
             self._enable_params_by_node_dim = {}
 
+    def node_meta(self, node: AddressableNode) -> NodeMeta:
+        return self._node_meta[node.get_path()]
+
     def get_enable_param_for_dimension(self, node: AddressableNode, dim_index: int) -> RdlParameter | None:
         """
         Look up the enable parameter for a specific array dimension of a node.
@@ -120,7 +129,8 @@ class DesignState:
         Returns the RdlParameter if this dimension is controlled by a
         root-level ADDRESS_MODIFYING parameter, or None otherwise.
         """
-        node_path = node.get_rel_path(self.top_node)
+        meta = self._node_meta.get(node.get_path())
+        node_path = meta.rel_path if meta is not None else node.get_rel_path(self.top_node)
         return self._enable_params_by_node_dim.get((node_path, dim_index))
 
     def resolve_loop_bound(self, node: AddressableNode, dim_index: int, dim: int) -> int | str:
@@ -145,6 +155,11 @@ class DesignState:
             List of addressable nodes at the decode boundary
         """
         from systemrdl.node import RegNode
+
+        cache_key = (self.max_decode_depth, unroll)
+        cached = self._addressable_children_cache.get(cache_key)
+        if cached is not None:
+            return cached
 
         def collect_nodes(node: AddressableNode, current_depth: int) -> list[AddressableNode]:
             """Recursively collect nodes at the decode boundary."""
@@ -179,4 +194,5 @@ class DesignState:
             if isinstance(child, AddressableNode):
                 nodes.extend(collect_nodes(child, 1))
 
+        self._addressable_children_cache[cache_key] = nodes
         return nodes

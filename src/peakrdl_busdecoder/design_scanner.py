@@ -3,6 +3,8 @@ from typing import TYPE_CHECKING
 from systemrdl.node import AddressableNode, AddrmapNode, Node, RegNode
 from systemrdl.walker import RDLListener, RDLWalker, WalkerAction
 
+from .node_meta import NodeMeta
+
 if TYPE_CHECKING:
     from .design_state import DesignState
 
@@ -28,10 +30,48 @@ class DesignScanner(RDLListener):
         if self.msg.had_error:
             self.msg.fatal("Unable to export due to previous errors")
 
+    def _record_meta(self, node: Node) -> None:
+        if not isinstance(node, AddressableNode):
+            return
+
+        addressable_children = [c for c in node.children() if isinstance(c, AddressableNode)]
+        has_addressable_children = bool(addressable_children)
+        has_only_external_addressable_children = has_addressable_children and all(
+            c.external for c in addressable_children
+        )
+
+        array_strides: tuple[int, ...] | None
+        if node.array_dimensions:
+            assert node.array_stride is not None, "Array stride should be defined for arrayed components"
+            # Stored innermost-first: [stride, stride*dim_last, stride*dim_last*dim_prev, ...].
+            # Listener replays as append(strides[0]) then appendleft for the rest, matching
+            # the original nested-stride bookkeeping exactly.
+            strides_list: list[int] = [node.array_stride]
+            current = node.array_stride
+            for dim in node.array_dimensions[-1:0:-1]:
+                current = current * dim
+                strides_list.append(current)
+            array_strides = tuple(strides_list)
+        else:
+            array_strides = None
+
+        rel_path = "" if node is self.top_node else node.get_rel_path(self.top_node)
+
+        self.ds._node_meta[node.get_path()] = NodeMeta(
+            has_only_external_addressable_children=has_only_external_addressable_children,
+            has_addressable_children=has_addressable_children,
+            array_strides=array_strides,
+            rel_path=rel_path,
+        )
+
     def enter_Component(self, node: Node) -> WalkerAction:
+        self._record_meta(node)
+
         if node.external and (node != self.top_node):
-            # Do not inspect external components. None of my business
-            return WalkerAction.SkipDescendants
+            # Do not inspect external components' properties (none of my business),
+            # but continue descending so per-node meta is populated for children
+            # that downstream listeners will still visit.
+            return WalkerAction.Continue
 
         # Collect any signals that are referenced by a property
         for prop_name in node.list_properties():

@@ -25,24 +25,18 @@ class BusDecoderListener(RDLListener):
 
         # Check if this node only contains external addressable children
         if node != self._ds.top_node and not isinstance(node, RegNode):
-            if any(isinstance(c, AddressableNode) for c in node.children()) and all(
-                c.external for c in node.children() if isinstance(c, AddressableNode)
-            ):
+            if self._ds.node_meta(node).has_only_external_addressable_children:
                 return True
 
         return False
 
     def enter_AddressableComponent(self, node: AddressableNode) -> WalkerAction | None:
-        if node.array_dimensions:
-            assert node.array_stride is not None, "Array stride should be defined for arrayed components"
-            current_stride = node.array_stride
-            self._array_stride_stack.append(current_stride)
-
-            # Work backwards from rightmost to leftmost dimension (fastest to slowest changing)
-            # Each dimension's stride is the product of its size and the previous dimension's stride
-            for dim in node.array_dimensions[-1:0:-1]:
-                current_stride = current_stride * dim
-                self._array_stride_stack.appendleft(current_stride)
+        meta = self._ds.node_meta(node)
+        if meta.array_strides is not None:
+            strides = meta.array_strides
+            self._array_stride_stack.append(strides[0])
+            for stride in strides[1:]:
+                self._array_stride_stack.appendleft(stride)
 
         self._depth += 1
 
