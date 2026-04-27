@@ -8,7 +8,7 @@ from systemrdl.rdltypes.user_enum import UserEnum
 from .design_scanner import DesignScanner
 from .identifier_filter import kw_filter as kwf
 from .node_meta import NodeMeta
-from .rdl_params import ParameterUsage, RdlParameter, RdlParameterExtractor
+from .rdl_params import ParameterUsage, RdlParameter
 from .utils import clog2
 
 
@@ -60,8 +60,9 @@ class DesignState:
         self._node_meta: dict[str, NodeMeta] = {}
         self._addressable_children_cache: dict[tuple[int, bool], list[AddressableNode]] = {}
 
-        # Scan the design to fill in above variables
-        DesignScanner(self).do_scan()
+        # Scan the design to fill in above variables.
+        scanner = DesignScanner(self)
+        scanner.do_scan()
 
         if self.cpuif_data_width == 0:
             # Scanner did not find any registers in the design being exported,
@@ -92,8 +93,8 @@ class DesignState:
         self._enable_params_by_node_dim: dict[tuple[str, int], RdlParameter | None]
 
         if self.parametrize:
-            extractor = RdlParameterExtractor(self.top_node)
-            self.rdl_params = extractor.extract()
+            assert scanner.param_extractor is not None
+            self.rdl_params = scanner.param_extractor.classify()
 
             # Cache the enable params list (extract() only returns ADDRESS_MODIFYING)
             self.enable_rdl_params = [
