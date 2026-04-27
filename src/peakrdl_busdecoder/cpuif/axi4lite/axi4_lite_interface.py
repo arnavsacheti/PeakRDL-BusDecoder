@@ -29,7 +29,14 @@ class AXI4LiteFlatInterface(FlatInterface):
         return "m_axil_"
 
     def _get_slave_port_declarations(self, slave_prefix: str) -> list[str]:
-        return [
+        ports: list[str] = []
+        if self.cpuif.clk_src == "cpuif":
+            ports += [
+                # Clocking
+                f"input  logic {slave_prefix}ACLK",
+                f"input  logic {slave_prefix}ARESETn",
+            ]
+        ports += [
             # Write address channel
             f"input  logic {slave_prefix}AWVALID",
             f"output logic {slave_prefix}AWREADY",
@@ -55,9 +62,16 @@ class AXI4LiteFlatInterface(FlatInterface):
             f"output logic [{self.cpuif.data_width - 1}:0] {slave_prefix}RDATA",
             f"output logic [1:0] {slave_prefix}RRESP",
         ]
+        return ports
 
     def _get_master_port_declarations(self, child: AddressableNode, master_prefix: str) -> list[str]:
-        return [
+        ports: list[str] = []
+        if self.cpuif.clk_src == "cpuif":
+            ports += [
+                f"output logic {self.signal('ACLK', child)}",
+                f"output logic {self.signal('ARESETn', child)}",
+            ]
+        ports += [
             # Write address channel
             f"output logic {self.signal('AWVALID', child)}",
             f"input  logic {self.signal('AWREADY', child)}",
@@ -83,3 +97,4 @@ class AXI4LiteFlatInterface(FlatInterface):
             f"input  logic [{self.cpuif.data_width - 1}:0] {self.signal('RDATA', child)}",
             f"input  logic [1:0] {self.signal('RRESP', child)}",
         ]
+        return ports
