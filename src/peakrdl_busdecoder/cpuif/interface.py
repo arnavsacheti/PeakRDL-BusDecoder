@@ -18,6 +18,10 @@ class Interface(ABC):
     def __init__(self, cpuif: "BaseCpuif") -> None:
         self.cpuif = cpuif
 
+    def master_base_name(self, node: AddressableNode) -> str:
+        """Master port base name for a node (path-qualified on conflicts)."""
+        return self.cpuif.exp.ds.master_port_name(node)
+
     @property
     @abstractmethod
     def is_interface(self) -> bool:
@@ -77,7 +81,10 @@ class SVInterface(Interface):
         master_ports: list[str] = []
 
         for child in self.cpuif.addressable_children:
-            base = f"{self.get_interface_type()}.{self.master_modport_name} {master_prefix}{child.inst_name}"
+            base = (
+                f"{self.get_interface_type()}.{self.master_modport_name} "
+                f"{master_prefix}{self.master_base_name(child)}"
+            )
 
             # When unrolled, current_idx is set - append it to the name
             if child.current_idx is not None:
@@ -111,7 +118,18 @@ class SVInterface(Interface):
 
         # Master signal
         master_prefix = self.get_master_prefix()
-        return f"{master_prefix}{get_indexed_path(node.parent, node, indexer, skip_kw_filter=True)}.{signal}"
+        base = self.master_base_name(node)
+
+        if not self.cpuif.check_is_array(node) and node.current_idx is not None:
+            # A specific element of an unrolled array: the master port is a
+            # scalar interface named with an index suffix (e.g. m_apb_blk_0)
+            return f"{master_prefix}{base}_{'_'.join(map(str, node.current_idx))}.{signal}"
+
+        # get_indexed_path relative to the parent yields the node's own name
+        # plus any index expressions; substitute the (possibly qualified) base
+        indexed = get_indexed_path(node.parent, node, indexer, skip_kw_filter=True)
+        suffix = indexed[len(node.inst_name) :]
+        return f"{master_prefix}{base}{suffix}.{signal}"
 
     @abstractmethod
     def get_interface_type(self) -> str:
@@ -160,7 +178,7 @@ class FlatInterface(Interface):
 
         # Master signal
         master_prefix = self.get_master_prefix()
-        base = f"{master_prefix}{node.inst_name}"
+        base = f"{master_prefix}{self.master_base_name(node)}"
 
         if not self.cpuif.check_is_array(node):
             # Not an array or an unrolled element
@@ -179,7 +197,7 @@ class FlatInterface(Interface):
                 return f"{base}_{signal}{''.join(indexes)}"
 
             return f"{base}_{signal}[{indexer}]"
-        return f"{base}_{signal}[N_{node.inst_name.upper()}S]"
+        return f"{base}_{signal}[N_{self.master_base_name(node).upper()}S]"
 
     @abstractmethod
     def _get_slave_port_declarations(self, slave_prefix: str) -> list[str]:

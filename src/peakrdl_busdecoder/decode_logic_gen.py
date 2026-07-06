@@ -95,11 +95,6 @@ class DecodeLogicGenerator(BusDecoderListener):
         action = super().enter_AddressableComponent(node)
         should_decode = action == WalkerAction.SkipDescendants
 
-        if not should_decode and self._ds.max_decode_depth == 0:
-            # When decoding all levels, treat leaf registers as decode boundary
-            if not self._ds.node_meta(node).has_addressable_children:
-                should_decode = True
-
         conditions: list[str] = []
         conditions.extend(self.cpuif_addr_predicate(node))
         conditions.extend(self.cpuif_prot_predicate(node))
@@ -129,6 +124,8 @@ class DecodeLogicGenerator(BusDecoderListener):
 
     def exit_AddressableComponent(self, node: AddressableNode) -> None:
         if not node.array_dimensions:
+            # Still unwind the base class depth/stride bookkeeping
+            super().exit_AddressableComponent(node)
             return
 
         ifb = self._decode_stack.pop()

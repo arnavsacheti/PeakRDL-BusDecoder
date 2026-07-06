@@ -224,13 +224,16 @@ def test_depth_3_with_deep_hierarchy(compile_rdl: Callable[..., AddrmapNode]) ->
     content = _export_and_read(top, max_decode_depth=3)
 
     # Should have interfaces at depth 3: reg2, inner3
-    # (reg1 is at depth 2, not 3)
     assert "m_apb_reg2" in content
     assert "m_apb_inner3" in content
-    # Should NOT have interfaces at other depths
+    # reg1 is a leaf at depth 2, shallower than the boundary. It is still part
+    # of the address map, so it must keep its interface (previously it was
+    # silently dropped, leaving its addresses unreachable).
+    assert "m_apb_reg1" in content
+    # Should NOT have interfaces for non-leaf blocks above the boundary, nor
+    # for anything below it
     assert "m_apb_inner1" not in content
     assert "m_apb_inner2" not in content
-    assert "m_apb_reg1" not in content
     assert "m_apb_reg3" not in content
 
 
@@ -1297,35 +1300,50 @@ class TestComplexHierarchies:
         """depth=0 on a multi-branch hierarchy reaches all leaves.
 
         Each intermediate addrmap has a register to avoid the 'all external
-        children' skip logic.
+        children' skip logic. Register names are unique across the hierarchy
+        because master ports are named after the leaf instance name.
         """
         rdl_source = """
-        addrmap leaf {
-            reg { field { sw=rw; hw=r; } data[31:0]; } leaf_r @ 0x0;
+        addrmap leaf_a_t {
+            reg { field { sw=rw; hw=r; } data[31:0]; } leaf_ra @ 0x0;
+        };
+        addrmap leaf_b_t {
+            reg { field { sw=rw; hw=r; } data[31:0]; } leaf_rb @ 0x0;
         };
 
-        addrmap mid {
-            reg { field { sw=rw; hw=r; } data[31:0]; } mid_r @ 0x0;
-            leaf leaf_a @ 0x10;
-            leaf leaf_b @ 0x20;
+        addrmap mid_a_t {
+            reg { field { sw=rw; hw=r; } data[31:0]; } mid_ra @ 0x0;
+            leaf_a_t leaf_aa @ 0x10;
+            leaf_b_t leaf_ab @ 0x20;
+        };
+        addrmap leaf_c_t {
+            reg { field { sw=rw; hw=r; } data[31:0]; } leaf_rc @ 0x0;
+        };
+        addrmap mid_b_t {
+            reg { field { sw=rw; hw=r; } data[31:0]; } mid_rb @ 0x0;
+            leaf_c_t leaf_ba @ 0x10;
         };
 
         addrmap top {
-            mid side_a @ 0x0;
-            mid side_b @ 0x100;
+            mid_a_t side_a @ 0x0;
+            mid_b_t side_b @ 0x100;
         };
         """
         top = compile_rdl(rdl_source, top="top")
         content = _export_and_read(top, max_decode_depth=0)
 
-        # All leaf_r and mid_r instances should be referenced
-        assert "m_apb_leaf_r" in content
-        assert "m_apb_mid_r" in content
+        # All leaf registers should be referenced
+        assert "m_apb_leaf_ra" in content
+        assert "m_apb_leaf_rb" in content
+        assert "m_apb_leaf_rc" in content
+        assert "m_apb_mid_ra" in content
+        assert "m_apb_mid_rb" in content
         # No intermediate interfaces
         assert "m_apb_side_a" not in content
         assert "m_apb_side_b" not in content
-        assert "m_apb_leaf_a" not in content
-        assert "m_apb_leaf_b" not in content
+        assert "m_apb_leaf_aa" not in content
+        assert "m_apb_leaf_ab" not in content
+        assert "m_apb_leaf_ba" not in content
 
 
 # ===========================================================================

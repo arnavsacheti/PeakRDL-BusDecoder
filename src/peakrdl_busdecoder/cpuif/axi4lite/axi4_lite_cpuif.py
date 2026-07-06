@@ -41,14 +41,14 @@ class AXI4LiteCpuifFlat(BaseCpuif):
 
     def fanout(self, node: AddressableNode, array_stack: deque[int]) -> str:
         fanout: dict[str, str] = {}
-        waddr_comp = [f"{self.signal('AWADDR')}", f"{SVInt(node.raw_absolute_address, self.addr_width)}"]
-        raddr_comp = [f"{self.signal('ARADDR')}", f"{SVInt(node.raw_absolute_address, self.addr_width)}"]
+        waddr_comp = [f"{self.signal('AWADDR')}", f"{SVInt(self.node_base_address(node), self.addr_width)}"]
+        raddr_comp = [f"{self.signal('ARADDR')}", f"{SVInt(self.node_base_address(node), self.addr_width)}"]
         for i, stride in enumerate(array_stack):
             offset = f"{self.addr_width}'(gi{i}*{SVInt(stride, self.addr_width)})"
             waddr_comp.append(offset)
             raddr_comp.append(offset)
 
-        addr_width = f"{self.exp.ds.module_name.upper()}_{node.inst_name.upper()}_ADDR_WIDTH"
+        addr_width = self.addr_width_param(node)
 
         wr_sel = f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
         rd_sel = f"cpuif_rd_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
@@ -128,12 +128,13 @@ class AXI4LiteCpuif(AXI4LiteCpuifFlat):
 
     def fanin_wr(self, node: AddressableNode | None = None, *, error: bool = False) -> str:
         fanin_wr = super().fanin_wr(node, error=error)
-        if node is not None and self.is_interface and node.is_array and node.array_dimensions:
+        if node is not None and self.is_interface and self.check_is_array(node):
+            assert node.array_dimensions is not None
             fanin: dict[str, str] = {}
             # Generate array index string [i0][i1]... for the intermediate signal
             array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
-            fanin["cpuif_wr_ack"] = f"{node.inst_name}_fanin_wr_valid{array_idx}"
-            fanin["cpuif_wr_err"] = f"{node.inst_name}_fanin_wr_err{array_idx}"
+            fanin["cpuif_wr_ack"] = f"{self.exp.ds.master_port_name(node)}_fanin_wr_valid{array_idx}"
+            fanin["cpuif_wr_err"] = f"{self.exp.ds.master_port_name(node)}_fanin_wr_err{array_idx}"
 
             fanin_wr = "\n" + "\n".join([f"{lhs} = {rhs};" for lhs, rhs in fanin.items()])
 
@@ -141,13 +142,14 @@ class AXI4LiteCpuif(AXI4LiteCpuifFlat):
 
     def fanin_rd(self, node: AddressableNode | None = None, *, error: bool = False) -> str:
         fanin_rd = super().fanin_rd(node, error=error)
-        if node is not None and self.is_interface and node.is_array and node.array_dimensions:
+        if node is not None and self.is_interface and self.check_is_array(node):
+            assert node.array_dimensions is not None
             fanin: dict[str, str] = {}
             # Generate array index string [i0][i1]... for the intermediate signal
             array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
-            fanin["cpuif_rd_ack"] = f"{node.inst_name}_fanin_ready{array_idx}"
-            fanin["cpuif_rd_err"] = f"{node.inst_name}_fanin_err{array_idx}"
-            fanin["cpuif_rd_data"] = f"{node.inst_name}_fanin_data{array_idx}"
+            fanin["cpuif_rd_ack"] = f"{self.exp.ds.master_port_name(node)}_fanin_ready{array_idx}"
+            fanin["cpuif_rd_err"] = f"{self.exp.ds.master_port_name(node)}_fanin_err{array_idx}"
+            fanin["cpuif_rd_data"] = f"{self.exp.ds.master_port_name(node)}_fanin_data{array_idx}"
 
             fanin_rd = "\n" + "\n".join([f"{lhs} = {rhs};" for lhs, rhs in fanin.items()])
 
@@ -171,6 +173,6 @@ class AXI4LiteCpuif(AXI4LiteCpuifFlat):
 
         array_str = "".join(f"[{dim}]" for dim in node.array_dimensions)
         return [
-            f"logic {node.inst_name}_fanin_wr_valid{array_str};",
-            f"logic {node.inst_name}_fanin_wr_err{array_str};",
+            f"logic {self.exp.ds.master_port_name(node)}_fanin_wr_valid{array_str};",
+            f"logic {self.exp.ds.master_port_name(node)}_fanin_wr_err{array_str};",
         ]

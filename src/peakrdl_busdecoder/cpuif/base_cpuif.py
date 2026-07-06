@@ -41,6 +41,23 @@ class BaseCpuif:
         return self.data_width // 8
 
     @property
+    def master_addr_widths(self) -> list[tuple[str, int]]:
+        """Per-master (PORT_NAME, addr_width) pairs for package localparams.
+
+        Keyed by the (possibly path-qualified) master port name; unrolled
+        array elements share one localparam since every element has the
+        same size.
+        """
+        result: dict[str, int] = {}
+        for child in self.addressable_children:
+            result.setdefault(self.exp.ds.master_port_name(child).upper(), clog2(child.size))
+        return list(result.items())
+
+    def addr_width_param(self, node: AddressableNode) -> str:
+        """Name of the package localparam holding this master's address width."""
+        return f"{self.exp.ds.module_name.upper()}_{self.exp.ds.master_port_name(node).upper()}_ADDR_WIDTH"
+
+    @property
     def port_declaration(self) -> str:
         raise NotImplementedError()
 
@@ -73,7 +90,7 @@ class BaseCpuif:
             child_path = child.get_rel_path(ds.top_node)
             if child_path in enable_covered_paths:
                 continue
-            params.append(f"localparam N_{child.inst_name.upper()}S = {child.n_elements}")
+            params.append(f"localparam N_{ds.master_port_name(child).upper()}S = {child.n_elements}")
 
         # Address-modifying RDL parameters as SV module parameters
         for rdl_param in ds.enable_rdl_params:
@@ -98,6 +115,18 @@ class BaseCpuif:
         if self.unroll and hasattr(node, "current_idx") and node.current_idx is not None:
             return False
         return node.is_array
+
+    @staticmethod
+    def node_base_address(node: AddressableNode) -> int:
+        """Base address of a fanout target relative to the address space root.
+
+        For an unrolled array element this is the element's own address; for a
+        rolled-up array it is the index-0 address (per-index strides are added
+        separately by the surrounding generate loops).
+        """
+        if node.current_idx is not None:
+            return node.absolute_address
+        return node.raw_absolute_address
 
     def get_implementation(self) -> str:
         class_dir = self._get_template_path_class_dir()
@@ -134,7 +163,7 @@ class BaseCpuif:
     def _can_truncate_addr(self, node: AddressableNode, array_stack: deque[int]) -> bool:
         if node.size.bit_count() != 1:
             return False
-        if node.raw_absolute_address % node.size != 0:
+        if self.node_base_address(node) % node.size != 0:
             return False
         for stride in array_stack:
             if stride % node.size != 0:

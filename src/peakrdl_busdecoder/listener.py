@@ -7,10 +7,19 @@ from .design_state import DesignState
 
 
 class BusDecoderListener(RDLListener):
+    # When True and the design is exported with cpuif_unroll, the exporter
+    # walks this listener with arrays unrolled so each element is visited as
+    # an individual (scalar) master.
+    walk_unrolled = False
+
     def __init__(self, ds: DesignState) -> None:
         self._array_stride_stack: deque[int] = deque()  # Tracks nested array strides
         self._ds = ds
         self._depth = 0
+
+    def is_rolled_array(self, node: AddressableNode) -> bool:
+        """True for an arrayed node visited rolled-up (not an unrolled element)."""
+        return bool(node.array_dimensions) and node.current_idx is None
 
     def should_skip_node(self, node: AddressableNode) -> bool:
         """Check if this node should be skipped (not decoded)."""
@@ -28,11 +37,16 @@ class BusDecoderListener(RDLListener):
             if self._ds.node_meta(node).has_only_external_addressable_children:
                 return True
 
+        # A leaf addressable node (register, memory, empty block) is always a
+        # decode boundary, even when it sits shallower than max_decode_depth.
+        if node != self._ds.top_node and not self._ds.node_meta(node).has_addressable_children:
+            return True
+
         return False
 
     def enter_AddressableComponent(self, node: AddressableNode) -> WalkerAction | None:
         meta = self._ds.node_meta(node)
-        if meta.array_strides is not None:
+        if meta.array_strides is not None and self.is_rolled_array(node):
             strides = meta.array_strides
             self._array_stride_stack.append(strides[0])
             for stride in strides[1:]:
@@ -47,7 +61,8 @@ class BusDecoderListener(RDLListener):
         return WalkerAction.Continue
 
     def exit_AddressableComponent(self, node: AddressableNode) -> None:
-        if node.array_dimensions:
+        if self.is_rolled_array(node):
+            assert node.array_dimensions is not None
             for _ in node.array_dimensions:
                 self._array_stride_stack.pop()
 

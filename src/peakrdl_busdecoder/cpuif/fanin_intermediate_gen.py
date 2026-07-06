@@ -24,6 +24,8 @@ if TYPE_CHECKING:
 class FaninIntermediateGenerator(BusDecoderListener):
     """Generates intermediate signals for interface array fanin."""
 
+    walk_unrolled = True
+
     def __init__(self, ds: DesignState, cpuif: "BaseCpuif") -> None:
         super().__init__(ds)
         self._cpuif = cpuif
@@ -35,10 +37,12 @@ class FaninIntermediateGenerator(BusDecoderListener):
         action = super().enter_AddressableComponent(node)
         should_generate = action == WalkerAction.SkipDescendants
 
-        # Only generate intermediates for interface arrays
+        # Only generate intermediates for rolled interface arrays. Unrolled
+        # elements are individual scalar interfaces that the fanin logic can
+        # reference directly.
         # Check if cpuif has is_interface attribute (some implementations don't)
         is_interface = getattr(self._cpuif, "is_interface", False)
-        if not is_interface or not node.array_dimensions:
+        if not is_interface or not self.is_rolled_array(node):
             return action
 
         # Generate intermediate signal declarations
@@ -63,7 +67,8 @@ class FaninIntermediateGenerator(BusDecoderListener):
 
     def exit_AddressableComponent(self, node: AddressableNode) -> None:
         is_interface = getattr(self._cpuif, "is_interface", False)
-        if is_interface and node.array_dimensions:
+        if is_interface and self.is_rolled_array(node):
+            assert node.array_dimensions is not None
             for _ in node.array_dimensions:
                 b = self._stack.pop()
                 if not b:
@@ -74,7 +79,7 @@ class FaninIntermediateGenerator(BusDecoderListener):
 
     def _generate_intermediate_declarations(self, node: AddressableNode) -> None:
         """Generate intermediate signal declarations for a node."""
-        inst_name = node.inst_name
+        inst_name = self._ds.master_port_name(node)
 
         # Array dimensions should be checked before calling this function
         if not node.array_dimensions:
@@ -102,8 +107,11 @@ class FaninIntermediateGenerator(BusDecoderListener):
 
     def _generate_intermediate_assignments(self, node: AddressableNode) -> str:
         """Generate assignments from interface array to intermediate signals."""
-        inst_name = node.inst_name
-        indexed_path = get_indexed_path(node.parent, node, "gi", skip_kw_filter=True)
+        inst_name = self._ds.master_port_name(node)
+        # Master interface reference: (possibly path-qualified) port base name
+        # plus the index expressions from the node's own path
+        raw_path = get_indexed_path(node.parent, node, "gi", skip_kw_filter=True)
+        indexed_path = inst_name + raw_path[len(node.inst_name) :]
 
         # Get master prefix - use getattr to avoid type errors
         interface = getattr(self._cpuif, "_interface", None)
