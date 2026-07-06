@@ -24,6 +24,8 @@ if TYPE_CHECKING:
 class FaninIntermediateGenerator(BusDecoderListener):
     """Generates intermediate signals for interface array fanin."""
 
+    walk_unrolled = True
+
     def __init__(self, ds: DesignState, cpuif: "BaseCpuif") -> None:
         super().__init__(ds)
         self._cpuif = cpuif
@@ -35,10 +37,12 @@ class FaninIntermediateGenerator(BusDecoderListener):
         action = super().enter_AddressableComponent(node)
         should_generate = action == WalkerAction.SkipDescendants
 
-        # Only generate intermediates for interface arrays
+        # Only generate intermediates for rolled interface arrays. Unrolled
+        # elements are individual scalar interfaces that the fanin logic can
+        # reference directly.
         # Check if cpuif has is_interface attribute (some implementations don't)
         is_interface = getattr(self._cpuif, "is_interface", False)
-        if not is_interface or not node.array_dimensions:
+        if not is_interface or not self.is_rolled_array(node):
             return action
 
         # Generate intermediate signal declarations
@@ -63,7 +67,8 @@ class FaninIntermediateGenerator(BusDecoderListener):
 
     def exit_AddressableComponent(self, node: AddressableNode) -> None:
         is_interface = getattr(self._cpuif, "is_interface", False)
-        if is_interface and node.array_dimensions:
+        if is_interface and self.is_rolled_array(node):
+            assert node.array_dimensions is not None
             for _ in node.array_dimensions:
                 b = self._stack.pop()
                 if not b:

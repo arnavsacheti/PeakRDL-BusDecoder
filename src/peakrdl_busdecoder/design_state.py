@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import TypedDict
 
 from systemrdl.node import AddressableNode, AddrmapNode
@@ -120,7 +121,13 @@ class DesignState:
             self._enable_params_by_node_dim = {}
 
     def node_meta(self, node: AddressableNode) -> NodeMeta:
-        return self._node_meta[node.get_path()]
+        path = node.get_path()
+        meta = self._node_meta.get(path)
+        if meta is None:
+            # Unrolled element nodes carry concrete indices in their path
+            # ("blk[2]"), but the scanner records rolled-up paths ("blk[]").
+            meta = self._node_meta[re.sub(r"\[\d+\]", "[]", path)]
+        return meta
 
     def get_enable_param_for_dimension(self, node: AddressableNode, dim_index: int) -> RdlParameter | None:
         """
@@ -143,10 +150,18 @@ class DesignState:
         Get addressable children at the decode boundary based on max_decode_depth.
 
         max_decode_depth semantics:
-        - 0: decode all levels (return leaf registers)
-        - 1: decode only top level (return children at depth 1)
-        - 2: decode top + 1 level (return children at depth 2)
-        - N: decode down to depth N (return children at depth N)
+        - 0: decode all levels (descend as deep as possible)
+        - 1: decode only top level (children at depth 1)
+        - N: decode down to depth N
+
+        A node is a decode boundary when any of these hold, matching the rules
+        the walker-based generators apply in ``BusDecoderListener.should_skip_node``
+        (the port list and the decode/fanout/fanin logic must always agree on
+        the same set of nodes):
+
+        - it sits at ``max_decode_depth`` (when a depth limit is set),
+        - it has no addressable children (a register, memory, or empty block),
+        - it is a block whose addressable children are all external.
 
         Args:
             unroll: Whether to unroll arrayed nodes
@@ -161,31 +176,27 @@ class DesignState:
         if cached is not None:
             return cached
 
+        def is_boundary(node: AddressableNode, current_depth: int) -> bool:
+            if self.max_decode_depth > 0 and current_depth >= self.max_decode_depth:
+                return True
+
+            # Compute child facts directly: unrolled nodes are not present in
+            # the scanner's node_meta cache (their paths carry indices).
+            addressable_children = [c for c in node.children() if isinstance(c, AddressableNode)]
+            if not addressable_children:
+                return True
+            if not isinstance(node, RegNode) and all(c.external for c in addressable_children):
+                return True
+            return False
+
         def collect_nodes(node: AddressableNode, current_depth: int) -> list[AddressableNode]:
-            """Recursively collect nodes at the decode boundary."""
+            if is_boundary(node, current_depth):
+                return [node]
+
             result: list[AddressableNode] = []
-
-            # For depth 0, collect all leaf registers
-            if self.max_decode_depth == 0:
-                # If this is a register, it's a leaf
-                if isinstance(node, RegNode):
-                    result.append(node)
-                else:
-                    # Recurse into children
-                    for child in node.children(unroll=unroll):
-                        if isinstance(child, AddressableNode):
-                            result.extend(collect_nodes(child, current_depth + 1))
-            else:
-                # For depth N, collect children at depth N
-                if current_depth == self.max_decode_depth:
-                    # We're at the decode boundary - return this node
-                    result.append(node)
-                elif current_depth < self.max_decode_depth:
-                    # We haven't reached the boundary yet - recurse
-                    for child in node.children(unroll=unroll):
-                        if isinstance(child, AddressableNode):
-                            result.extend(collect_nodes(child, current_depth + 1))
-
+            for child in node.children(unroll=unroll):
+                if isinstance(child, AddressableNode):
+                    result.extend(collect_nodes(child, current_depth + 1))
             return result
 
         # Start collecting from top node's children

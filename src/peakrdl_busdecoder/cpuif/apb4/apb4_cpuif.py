@@ -60,7 +60,7 @@ class APB4CpuifFlat(BaseCpuif):
             # Size is a power of 2 and aligned, so we can directly use the address bits as the slave address
             addr_value = f"{self.signal('PADDR')}[{addr_width}-1:0]"
         else:
-            addr_comp = [f"{self.signal('PADDR')}", f"{SVInt(node.raw_absolute_address, self.addr_width)}"]
+            addr_comp = [f"{self.signal('PADDR')}", f"{SVInt(self.node_base_address(node), self.addr_width)}"]
             for i, stride in enumerate(array_stack):
                 addr_comp.append(f"{self.addr_width}'(gi{i}*{SVInt(stride, self.addr_width)})")
 
@@ -116,7 +116,8 @@ class APB4Cpuif(APB4CpuifFlat):
 
     def fanin_wr(self, node: AddressableNode | None = None, *, error: bool = False) -> str:
         fanin_wr = super().fanin_wr(node, error=error)
-        if node is not None and self.is_interface and node.is_array and node.array_dimensions:
+        if node is not None and self.is_interface and self.check_is_array(node):
+            assert node.array_dimensions is not None
             fanin: dict[str, str] = {}
             # Generate array index string [i0][i1]... for the intermediate signal
             array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
@@ -128,7 +129,8 @@ class APB4Cpuif(APB4CpuifFlat):
 
     def fanin_rd(self, node: AddressableNode | None = None, *, error: bool = False) -> str:
         fanin_rd = super().fanin_rd(node, error=error)
-        if node is not None and self.is_interface and node.is_array and node.array_dimensions:
+        if node is not None and self.is_interface and self.check_is_array(node):
+            assert node.array_dimensions is not None
             fanin: dict[str, str] = {}
             # Generate array index string [i0][i1]... for the intermediate signal
             array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))

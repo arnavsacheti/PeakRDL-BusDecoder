@@ -111,6 +111,13 @@ class SVInterface(Interface):
 
         # Master signal
         master_prefix = self.get_master_prefix()
+
+        if not self.cpuif.check_is_array(node) and node.current_idx is not None:
+            # A specific element of an unrolled array: the master port is a
+            # scalar interface named with an index suffix (e.g. m_apb_blk_0)
+            name = f"{node.inst_name}_{'_'.join(map(str, node.current_idx))}"
+            return f"{master_prefix}{name}.{signal}"
+
         return f"{master_prefix}{get_indexed_path(node.parent, node, indexer, skip_kw_filter=True)}.{signal}"
 
     @abstractmethod

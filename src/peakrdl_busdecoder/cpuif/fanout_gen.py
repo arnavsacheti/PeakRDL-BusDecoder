@@ -13,6 +13,8 @@ if TYPE_CHECKING:
 
 
 class FanoutGenerator(BusDecoderListener):
+    walk_unrolled = True
+
     def __init__(self, ds: DesignState, cpuif: "BaseCpuif") -> None:
         super().__init__(ds)
         self._cpuif = cpuif
@@ -24,11 +26,9 @@ class FanoutGenerator(BusDecoderListener):
         action = super().enter_AddressableComponent(node)
 
         should_generate = action == WalkerAction.SkipDescendants
-        if not should_generate and self._ds.max_decode_depth == 0:
-            if not self._ds.node_meta(node).has_addressable_children:
-                should_generate = True
 
-        if node.array_dimensions:
+        if self.is_rolled_array(node):
+            assert node.array_dimensions is not None
             s_len = len(self._stack)
             for i, dim in enumerate(node.array_dimensions, s_len - 1):
                 fb = ForLoopBody(
@@ -44,7 +44,8 @@ class FanoutGenerator(BusDecoderListener):
         return action
 
     def exit_AddressableComponent(self, node: AddressableNode) -> None:
-        if node.array_dimensions:
+        if self.is_rolled_array(node):
+            assert node.array_dimensions is not None
             for _ in node.array_dimensions:
                 b = self._stack.pop()
                 if not b:

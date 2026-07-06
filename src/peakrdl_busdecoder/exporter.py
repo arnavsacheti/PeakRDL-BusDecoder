@@ -137,7 +137,10 @@ class BusDecoderExporter:
         stream.dump(module_file_path)
 
     def walk(self, listener_cls: type[BusDecoderListener], **kwargs: dict[str, Any]) -> str:
-        walker = RDLSteerableWalker()
+        # Port-referencing listeners walk unrolled when cpuif_unroll is set, so
+        # each array element is fanned out/in as an individual master port.
+        unroll = self.ds.cpuif_unroll and listener_cls.walk_unrolled
+        walker = RDLSteerableWalker(unroll=unroll)
         listener = listener_cls(self.ds, **kwargs)
         walker.walk(self.ds.top_node, listener, skip_top=True)
         return str(listener)

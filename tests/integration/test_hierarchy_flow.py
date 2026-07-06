@@ -4,12 +4,11 @@ These exercise combinations where several generator stages must cooperate:
 multi-dimensional arrays, decode boundaries inside regfiles, sibling blocks
 at deeper decode depths, and CPU-interface unrolling.
 
-Tests marked ``xfail(strict=True)`` document *known* cross-generator
-inconsistencies found while building this suite: the port list is derived
-from ``DesignState.get_addressable_children_at_depth`` while the decoder,
-select struct, and fanout come from walker-based generators with different
-boundary rules. When the underlying bug is fixed, the strict xfail will flip
-and the test can be promoted to a plain assertion.
+Several of these are regression tests for cross-generator inconsistencies
+found while building this suite, where the port list (from
+``DesignState.get_addressable_children_at_depth``) disagreed with the
+decoder/select-struct/fanout walkers about where the decode boundary sits.
+Both sides now share the same boundary rules; these tests pin that down.
 """
 
 from __future__ import annotations
@@ -116,23 +115,21 @@ class TestRegfileHierarchy:
         ports = parse_interface_master_ports(design.module_text)
         assert {"ra", "rb"} <= set(ports)
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "Known bug: an arrayed register at the max_decode_depth boundary is "
-            "decoded as its whole parent regfile (`cpuif_wr_sel.rf_b = 1'b1;`, an "
-            "invalid struct-to-bit assignment) while ports and the select struct "
-            "expose the per-element `rc[2]` array."
-        ),
-    )
     def test_depth2_routes_arrayed_regfile_registers_per_element(
         self, export_design: Callable[..., ExportedDesign]
     ) -> None:
+        """Regression: the decoder used to leak its depth counter and select the
+        whole parent regfile (`cpuif_wr_sel.rf_b = 1'b1;`, an invalid
+        struct-to-bit assignment) instead of the per-element `rc` array."""
         design = export_design(REGFILE_RDL, top="rfsoc", max_decode_depth=2)
         assigns = parse_decode_assigns(design.module_text, "wr")
 
         assert route(assigns, 0x100) == ["rf_b.rc[0]"]
         assert route(assigns, 0x104) == ["rf_b.rc[1]"]
+
+        ports = parse_interface_master_ports(design.module_text)
+        assert ports == {"ra": (), "rb": (), "rc": (2,)}
+        assert parse_fanout_masters(design.module_text) == set(ports)
 
     def test_depth0_full_decode_is_internally_consistent(
         self, export_design: Callable[..., ExportedDesign]
@@ -157,18 +154,13 @@ class TestRegfileHierarchy:
 class TestDeepSiblingBlocks:
     """Sibling addrmaps at max_decode_depth=2 with identically named children."""
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "Known bug: with sibling addrmap blocks at max_decode_depth=2, the "
-            "port list descends to leaf addrmaps (emitting duplicate "
-            "`m_apb_leaf0`/`m_apb_leaf1` ports) while decode/fanout stop at the "
-            "mid-level blocks and reference undeclared `m_apb_mid_*` ports."
-        ),
-    )
     def test_depth2_ports_agree_with_decode_targets(
         self, export_design: Callable[..., ExportedDesign]
     ) -> None:
+        """Regression: the port list used to descend past the all-external
+        boundary into the leaf addrmaps (emitting duplicate `m_apb_leaf0`/
+        `m_apb_leaf1` ports) while decode/fanout stopped at the mid-level
+        blocks and referenced undeclared `m_apb_mid_*` ports."""
         design = export_design(SIBLING_RDL, top="topblk", max_decode_depth=2)
 
         ports = parse_interface_master_ports(design.module_text)
@@ -179,20 +171,15 @@ class TestDeepSiblingBlocks:
             for a in parse_decode_assigns(design.module_text, "wr")
             if a.target != "cpuif_err"
         }
-        assert set(ports) == decode_targets
-        assert parse_fanout_masters(design.module_text) <= set(ports)
+        assert set(ports) == decode_targets == {"mid_a", "mid_b", "zero_reg"}
+        assert parse_fanout_masters(design.module_text) == set(ports)
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "Known bug: a register that sits shallower than max_decode_depth "
-            "(here zero_reg at depth 1 with depth=2) is decoded and fanned out "
-            "but silently dropped from the module's port list."
-        ),
-    )
     def test_depth2_keeps_ports_for_shallow_registers(
         self, export_design: Callable[..., ExportedDesign]
     ) -> None:
+        """Regression: a register shallower than max_decode_depth (zero_reg at
+        depth 1 with depth=2) used to be silently dropped from the port list,
+        leaving its addresses unreachable."""
         design = export_design(SIBLING_RDL, top="topblk", max_decode_depth=2)
 
         assigns = parse_decode_assigns(design.module_text, "wr")
@@ -203,26 +190,31 @@ class TestDeepSiblingBlocks:
 
 
 class TestCpuifUnroll:
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "Known bug: with cpuif_unroll=True the port list unrolls arrays into "
-            "`m_apb_uarts_0`/`m_apb_uarts_1`, but fanout still drives the rolled "
-            "`m_apb_uarts[gi0]` interface array and the select struct keeps "
-            "`uarts[2]` — the generated module does not elaborate."
-        ),
-    )
+    """cpuif_unroll semantics: master ports are unrolled into scalar
+    interfaces (`m_apb_uarts_0`), while the internal select struct and
+    decoder stay rolled (`uarts[2]` + for-loops). Fanout/fanin bridge the
+    two with constant indices (`cpuif_wr_sel.uarts[0]` -> `m_apb_uarts_0`).
+
+    Regression: fanout used to drive the rolled `m_apb_uarts[gi0]` interface
+    array, which was never declared as a port, so the module did not
+    elaborate."""
+
     def test_unrolled_ports_agree_with_fanout_and_struct(
         self, export_design: Callable[..., ExportedDesign]
     ) -> None:
         design = export_design(UNROLL_RDL, top="unroll_soc", cpuif_unroll=True)
 
         ports = parse_interface_master_ports(design.module_text)
-        fanout = parse_fanout_masters(design.module_text)
-        assert fanout <= set(ports)
+        assert ports == {"uarts_0": (), "uarts_1": (), "ctrl": ()}
 
+        fanout = parse_fanout_masters(design.module_text)
+        assert fanout == set(ports)
+
+        # The select struct stays rolled; fanout indexes it with constants
         sel_leaves = parse_sel_struct_leaves(design.module_text)
-        assert set(sel_leaves) == set(ports)
+        assert sel_leaves == {"uarts": (2,), "ctrl": ()}
+        assert "cpuif_wr_sel.uarts[0]|cpuif_rd_sel.uarts[0]" in design.module_text
+        assert "m_apb_uarts[" not in design.module_text
 
     def test_unrolled_decode_still_routes_correctly(
         self, export_design: Callable[..., ExportedDesign]
@@ -233,3 +225,37 @@ class TestCpuifUnroll:
         assert route(assigns, 0x000) == ["uarts[0]"]
         assert route(assigns, 0x100) == ["uarts[1]"]
         assert route(assigns, 0x1000) == ["ctrl"]
+
+    def test_unrolled_fanin_reads_scalar_interfaces_directly(
+        self, export_design: Callable[..., ExportedDesign]
+    ) -> None:
+        design = export_design(UNROLL_RDL, top="unroll_soc", cpuif_unroll=True)
+
+        # Each element is a scalar interface, so no fanin intermediate
+        # signals are needed and none may be left undriven.
+        assert "uarts_fanin_ready" not in design.module_text
+        assert "m_apb_uarts_0.PREADY" in design.module_text
+        assert "m_apb_uarts_1.PREADY" in design.module_text
+
+
+class TestPortNameCollisions:
+    def test_colliding_boundary_names_are_rejected(
+        self, export_design: Callable[..., ExportedDesign]
+    ) -> None:
+        """Two boundary nodes with the same instance name under different
+        parents would generate duplicate master ports; the exporter must
+        reject the design instead of emitting uncompilable SystemVerilog."""
+        rdl = """
+        addrmap collide {
+            regfile {
+                reg { field { sw=rw; hw=r; } d[31:0]; } status @ 0x0;
+            } blk_a @ 0x0;
+            regfile {
+                reg { field { sw=rw; hw=r; } d[31:0]; } status @ 0x0;
+            } blk_b @ 0x100;
+        };
+        """
+        from systemrdl import RDLCompileError
+
+        with pytest.raises(RDLCompileError):
+            export_design(rdl, top="collide", max_decode_depth=2)

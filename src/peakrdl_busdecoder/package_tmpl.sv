@@ -13,8 +13,8 @@ package {{ds.package_name}};
     localparam {{ds.module_name.upper()}}_DATA_WIDTH = {{ds.cpuif_data_width}};
     localparam {{ds.module_name.upper()}}_MIN_ADDR_WIDTH = {{ds.addr_width}};
     localparam {{ds.module_name.upper()}}_SIZE = {{SVInt(ds.top_node.size)}};
-{%- for child in cpuif.addressable_children %}
-    localparam {{ds.module_name.upper()}}_{{child.inst_name.upper()}}_ADDR_WIDTH = {{child.size|clog2}};
+{%- for name, width in cpuif.master_addr_widths %}
+    localparam {{ds.module_name.upper()}}_{{name}}_ADDR_WIDTH = {{width}};
 {%- endfor %}
 {%- for param in ds.enable_rdl_params %}
     localparam {{ds.module_name.upper()}}_MAX_{{param.name}} = {{param.value}};

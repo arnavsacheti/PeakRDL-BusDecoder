@@ -30,8 +30,35 @@ class DesignValidator(RDLListener):
 
     def do_validate(self) -> None:
         RDLWalker().walk(self.top_node, self)
+        self._check_unique_master_port_names()
         if self.msg.had_error:
             self.msg.fatal("Unable to export due to previous errors")
+
+    def _check_unique_master_port_names(self) -> None:
+        """Reject designs whose decode boundary produces colliding master ports.
+
+        Master ports are named after the boundary node's instance name only, so
+        two boundary nodes with the same instance name under different parents
+        (e.g. two regfiles that each contain a register named ``status``) would
+        silently generate a module with duplicate port declarations.
+        """
+        seen: dict[str, AddressableNode] = {}
+        for child in self.ds.get_addressable_children_at_depth(unroll=self.ds.cpuif_unroll):
+            name = child.inst_name
+            if child.current_idx is not None:
+                name += "_" + "_".join(map(str, child.current_idx))
+
+            other = seen.get(name)
+            if other is not None:
+                self.msg.error(
+                    f"Instances '{other.get_rel_path(self.top_node)}' and "
+                    f"'{child.get_rel_path(self.top_node)}' both resolve to master port "
+                    f"name '{name}'. Rename one of the instances, or lower "
+                    "max_decode_depth so the decode boundary stops above them.",
+                    child.inst.inst_src_ref,
+                )
+            else:
+                seen[name] = child
 
     def enter_Component(self, node: "Node") -> WalkerAction | None:
         if node.external and (node != self.top_node):
