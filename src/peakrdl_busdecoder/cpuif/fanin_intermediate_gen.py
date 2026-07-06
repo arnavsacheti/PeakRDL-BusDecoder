@@ -79,7 +79,7 @@ class FaninIntermediateGenerator(BusDecoderListener):
 
     def _generate_intermediate_declarations(self, node: AddressableNode) -> None:
         """Generate intermediate signal declarations for a node."""
-        inst_name = node.inst_name
+        inst_name = self._ds.master_port_name(node)
 
         # Array dimensions should be checked before calling this function
         if not node.array_dimensions:
@@ -107,8 +107,11 @@ class FaninIntermediateGenerator(BusDecoderListener):
 
     def _generate_intermediate_assignments(self, node: AddressableNode) -> str:
         """Generate assignments from interface array to intermediate signals."""
-        inst_name = node.inst_name
-        indexed_path = get_indexed_path(node.parent, node, "gi", skip_kw_filter=True)
+        inst_name = self._ds.master_port_name(node)
+        # Master interface reference: (possibly path-qualified) port base name
+        # plus the index expressions from the node's own path
+        raw_path = get_indexed_path(node.parent, node, "gi", skip_kw_filter=True)
+        indexed_path = inst_name + raw_path[len(node.inst_name) :]
 
         # Get master prefix - use getattr to avoid type errors
         interface = getattr(self._cpuif, "_interface", None)

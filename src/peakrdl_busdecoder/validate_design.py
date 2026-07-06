@@ -35,16 +35,17 @@ class DesignValidator(RDLListener):
             self.msg.fatal("Unable to export due to previous errors")
 
     def _check_unique_master_port_names(self) -> None:
-        """Reject designs whose decode boundary produces colliding master ports.
+        """Backstop: reject designs whose master port names still collide.
 
-        Master ports are named after the boundary node's instance name only, so
-        two boundary nodes with the same instance name under different parents
-        (e.g. two regfiles that each contain a register named ``status``) would
-        silently generate a module with duplicate port declarations.
+        Boundary nodes whose instance names conflict are automatically
+        path-qualified (see ``DesignState._compute_master_port_names``), so
+        this only fires in pathological cases where even the qualified names
+        coincide (e.g. instances ``a.b_c`` and ``a_b.c``, or an instance whose
+        literal name matches another's qualified name).
         """
         seen: dict[str, AddressableNode] = {}
         for child in self.ds.get_addressable_children_at_depth(unroll=self.ds.cpuif_unroll):
-            name = child.inst_name
+            name = self.ds.master_port_name(child)
             if child.current_idx is not None:
                 name += "_" + "_".join(map(str, child.current_idx))
 
@@ -53,8 +54,9 @@ class DesignValidator(RDLListener):
                 self.msg.error(
                     f"Instances '{other.get_rel_path(self.top_node)}' and "
                     f"'{child.get_rel_path(self.top_node)}' both resolve to master port "
-                    f"name '{name}'. Rename one of the instances, or lower "
-                    "max_decode_depth so the decode boundary stops above them.",
+                    f"name '{name}' even after path qualification. Rename one of the "
+                    "instances, or lower max_decode_depth so the decode boundary stops "
+                    "above them.",
                     child.inst.inst_src_ref,
                 )
             else:

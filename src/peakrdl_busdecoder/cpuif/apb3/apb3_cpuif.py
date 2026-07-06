@@ -45,7 +45,7 @@ class APB3CpuifFlat(BaseCpuif):
     def fanout(self, node: AddressableNode, array_stack: deque[int]) -> str:
         fanout: dict[str, str] = {}
 
-        addr_width = f"{self.exp.ds.module_name.upper()}_{node.inst_name.upper()}_ADDR_WIDTH"
+        addr_width = self.addr_width_param(node)
 
         sel_expr = (
             f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
@@ -119,8 +119,8 @@ class APB3Cpuif(APB3CpuifFlat):
             fanin: dict[str, str] = {}
             # Generate array index string [i0][i1]... for the intermediate signal
             array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
-            fanin["cpuif_wr_ack"] = f"{node.inst_name}_fanin_ready{array_idx}"
-            fanin["cpuif_wr_err"] = f"{node.inst_name}_fanin_err{array_idx}"
+            fanin["cpuif_wr_ack"] = f"{self.exp.ds.master_port_name(node)}_fanin_ready{array_idx}"
+            fanin["cpuif_wr_err"] = f"{self.exp.ds.master_port_name(node)}_fanin_err{array_idx}"
 
             fanin_wr = "\n" + "\n".join([f"{lhs} = {rhs};" for lhs, rhs in fanin.items()])
         return fanin_wr
@@ -132,9 +132,9 @@ class APB3Cpuif(APB3CpuifFlat):
             fanin: dict[str, str] = {}
             # Generate array index string [i0][i1]... for the intermediate signal
             array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
-            fanin["cpuif_rd_ack"] = f"{node.inst_name}_fanin_ready{array_idx}"
-            fanin["cpuif_rd_err"] = f"{node.inst_name}_fanin_err{array_idx}"
-            fanin["cpuif_rd_data"] = f"{node.inst_name}_fanin_data{array_idx}"
+            fanin["cpuif_rd_ack"] = f"{self.exp.ds.master_port_name(node)}_fanin_ready{array_idx}"
+            fanin["cpuif_rd_err"] = f"{self.exp.ds.master_port_name(node)}_fanin_err{array_idx}"
+            fanin["cpuif_rd_data"] = f"{self.exp.ds.master_port_name(node)}_fanin_data{array_idx}"
 
             fanin_rd = "\n" + "\n".join([f"{lhs} = {rhs};" for lhs, rhs in fanin.items()])
         return fanin_rd

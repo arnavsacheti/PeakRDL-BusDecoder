@@ -42,15 +42,20 @@ class BaseCpuif:
 
     @property
     def master_addr_widths(self) -> list[tuple[str, int]]:
-        """Per-master (INST_NAME, addr_width) pairs for package localparams.
+        """Per-master (PORT_NAME, addr_width) pairs for package localparams.
 
-        Deduplicated by instance name: unrolled array elements share one
-        localparam since every element has the same size.
+        Keyed by the (possibly path-qualified) master port name; unrolled
+        array elements share one localparam since every element has the
+        same size.
         """
         result: dict[str, int] = {}
         for child in self.addressable_children:
-            result.setdefault(child.inst_name.upper(), clog2(child.size))
+            result.setdefault(self.exp.ds.master_port_name(child).upper(), clog2(child.size))
         return list(result.items())
+
+    def addr_width_param(self, node: AddressableNode) -> str:
+        """Name of the package localparam holding this master's address width."""
+        return f"{self.exp.ds.module_name.upper()}_{self.exp.ds.master_port_name(node).upper()}_ADDR_WIDTH"
 
     @property
     def port_declaration(self) -> str:
@@ -85,7 +90,7 @@ class BaseCpuif:
             child_path = child.get_rel_path(ds.top_node)
             if child_path in enable_covered_paths:
                 continue
-            params.append(f"localparam N_{child.inst_name.upper()}S = {child.n_elements}")
+            params.append(f"localparam N_{ds.master_port_name(child).upper()}S = {child.n_elements}")
 
         # Address-modifying RDL parameters as SV module parameters
         for rdl_param in ds.enable_rdl_params:

@@ -239,12 +239,67 @@ class TestCpuifUnroll:
 
 
 class TestPortNameCollisions:
-    def test_colliding_boundary_names_are_rejected(
+    COLLIDE_RDL = """
+    addrmap collide {
+        regfile {
+            reg { field { sw=rw; hw=r; } d[31:0]; } status @ 0x0;
+        } blk_a @ 0x0;
+        regfile {
+            reg { field { sw=rw; hw=r; } d[31:0]; } status @ 0x0;
+            reg { field { sw=rw; hw=r; } d[31:0]; } irq[2] @ 0x10 += 0x4;
+        } blk_b @ 0x100;
+        regfile {
+            reg { field { sw=rw; hw=r; } d[31:0]; } irq[2] @ 0x0 += 0x4;
+        } blk_c @ 0x200;
+    };
+    """
+
+    def test_colliding_boundary_names_are_path_qualified(
         self, export_design: Callable[..., ExportedDesign]
     ) -> None:
-        """Two boundary nodes with the same instance name under different
-        parents would generate duplicate master ports; the exporter must
-        reject the design instead of emitting uncompilable SystemVerilog."""
+        """Boundary nodes with the same instance name under different parents
+        get path-qualified master ports instead of colliding declarations."""
+        design = export_design(self.COLLIDE_RDL, top="collide", max_decode_depth=2)
+
+        ports = parse_interface_master_ports(design.module_text)
+        assert ports == {
+            "blk_a_status": (),
+            "blk_b_status": (),
+            "blk_b_irq": (2,),
+            "blk_c_irq": (2,),
+        }
+        assert parse_fanout_masters(design.module_text) == set(ports)
+
+        # Decode/select stay hierarchical; only the port namespace is flattened
+        assigns = parse_decode_assigns(design.module_text, "wr")
+        assert route(assigns, 0x000) == ["blk_a.status"]
+        assert route(assigns, 0x100) == ["blk_b.status"]
+        assert route(assigns, 0x110) == ["blk_b.irq[0]"]
+        assert route(assigns, 0x204) == ["blk_c.irq[1]"]
+
+        # Qualified names carry through to array params, address-width
+        # params, and fanin intermediate signals
+        assert "N_BLK_B_IRQS" in design.module_text
+        assert "COLLIDE_BLK_A_STATUS_ADDR_WIDTH" in design.package_text
+        assert "blk_b_irq_fanin_ready" in design.module_text
+        assert "m_apb_status" not in design.module_text
+        assert "m_apb_irq " not in design.module_text
+
+    def test_non_conflicting_names_stay_unqualified(
+        self, export_design: Callable[..., ExportedDesign]
+    ) -> None:
+        design = export_design(REGFILE_RDL, top="rfsoc", max_decode_depth=2)
+        assert parse_interface_master_ports(design.module_text) == {
+            "ra": (),
+            "rb": (),
+            "rc": (2,),
+        }
+
+    def test_pathological_collisions_are_still_rejected(
+        self, export_design: Callable[..., ExportedDesign]
+    ) -> None:
+        """If a literal instance name matches another node's qualified name,
+        qualification cannot help and the exporter must reject the design."""
         rdl = """
         addrmap collide {
             regfile {
@@ -253,6 +308,7 @@ class TestPortNameCollisions:
             regfile {
                 reg { field { sw=rw; hw=r; } d[31:0]; } status @ 0x0;
             } blk_b @ 0x100;
+            reg { field { sw=rw; hw=r; } d[31:0]; } blk_a_status @ 0x200;
         };
         """
         from systemrdl import RDLCompileError

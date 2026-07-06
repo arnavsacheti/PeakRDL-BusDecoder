@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections import defaultdict
 from typing import TypedDict
 
 from systemrdl.node import AddressableNode, AddrmapNode
@@ -64,6 +65,11 @@ class DesignState:
         # Scan the design to fill in above variables
         DesignScanner(self).do_scan()
 
+        # Pre-label master port names for the decode boundary: instance name
+        # by default, path-qualified when siblings elsewhere in the hierarchy
+        # would otherwise collide on the same port name.
+        self._master_port_names = self._compute_master_port_names()
+
         if self.cpuif_data_width == 0:
             # Scanner did not find any registers in the design being exported,
             # so the width is not known.
@@ -119,6 +125,45 @@ class DesignState:
             self.rdl_params = []
             self.enable_rdl_params = []
             self._enable_params_by_node_dim = {}
+
+    @staticmethod
+    def _normalized_path(node: AddressableNode) -> str:
+        """Node path with concrete array indices rolled up, so every element
+        of an unrolled array shares one key."""
+        return re.sub(r"\[\d+\]", "[]", node.get_path())
+
+    def _compute_master_port_names(self) -> dict[str, str]:
+        """Label every decode-boundary node with its master port base name.
+
+        The base name is the instance name. When two boundary nodes under
+        different parents share an instance name (e.g. two regfiles that each
+        contain a register named ``status``), every member of the colliding
+        group is qualified with its path relative to the top node
+        (``blk_a_status``, ``blk_b_status``) so the generated ports stay
+        unique. Index suffixes/dimensions for arrays are appended separately
+        by the interface layer.
+        """
+        groups: dict[str, dict[str, AddressableNode]] = defaultdict(dict)
+        for child in self.get_addressable_children_at_depth(unroll=self.cpuif_unroll):
+            # Keyed by rolled-up path: elements of one array are one master
+            groups[child.inst_name][self._normalized_path(child)] = child
+
+        names: dict[str, str] = {}
+        for inst_name, nodes in groups.items():
+            if len(nodes) == 1:
+                names[next(iter(nodes))] = inst_name
+            else:
+                for key, node in nodes.items():
+                    rel_path = node.get_rel_path(self.top_node, empty_array_suffix="")
+                    names[key] = re.sub(r"\[[^\]]*\]", "", rel_path).replace(".", "_")
+        return names
+
+    def master_port_name(self, node: AddressableNode) -> str:
+        """Master port base name for a decode-boundary node.
+
+        Falls back to the instance name for nodes outside the boundary map.
+        """
+        return self._master_port_names.get(self._normalized_path(node), node.inst_name)
 
     def node_meta(self, node: AddressableNode) -> NodeMeta:
         path = node.get_path()
