@@ -99,7 +99,7 @@ class BusDecoderExporter:
         else:
             top_node = node
 
-        self.ds = DesignState(top_node, kwargs)  # ty: ignore
+        self.ds = DesignState(top_node, kwargs)
 
         cpuif_cls: type[BaseCpuif] = kwargs.pop("cpuif_cls", None) or APB4Cpuif
 
