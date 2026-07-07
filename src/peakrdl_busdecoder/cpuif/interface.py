@@ -12,6 +12,18 @@ if TYPE_CHECKING:
     from .base_cpuif import BaseCpuif
 
 
+def _open_dim_brackets(top_node: AddressableNode, node: AddressableNode, indexer: str) -> str:
+    """Bracket-index string covering every open array dimension of ``node``.
+
+    Walks the path from the top node so rolled array *ancestors* contribute
+    their brackets too (e.g. ``blk[gi0].myreg[gi1]`` -> ``[gi0][gi1]``). The
+    loop-variable numbers match those allocated positionally from the open-dim
+    stride stack (see ``BusDecoderListener.loop_base_index``).
+    """
+    indexed = get_indexed_path(top_node, node, indexer, skip_kw_filter=True)
+    return "".join(re.findall(r"\[[^\]]*\]", indexed))
+
+
 class Interface(ABC):
     """Abstract base class for interface signal handling."""
 
@@ -90,10 +102,12 @@ class SVInterface(Interface):
             if child.current_idx is not None:
                 base = f"{base}_{'_'.join(map(str, child.current_idx))}"
 
-            # Only add array dimensions if this should be treated as an array
-            if self.cpuif.check_is_array(child):
-                assert child.array_dimensions is not None
-                base = f"{base} {''.join(f'[{dim}]' for dim in child.array_dimensions)}"
+            # Size the interface array by *all* open dimensions (rolled array
+            # ancestors' + the node's own), so a boundary under array ancestors
+            # gets one interface per element.
+            dims = self.cpuif.master_array_dims(child)
+            if dims:
+                base = f"{base} {''.join(f'[{dim}]' for dim in dims)}"
 
             master_ports.append(base)
 
@@ -120,16 +134,16 @@ class SVInterface(Interface):
         master_prefix = self.get_master_prefix()
         base = self.master_base_name(node)
 
-        if not self.cpuif.check_is_array(node) and node.current_idx is not None:
+        if not self.cpuif.is_master_array(node) and node.current_idx is not None:
             # A specific element of an unrolled array: the master port is a
             # scalar interface named with an index suffix (e.g. m_apb_blk_0)
             return f"{master_prefix}{base}_{'_'.join(map(str, node.current_idx))}.{signal}"
 
-        # get_indexed_path relative to the parent yields the node's own name
-        # plus any index expressions; substitute the (possibly qualified) base
-        indexed = get_indexed_path(node.parent, node, indexer, skip_kw_filter=True)
-        suffix = indexed[len(node.inst_name) :]
-        return f"{master_prefix}{base}{suffix}.{signal}"
+        # Index by *all* open dimensions: walk from the top node so ancestor
+        # array brackets (e.g. blk[gi0]) are included, then keep only the
+        # bracket expressions to append after the (possibly qualified) base.
+        brackets = _open_dim_brackets(self.cpuif.exp.ds.top_node, node, indexer)
+        return f"{master_prefix}{base}{brackets}.{signal}"
 
     @abstractmethod
     def get_interface_type(self) -> str:
@@ -180,24 +194,23 @@ class FlatInterface(Interface):
         master_prefix = self.get_master_prefix()
         base = f"{master_prefix}{self.master_base_name(node)}"
 
-        if not self.cpuif.check_is_array(node):
+        if not self.cpuif.is_master_array(node):
             # Not an array or an unrolled element
             if node.current_idx is not None:
                 # This is a specific instance of an unrolled array
                 return f"{base}_{signal}_{'_'.join(map(str, node.current_idx))}"
             return f"{base}_{signal}"
 
-        # Is an array
+        # Is an array (possibly by virtue of rolled array ancestors)
         if indexer is not None:
             if isinstance(indexer, str):
-                indexed_path = get_indexed_path(node.parent, node, indexer, skip_kw_filter=True)
-                pattern = r"\[.*?\]"
-                indexes = re.findall(pattern, indexed_path)
-
-                return f"{base}_{signal}{''.join(indexes)}"
+                brackets = _open_dim_brackets(self.cpuif.exp.ds.top_node, node, indexer)
+                return f"{base}_{signal}{brackets}"
 
             return f"{base}_{signal}[{indexer}]"
-        return f"{base}_{signal}[N_{self.master_base_name(node).upper()}S]"
+        # No indexer: this is a declaration -- size by every open dimension.
+        dims = self.cpuif.master_array_dims(node)
+        return f"{base}_{signal}" + "".join(f"[{dim}]" for dim in dims)
 
     @abstractmethod
     def _get_slave_port_declarations(self, slave_prefix: str) -> list[str]:

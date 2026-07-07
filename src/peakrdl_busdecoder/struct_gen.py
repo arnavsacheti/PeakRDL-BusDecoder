@@ -27,8 +27,8 @@ class StructGenerator(BusDecoderListener):
 
         # Only create nested struct if we're not skipping and node has addressable children
         if self._ds.node_meta(node).has_addressable_children and not skip:
-            # Push new body onto stack
-            body = StructBody(f"cpuif_sel_{node.inst_name}_t", True, False)
+            # Push new body onto stack (type name disambiguated across siblings)
+            body = StructBody(self._ds.struct_type_name(node), True, False)
             self._stack.append(body)
             self._created_struct_stack.append(True)
         else:

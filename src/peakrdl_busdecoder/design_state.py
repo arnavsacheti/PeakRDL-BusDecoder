@@ -69,6 +69,7 @@ class DesignState:
         # by default, path-qualified when siblings elsewhere in the hierarchy
         # would otherwise collide on the same port name.
         self._master_port_names = self._compute_master_port_names()
+        self._struct_type_names = self._compute_struct_type_names()
 
         if self.cpuif_data_width == 0:
             # Scanner did not find any registers in the design being exported,
@@ -164,6 +165,66 @@ class DesignState:
         Falls back to the instance name for nodes outside the boundary map.
         """
         return self._master_port_names.get(self._normalized_path(node), node.inst_name)
+
+    def _compute_struct_type_names(self) -> dict[str, str]:
+        """Assign a unique SystemVerilog type name to every nested select-struct.
+
+        The select struct nests one ``cpuif_sel_<inst>_t`` typedef per internal
+        (non-boundary) addressable node on the path to the decode boundaries.
+        Two such nodes under different parents can share an instance name (e.g.
+        ``group_a.bar`` and ``group_b.bar``), which would emit duplicate
+        typedefs. As with master port names, colliding members are qualified
+        with their top-relative path so each generated typedef is unique.
+        """
+        # Nodes that emit a nested struct: the internal ancestors (excluding the
+        # top node) of every decode boundary. The struct is always rolled, so
+        # boundaries are computed rolled too.
+        emitters: dict[str, AddressableNode] = {}
+        for boundary in self.get_addressable_children_at_depth(unroll=False):
+            parent = boundary.parent
+            while isinstance(parent, AddressableNode) and parent is not self.top_node:
+                emitters[self._normalized_path(parent)] = parent
+                parent = parent.parent
+
+        groups: dict[str, dict[str, AddressableNode]] = defaultdict(dict)
+        for key, node in emitters.items():
+            groups[node.inst_name][key] = node
+
+        names: dict[str, str] = {}
+        for inst_name, nodes in groups.items():
+            if len(nodes) == 1:
+                names[next(iter(nodes))] = f"cpuif_sel_{inst_name}_t"
+            else:
+                for key, node in nodes.items():
+                    rel_path = node.get_rel_path(self.top_node, empty_array_suffix="")
+                    qualified = re.sub(r"\[[^\]]*\]", "", rel_path).replace(".", "_")
+                    names[key] = f"cpuif_sel_{qualified}_t"
+        return names
+
+    def struct_type_name(self, node: AddressableNode) -> str:
+        """SystemVerilog type name for a node's nested select struct."""
+        return self._struct_type_names.get(self._normalized_path(node), f"cpuif_sel_{node.inst_name}_t")
+
+    def open_array_dims(self, node: AddressableNode) -> list[int]:
+        """All rolled array dimensions open along the path from top down to
+        ``node`` inclusive, outermost-first.
+
+        A boundary node that sits below rolled array ancestors is really an
+        array of interfaces sized by *every* open dimension (ancestors' + its
+        own), not just its own. For repro ``blk[2].myreg[3]`` this returns
+        ``[2, 3]``; for a scalar ``reg_a`` under ``bar[3]`` it returns ``[3]``.
+
+        Unrolled elements (``current_idx`` set) contribute no dimension, so a
+        fully unrolled path yields ``[]`` (a scalar master).
+        """
+        dims: list[int] = []
+        current: AddressableNode | None = node
+        while current is not None and current is not self.top_node:
+            if current.array_dimensions and current.current_idx is None:
+                dims = list(current.array_dimensions) + dims
+            parent = current.parent
+            current = parent if isinstance(parent, AddressableNode) else None
+        return dims
 
     def node_meta(self, node: AddressableNode) -> NodeMeta:
         path = node.get_path()

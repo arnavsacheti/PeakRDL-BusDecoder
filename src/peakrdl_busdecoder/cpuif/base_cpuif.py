@@ -1,5 +1,6 @@
 import inspect
 import os
+import re
 from collections import deque
 from typing import TYPE_CHECKING
 
@@ -115,6 +116,34 @@ class BaseCpuif:
         if self.unroll and hasattr(node, "current_idx") and node.current_idx is not None:
             return False
         return node.is_array
+
+    def is_master_array(self, node: AddressableNode) -> bool:
+        """Whether a boundary node exposes an *array* of master interfaces.
+
+        Unlike :meth:`check_is_array` (which only looks at the node's own
+        dimensions), this accounts for rolled array *ancestors*: a scalar
+        register under ``bar[3]`` is still a 3-element interface array. Unrolled
+        elements are always scalar.
+        """
+        if self.unroll and getattr(node, "current_idx", None) is not None:
+            return False
+        return bool(self.exp.ds.open_array_dims(node))
+
+    def master_array_dims(self, node: AddressableNode) -> list[int]:
+        """Full open array dimensions (ancestors' + own) for a master port."""
+        if self.unroll and getattr(node, "current_idx", None) is not None:
+            return []
+        return self.exp.ds.open_array_dims(node)
+
+    def open_dim_index(self, node: AddressableNode, indexer: str = "i") -> str:
+        """Bracket index string over every open dim, e.g. ``[i0][i1]``.
+
+        Numbers are positional from the top node, matching the loop variables
+        allocated by the fanin/fanout generators (see
+        ``BusDecoderListener.loop_base_index``).
+        """
+        indexed = get_indexed_path(self.exp.ds.top_node, node, indexer, skip_kw_filter=True)
+        return "".join(re.findall(r"\[[^\]]*\]", indexed))
 
     @staticmethod
     def node_base_address(node: AddressableNode) -> int:

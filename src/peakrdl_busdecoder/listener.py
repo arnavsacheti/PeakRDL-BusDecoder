@@ -21,6 +21,20 @@ class BusDecoderListener(RDLListener):
         """True for an arrayed node visited rolled-up (not an unrolled element)."""
         return bool(node.array_dimensions) and node.current_idx is None
 
+    def loop_base_index(self, node: AddressableNode) -> int:
+        """First loop-variable number for this node's own array dimensions.
+
+        Single source of truth for ``i{k}`` / ``gi{k}`` numbering. The open-dim
+        stride stack holds exactly one entry per currently-open loop dimension
+        (ancestors' dims first, then this node's dims, outermost-first), so this
+        must be called *after* the base ``enter_AddressableComponent`` pushed
+        this node's own dims. The result is the count of enclosing ancestor loop
+        dimensions -- which is also the index where this node's brackets begin
+        in ``get_indexed_path(top_node, node)``.
+        """
+        own = len(node.array_dimensions) if node.array_dimensions else 0
+        return len(self._array_stride_stack) - own
+
     def should_skip_node(self, node: AddressableNode) -> bool:
         """Check if this node should be skipped (not decoded)."""
         # Check if current depth exceeds max depth
@@ -47,10 +61,10 @@ class BusDecoderListener(RDLListener):
     def enter_AddressableComponent(self, node: AddressableNode) -> WalkerAction | None:
         meta = self._ds.node_meta(node)
         if meta.array_strides is not None and self.is_rolled_array(node):
-            strides = meta.array_strides
-            self._array_stride_stack.append(strides[0])
-            for stride in strides[1:]:
-                self._array_stride_stack.appendleft(stride)
+            # Strides are stored outermost-first; append in order so the stack
+            # stays outer-to-inner across the whole open path (see
+            # loop_base_index).
+            self._array_stride_stack.extend(meta.array_strides)
 
         self._depth += 1
 

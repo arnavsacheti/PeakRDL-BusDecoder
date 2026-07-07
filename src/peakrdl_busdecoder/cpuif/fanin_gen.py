@@ -32,11 +32,12 @@ class FaninGenerator(BusDecoderListener):
 
         if self.is_rolled_array(node):
             assert node.array_dimensions is not None
-            for i, dim in enumerate(node.array_dimensions):
+            base = self.loop_base_index(node)
+            for i, dim in enumerate(node.array_dimensions, base):
                 fb = ForLoopBody(
                     "int",
                     f"i{i}",
-                    self._ds.resolve_loop_bound(node, i, dim),
+                    self._ds.resolve_loop_bound(node, i - base, dim),
                 )
                 self._stack.append(fb)
 
