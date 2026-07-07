@@ -45,3 +45,10 @@ Unsupported Properties
 The following SystemRDL properties are explicitly rejected:
 
 * ``sharedextbus`` on addrmap/regfile components
+
+
+CPU Interface Protocol Notes
+----------------------------
+Some CPU interfaces have protocol-specific limitations beyond address decode.
+See :ref:`cpuif_axi4lite_backpressure` for the AXI4-Lite adapter's known
+limitation around per-slave back-pressure handling.
