@@ -29,12 +29,12 @@ class FanoutGenerator(BusDecoderListener):
 
         if self.is_rolled_array(node):
             assert node.array_dimensions is not None
-            s_len = len(self._stack)
-            for i, dim in enumerate(node.array_dimensions, s_len - 1):
+            base = self.loop_base_index(node)
+            for i, dim in enumerate(node.array_dimensions, base):
                 fb = ForLoopBody(
                     "genvar",
                     f"gi{i}",
-                    self._ds.resolve_loop_bound(node, i - (s_len - 1), dim),
+                    self._ds.resolve_loop_bound(node, i - base, dim),
                 )
                 self._stack.append(fb)
 

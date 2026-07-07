@@ -128,11 +128,10 @@ class AXI4LiteCpuif(AXI4LiteCpuifFlat):
 
     def fanin_wr(self, node: AddressableNode | None = None, *, error: bool = False) -> str:
         fanin_wr = super().fanin_wr(node, error=error)
-        if node is not None and self.is_interface and self.check_is_array(node):
-            assert node.array_dimensions is not None
+        if node is not None and self.is_interface and self.is_master_array(node):
             fanin: dict[str, str] = {}
-            # Generate array index string [i0][i1]... for the intermediate signal
-            array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
+            # Index the intermediate signal by every open dim (ancestors' + own)
+            array_idx = self.open_dim_index(node)
             fanin["cpuif_wr_ack"] = f"{self.exp.ds.master_port_name(node)}_fanin_wr_valid{array_idx}"
             fanin["cpuif_wr_err"] = f"{self.exp.ds.master_port_name(node)}_fanin_wr_err{array_idx}"
 
@@ -142,11 +141,10 @@ class AXI4LiteCpuif(AXI4LiteCpuifFlat):
 
     def fanin_rd(self, node: AddressableNode | None = None, *, error: bool = False) -> str:
         fanin_rd = super().fanin_rd(node, error=error)
-        if node is not None and self.is_interface and self.check_is_array(node):
-            assert node.array_dimensions is not None
+        if node is not None and self.is_interface and self.is_master_array(node):
             fanin: dict[str, str] = {}
-            # Generate array index string [i0][i1]... for the intermediate signal
-            array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
+            # Index the intermediate signal by every open dim (ancestors' + own)
+            array_idx = self.open_dim_index(node)
             fanin["cpuif_rd_ack"] = f"{self.exp.ds.master_port_name(node)}_fanin_ready{array_idx}"
             fanin["cpuif_rd_err"] = f"{self.exp.ds.master_port_name(node)}_fanin_err{array_idx}"
             fanin["cpuif_rd_data"] = f"{self.exp.ds.master_port_name(node)}_fanin_data{array_idx}"
@@ -168,10 +166,11 @@ class AXI4LiteCpuif(AXI4LiteCpuifFlat):
         ]
 
     def fanin_intermediate_declarations(self, node: AddressableNode) -> list[str]:
-        if not node.array_dimensions:
+        dims = self.master_array_dims(node)
+        if not dims:
             return []
 
-        array_str = "".join(f"[{dim}]" for dim in node.array_dimensions)
+        array_str = "".join(f"[{dim}]" for dim in dims)
         return [
             f"logic {self.exp.ds.master_port_name(node)}_fanin_wr_valid{array_str};",
             f"logic {self.exp.ds.master_port_name(node)}_fanin_wr_err{array_str};",

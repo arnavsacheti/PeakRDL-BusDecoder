@@ -43,15 +43,19 @@ class DesignScanner(RDLListener):
         array_strides: tuple[int, ...] | None
         if node.array_dimensions:
             assert node.array_stride is not None, "Array stride should be defined for arrayed components"
-            # Stored innermost-first: [stride, stride*dim_last, stride*dim_last*dim_prev, ...].
-            # Listener replays as append(strides[0]) then appendleft for the rest, matching
-            # the original nested-stride bookkeeping exactly.
+            # Stored outermost-first: one stride per dimension, in the same
+            # order as ``node.array_dimensions`` (outer dim first, inner dim
+            # last). The listener extends the open-dim stride stack with these,
+            # so loop variable ``i{k}`` (allocated positionally from the stack)
+            # always pairs with ``array_stride_stack[k]`` and with the k-th
+            # bracket ``get_indexed_path`` emits when walking from the top node.
             strides_list: list[int] = [node.array_stride]
             current = node.array_stride
             for dim in node.array_dimensions[-1:0:-1]:
                 current = current * dim
                 strides_list.append(current)
-            array_strides = tuple(strides_list)
+            # strides_list is innermost-first; reverse to outermost-first.
+            array_strides = tuple(reversed(strides_list))
         else:
             array_strides = None
 
