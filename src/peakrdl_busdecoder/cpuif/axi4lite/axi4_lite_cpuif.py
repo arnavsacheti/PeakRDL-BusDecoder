@@ -14,7 +14,14 @@ if TYPE_CHECKING:
 
 
 class AXI4LiteCpuifFlat(BaseCpuif):
-    """Verilator-friendly variant that flattens the AXI4-Lite interface ports."""
+    """Verilator-friendly variant that flattens the AXI4-Lite interface ports.
+
+    Limitations: per-slave back-pressure on the AW/W/AR/B/R handshakes is not
+    honored -- CPU-side ``*READY`` is asserted unconditionally on ``*VALID``,
+    and downstream slave ``*READY`` is never consumed. See
+    :ref:`cpuif_axi4lite_backpressure` in the docs and
+    `issue #59 <https://github.com/arnavsacheti/PeakRDL-BusDecoder/issues/59>`_.
+    """
 
     template_path = "axi4_lite_tmpl.sv"
 
