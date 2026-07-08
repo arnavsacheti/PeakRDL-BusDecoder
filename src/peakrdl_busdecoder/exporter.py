@@ -30,6 +30,7 @@ class ExporterKwargs(TypedDict, total=False):
     reuse_hwif_typedefs: bool
     max_decode_depth: int
     clk_src: str
+    gate_signals: bool
 
 
 if TYPE_CHECKING:
@@ -103,6 +104,11 @@ class BusDecoderExporter:
             - "design" (default): the CPU interface carries no clk/reset. The
               module exposes top-level ``clk`` and ``rst`` ports; the design
               is responsible for distributing clock/reset to downstream slaves.
+        gate_signals: bool
+            Gate downstream broadcast signals with the per-slave select. For APB
+            this drives PENABLE/PADDR/PWDATA/PSTRB/PPROT to '0 on unselected
+            masters. By default, broadcast signals fan out unmodified, keeping
+            the master-to-slave datapath free of the extra gating mux.
         """
         # If it is the root node, skip to top addrmap
         if isinstance(node, RootNode):

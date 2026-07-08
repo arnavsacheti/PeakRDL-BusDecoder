@@ -147,6 +147,17 @@ class Exporter(ExporterSubcommandPlugin):
             """,
         )
 
+        arg_group.add_argument(
+            "--gate-signals",
+            action="store_true",
+            default=False,
+            help="""Gate downstream broadcast signals with the per-slave select.
+            For APB this drives PENABLE/PADDR/PWDATA/PSTRB/PPROT to '0 on
+            unselected masters (APB protocol-correct). When omitted, broadcast
+            signals fan out unmodified.
+            """,
+        )
+
     def do_export(self, top_node: AddrmapNode, options: argparse.Namespace) -> None:
         cpuifs = self.get_cpuifs()
 
@@ -162,4 +173,5 @@ class Exporter(ExporterSubcommandPlugin):
             parametrize=options.parametrize,
             max_decode_depth=options.max_decode_depth,
             clk_src=options.clk_src,
+            gate_signals=options.gate_signals,
         )
