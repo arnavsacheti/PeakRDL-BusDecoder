@@ -31,6 +31,7 @@ class ExporterKwargs(TypedDict, total=False):
     max_decode_depth: int
     clk_src: str
     gate_signals: bool
+    apb_buffer: str
 
 
 if TYPE_CHECKING:
@@ -109,6 +110,12 @@ class BusDecoderExporter:
             this drives PENABLE/PADDR/PWDATA/PSTRB/PPROT to '0 on unselected
             masters. By default, broadcast signals fan out unmodified, keeping
             the master-to-slave datapath free of the extra gating mux.
+        apb_buffer: str
+            Insert a single-flop register slice on the APB slave-side I/O.
+            One of: "none" (default), "in" (slave-side inputs only), "out"
+            (slave-side outputs only), "both". Only applies to APB cpuifs;
+            requires ``clk_src='design'`` (uses the design clk/rst). APB
+            handshake is preserved via PREADY-stretching.
         """
         # If it is the root node, skip to top addrmap
         if isinstance(node, RootNode):
