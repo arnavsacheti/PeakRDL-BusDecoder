@@ -55,9 +55,7 @@ class DesignState:
 
         self.apb_buffer: str = kwargs.pop("apb_buffer", "none")
         if self.apb_buffer not in ("none", "in", "out", "both"):
-            msg.fatal(
-                f"apb_buffer must be one of 'none', 'in', 'out', 'both', got {self.apb_buffer!r}"
-            )
+            msg.fatal(f"apb_buffer must be one of 'none', 'in', 'out', 'both', got {self.apb_buffer!r}")
         if self.apb_buffer != "none" and self.clk_src != "design":
             msg.fatal("apb_buffer requires clk_src='design' (the buffer flops use the design clk/rst)")
 
