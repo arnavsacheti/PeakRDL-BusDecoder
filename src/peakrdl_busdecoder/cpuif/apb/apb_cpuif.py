@@ -37,6 +37,7 @@ class APBCpuifBase(BaseCpuif):
 
     def fanout(self, node: AddressableNode, array_stack: deque[int]) -> str:
         fanout: dict[str, str] = {}
+        gate = self.exp.ds.gate_signals
 
         addr_width = self.addr_width_param(node)
 
@@ -48,7 +49,9 @@ class APBCpuifBase(BaseCpuif):
             fanout[self.signal("PRESETn", node, "gi")] = self.signal("PRESETn")
 
         fanout[self.signal("PSEL", node, "gi")] = sel_expr
-        fanout[self.signal("PENABLE", node, "gi")] = f"({sel_expr}) & {self.signal('PENABLE')}"
+        fanout[self.signal("PENABLE", node, "gi")] = (
+            f"({sel_expr}) & {self.signal('PENABLE')}" if gate else self.signal("PENABLE")
+        )
         fanout[self.signal("PWRITE", node, "gi")] = f"cpuif_wr_sel.{sel_path}"
 
         if self._can_truncate_addr(node, array_stack):
@@ -59,13 +62,19 @@ class APBCpuifBase(BaseCpuif):
             for i, stride in enumerate(array_stack):
                 addr_comp.append(f"{self.addr_width}'(gi{i}*{SVInt(stride, self.addr_width)})")
             addr_value = f"{addr_width}'({' - '.join(addr_comp)})"
-        fanout[self.signal("PADDR", node, "gi")] = f"({sel_expr}) ? {addr_value} : '0"
+        fanout[self.signal("PADDR", node, "gi")] = f"({sel_expr}) ? {addr_value} : '0" if gate else addr_value
 
         if self.has_pprot:
-            fanout[self.signal("PPROT", node, "gi")] = f"({sel_expr}) ? {self.signal('PPROT')} : '0"
-        fanout[self.signal("PWDATA", node, "gi")] = f"({sel_expr}) ? cpuif_wr_data : '0"
+            fanout[self.signal("PPROT", node, "gi")] = (
+                f"({sel_expr}) ? {self.signal('PPROT')} : '0" if gate else self.signal("PPROT")
+            )
+        fanout[self.signal("PWDATA", node, "gi")] = (
+            f"({sel_expr}) ? cpuif_wr_data : '0" if gate else "cpuif_wr_data"
+        )
         if self.has_pstrb:
-            fanout[self.signal("PSTRB", node, "gi")] = f"({sel_expr}) ? cpuif_wr_byte_en : '0"
+            fanout[self.signal("PSTRB", node, "gi")] = (
+                f"({sel_expr}) ? cpuif_wr_byte_en : '0" if gate else "cpuif_wr_byte_en"
+            )
 
         return "\n".join(f"assign {lhs} = {rhs};" for lhs, rhs in fanout.items())
 

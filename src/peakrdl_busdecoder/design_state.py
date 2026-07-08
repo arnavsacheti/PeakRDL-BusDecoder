@@ -23,6 +23,7 @@ class DesignStateKwargs(TypedDict, total=False):
     parametrize: bool
     max_decode_depth: int
     clk_src: str
+    gate_signals: bool
 
 
 class DesignState:
@@ -49,6 +50,7 @@ class DesignState:
         self.clk_src: str = kwargs.pop("clk_src", "design")
         if self.clk_src not in ("cpuif", "design"):
             msg.fatal(f"clk_src must be 'cpuif' or 'design', got {self.clk_src!r}")
+        self.gate_signals: bool = kwargs.pop("gate_signals", False)
 
         # ------------------------
         # Info about the design
