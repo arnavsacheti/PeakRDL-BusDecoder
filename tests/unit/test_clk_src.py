@@ -1,5 +1,6 @@
 """Tests for the clk_src exporter option."""
 
+import re
 from collections.abc import Callable
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -110,6 +111,30 @@ def test_if_drives_master_clk_reset_in_fanout(
     assert f"{master_prefix}{rst}" in content
     # And fanout assignment exists
     assert f"assign {master_prefix}{clk}" in content
+
+
+@pytest.mark.parametrize(
+    "cpuif_cls,clk,rst",
+    [
+        (APB3Cpuif, "PCLK", "PRESETn"),
+        (APB4Cpuif, "PCLK", "PRESETn"),
+        (AXI4LiteCpuif, "ACLK", "ARESETn"),
+    ],
+)
+def test_if_interface_style_never_drives_master_clk_reset(
+    simple_top: AddrmapNode,
+    cpuif_cls: type[BaseCpuif],
+    clk: str,
+    rst: str,
+) -> None:
+    """The SV interface's master modport declares clk/reset as inputs, so the
+    decoder must not fan them out (the design clocks each interface at
+    instantiation). Driving them makes the module fail to elaborate."""
+    content = _export_and_read(simple_top, cpuif_cls=cpuif_cls, clk_src="cpuif")
+    for signal in (clk, rst):
+        assert re.search(rf"assign m_\w+\.{signal}\b", content) is None, (
+            f"interface-style fanout must not drive {signal}"
+        )
 
 
 @pytest.mark.parametrize(

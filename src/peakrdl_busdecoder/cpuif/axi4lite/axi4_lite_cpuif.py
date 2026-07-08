@@ -52,7 +52,10 @@ class AXI4LiteCpuifFlat(BaseCpuif):
         wr_sel = f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
         rd_sel = f"cpuif_rd_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
 
-        if self.clk_src == "cpuif":
+        if self.clk_src == "cpuif" and not self.is_interface:
+            # Flat style only: the SV interface's master modport declares
+            # ACLK/ARESETn as inputs, so the decoder cannot drive them; in
+            # interface style the design clocks each interface at instantiation.
             fanout[self.signal("ACLK", node, "gi")] = self.signal("ACLK")
             fanout[self.signal("ARESETn", node, "gi")] = self.signal("ARESETn")
 
