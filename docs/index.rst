@@ -51,6 +51,10 @@ Key command-line options:
 * ``--addr-width``: Override the slave address width
 * ``--unroll``: Unroll arrayed children into discrete interfaces
 * ``--max-decode-depth``: Control how far the decoder descends into hierarchy
+* ``--parametrize``: Propagate top-level SystemRDL parameters into the generated module
+* ``--clk-src``: Select where the decoder gets its clock and reset (``cpuif`` or ``design``, default ``design``)
+* ``--gate-signals``: Gate APB broadcast signals with each slave's select (off by default)
+* ``--apb-buffer``: Insert a register slice on the APB slave-side I/O (``none``, ``in``, ``out``, ``both``)
 
 
 Looking for VHDL?

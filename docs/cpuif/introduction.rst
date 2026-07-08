@@ -15,6 +15,29 @@ design. If the exported addrmap contains only external components, the width
 cannot be inferred and will default to 32 bits.
 
 
+Clock and Reset
+^^^^^^^^^^^^^^^
+Where the bus decoder gets its clock and reset is selected with ``--clk-src``:
+
+``design`` (default)
+    The CPU interface carries no clock or reset. The generated module exposes
+    top-level ``clk`` and ``rst`` input ports instead, and the design is
+    responsible for distributing clock and reset to downstream slaves. The
+    decoder's datapath is purely combinational unless a register slice is
+    enabled (see ``--apb-buffer``); the ports anchor the decoder's clock
+    domain for such features.
+
+``cpuif``
+    Clock and reset are bundled with the CPU interface bus. The slave
+    interface carries the protocol-defined clock and reset (``PCLK``/``PRESETn``
+    for APB, ``ACLK``/``ARESETn`` for AXI4-Lite), and the decoder fans them out
+    to every master interface.
+
+The SystemVerilog interface definitions linked from the protocol pages declare
+``PCLK``/``PRESETn`` (``ACLK``/``ARESETn``) members. These are only driven and
+consumed by the decoder when ``--clk-src cpuif`` is selected.
+
+
 Addressing
 ^^^^^^^^^^
 

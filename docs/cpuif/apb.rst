@@ -57,3 +57,38 @@ Flattened inputs/outputs
 
     * Command line: ``--cpuif apb4-flat``
     * Class: :class:`peakrdl_busdecoder.cpuif.apb4.APB4CpuifFlat`
+
+
+Broadcast Signal Gating
+-----------------------
+
+By default, the broadcast signals ``PENABLE``, ``PADDR``, ``PWDATA``,
+``PSTRB``, and ``PPROT`` fan out to every master port unmodified, keeping the
+master-to-slave datapath free of extra logic stages. Per the AMBA APB
+specification, conformant slaves only sample these signals while their
+``PSEL`` is asserted, so this is protocol-safe.
+
+Passing ``--gate-signals`` masks each broadcast signal with the slave's select
+expression, so unselected slaves see all-zero inputs. This costs one extra mux
+stage on the datapath, but reduces switching activity on quiet sub-blocks
+(power/EMI), produces cleaner debug waveforms, and defends against
+non-conformant slaves that latch inputs without checking ``PSEL``. ``PSEL``
+and ``PWRITE`` are always driven per-slave and are unaffected by this option.
+
+
+Slave-Side Register Slice
+-------------------------
+
+``--apb-buffer`` inserts a single-flop register slice on the APB slave-side
+I/O:
+
+* ``none`` (default): no buffering
+* ``in``: registers the slave-side inputs
+  (``PSEL``/``PENABLE``/``PWRITE``/``PADDR``/``PWDATA``/``PSTRB``/``PPROT``)
+* ``out``: registers the slave-side outputs (``PRDATA``/``PREADY``/``PSLVERR``)
+* ``both``: registers both directions
+
+The APB handshake is preserved through ``PREADY``-stretching: each buffered
+direction adds one cycle to the access phase, which the protocol allows. The
+buffer flops use the design clock and reset, so this option requires
+``--clk-src design`` (the default). Non-APB CPU interfaces reject the option.
