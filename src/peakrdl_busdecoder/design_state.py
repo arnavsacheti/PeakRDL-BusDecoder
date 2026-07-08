@@ -22,6 +22,7 @@ class DesignStateKwargs(TypedDict, total=False):
     cpuif_unroll: bool
     parametrize: bool
     max_decode_depth: int
+    clk_src: str
 
 
 class DesignState:
@@ -45,6 +46,9 @@ class DesignState:
         self.cpuif_unroll: bool = kwargs.pop("cpuif_unroll", False)
         self.parametrize: bool = kwargs.pop("parametrize", False)
         self.max_decode_depth: int = kwargs.pop("max_decode_depth", 1)
+        self.clk_src: str = kwargs.pop("clk_src", "design")
+        if self.clk_src not in ("cpuif", "design"):
+            msg.fatal(f"clk_src must be 'cpuif' or 'design', got {self.clk_src!r}")
 
         # ------------------------
         # Info about the design
