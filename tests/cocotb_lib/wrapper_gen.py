@@ -130,6 +130,7 @@ def generate_verilator_intf_wrapper(
     global_addr_width: int,
     global_data_width: int,
     output_dir: Path,
+    include_top_clk_rst: bool = True,
 ) -> Path:
     """Generate a Verilator wrapper for an interface-based bus decoder module.
 
@@ -148,6 +149,10 @@ def generate_verilator_intf_wrapper(
         Data width of the bus.
     output_dir:
         Directory to write the wrapper file.
+    include_top_clk_rst:
+        Wire top-level ``clk``/``rst`` wrapper inputs through to the DUT.
+        Matches the exporter's default ``clk_src="design"`` mode, where the
+        module has these ports; pass False for ``clk_src="cpuif"`` DUTs.
 
     Returns
     -------
@@ -165,6 +170,11 @@ def generate_verilator_intf_wrapper(
 
     # --- Port declarations ---------------------------------------------------
     ports: list[str] = []
+
+    # Top-level clock/reset (clk_src="design" mode)
+    if include_top_clk_rst:
+        ports.append("    input  logic clk")
+        ports.append("    input  logic rst")
 
     # Slave flat ports
     for sig_name, wk, is_input in signals:
@@ -275,6 +285,9 @@ def generate_verilator_intf_wrapper(
     # --- DUT instantiation ---------------------------------------------------
     lines.append(f"    {module_name} dut (")
     dut_ports: list[str] = []
+    if include_top_clk_rst:
+        dut_ports.append("        .clk(clk)")
+        dut_ports.append("        .rst(rst)")
     dut_ports.append(f"        .{slave_name}({slave_name}_intf)")
     for child in children:
         inst = child["inst_name"]
