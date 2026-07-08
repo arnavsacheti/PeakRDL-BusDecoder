@@ -40,7 +40,7 @@ AXI4-Lite Protocol Limitations: Per-Slave Back-Pressure
 The generated decoder does not implement the full AXI4-Lite handshake on
 either side of the bus. It treats every transaction as a single-cycle
 ping-pong between the CPU master and the currently addressed child slave.
-This is tracked as a known limitation in
+This is an intentional, documented limitation; the background is recorded in
 `issue #59 <https://github.com/arnavsacheti/PeakRDL-BusDecoder/issues/59>`_.
 
 CPU-side acceptance is unconditional
@@ -98,5 +98,7 @@ Consequences
       general-purpose AXI4-Lite subordinates or interconnect fabrics.
 
     Full handshake support (respecting downstream ``*READY`` and CPU-side
-    ``BREADY``/``RREADY``) is tracked in
-    `issue #59 <https://github.com/arnavsacheti/PeakRDL-BusDecoder/issues/59>`_.
+    ``BREADY``/``RREADY``) would be a new feature; the rationale for the
+    current single-cycle design is recorded in
+    `issue #59 <https://github.com/arnavsacheti/PeakRDL-BusDecoder/issues/59>`_
+    (closed as documented).
