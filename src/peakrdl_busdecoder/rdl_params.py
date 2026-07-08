@@ -124,7 +124,7 @@ class RdlParameterExtractor:
         try:
             yield
         finally:
-            ParameterRef.get_value = original  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+            ParameterRef.get_value = original  # type: ignore[assignment]
 
     def reevaluate_node(self, node: Node) -> None:
         """Clear & re-evaluate any Parameters defined on ``node``.
