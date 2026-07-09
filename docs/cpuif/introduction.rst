@@ -19,13 +19,16 @@ Clock and Reset
 ^^^^^^^^^^^^^^^
 Where the bus decoder gets its clock and reset is selected with ``--clk-src``:
 
-``design`` (default)
+``off`` (default)
+    No clock or reset anywhere. The decoder's datapath is purely
+    combinational, so the generated module carries no clock/reset ports and
+    nothing is fanned out to the masters.
+
+``design``
     The CPU interface carries no clock or reset. The generated module exposes
-    top-level ``clk`` and ``rst`` input ports instead, and the design is
-    responsible for distributing clock and reset to downstream slaves. The
-    decoder's datapath is purely combinational unless a register slice is
-    enabled (see ``--apb-buffer``); the ports anchor the decoder's clock
-    domain for such features.
+    top-level ``clk`` and ``rst`` input ports that are consumed by clocked
+    features (see ``--apb-buffer``) but not fanned out — the design is
+    responsible for distributing clock and reset to downstream slaves.
 
 ``cpuif``
     Clock and reset are bundled with the CPU interface bus. The slave

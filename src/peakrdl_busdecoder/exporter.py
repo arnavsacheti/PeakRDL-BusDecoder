@@ -98,13 +98,17 @@ class BusDecoderExporter:
         clk_src: str
             Selects where the bus decoder gets its clock and reset.
 
+            - "off" (default): no clock or reset anywhere. The decoder is
+              purely combinational, so the module carries no clk/reset ports
+              and nothing is fanned out to the masters.
+            - "design": the CPU interface carries no clk/reset. The module
+              exposes top-level ``clk`` and ``rst`` ports consumed by clocked
+              features (e.g. ``apb_buffer``); they are not fanned out — the
+              design distributes clock/reset to downstream slaves itself.
             - "cpuif": clk/reset are bundled with the CPU interface. The slave
               bus carries the protocol-defined clock/reset (PCLK/PRESETn for
               APB, ACLK/ARESETn for AXI4-Lite) and the decoder fans them out
               to each master interface.
-            - "design" (default): the CPU interface carries no clk/reset. The
-              module exposes top-level ``clk`` and ``rst`` ports; the design
-              is responsible for distributing clock/reset to downstream slaves.
         gate_signals: bool
             Gate downstream broadcast signals with the per-slave select. For APB
             this drives PENABLE/PADDR/PWDATA/PSTRB/PPROT to '0 on unselected

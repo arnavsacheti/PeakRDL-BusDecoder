@@ -38,9 +38,11 @@ The following options are available on the ``peakrdl busdecoder`` command:
 * ``--max-decode-depth``: Control how far the decoder descends into hierarchy
 * ``--parametrize``: Propagate top-level SystemRDL parameters into the
   generated module (see :doc:`parameters`)
-* ``--clk-src``: Select where the decoder gets its clock and reset (``design``
-  (default) adds top-level ``clk``/``rst`` ports; ``cpuif`` bundles clock/reset
-  with the CPU interface bus)
+* ``--clk-src``: Select where the decoder gets its clock and reset (``off``
+  (default) uses no clock/reset at all — the decoder is combinational;
+  ``design`` adds top-level ``clk``/``rst`` ports that are consumed internally
+  but not fanned out; ``cpuif`` bundles clock/reset with the CPU interface bus
+  and fans them out to each master)
 * ``--gate-signals``: Gate APB broadcast signals with each slave's select so
   unselected slaves see all-zero inputs (off by default)
 * ``--apb-buffer``: Insert a single-flop register slice on the APB slave-side

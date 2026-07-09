@@ -91,4 +91,4 @@ I/O:
 The APB handshake is preserved through ``PREADY``-stretching: each buffered
 direction adds one cycle to the access phase, which the protocol allows. The
 buffer flops use the design clock and reset, so this option requires
-``--clk-src design`` (the default). Non-APB CPU interfaces reject the option.
+``--clk-src design``. Non-APB CPU interfaces reject the option.
