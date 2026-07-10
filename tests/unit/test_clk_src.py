@@ -1,5 +1,6 @@
 """Tests for the clk_src exporter option."""
 
+import re
 from collections.abc import Callable
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -129,6 +130,9 @@ def test_if_adds_bus_clk_reset_on_slave(
         (APB3CpuifFlat, "m_apb_a_", "PCLK", "PRESETn"),
         (APB4CpuifFlat, "m_apb_a_", "PCLK", "PRESETn"),
         (AXI4LiteCpuifFlat, "m_axil_a_", "ACLK", "ARESETn"),
+        (APB3Cpuif, "m_apb_a.", "PCLK", "PRESETn"),
+        (APB4Cpuif, "m_apb_a.", "PCLK", "PRESETn"),
+        (AXI4LiteCpuif, "m_axil_a.", "ACLK", "ARESETn"),
     ],
 )
 def test_if_drives_master_clk_reset_in_fanout(
@@ -143,6 +147,24 @@ def test_if_drives_master_clk_reset_in_fanout(
     assert f"{master_prefix}{rst}" in content
     # And fanout assignment exists
     assert f"assign {master_prefix}{clk}" in content
+
+
+@pytest.mark.parametrize(
+    "intf_file,clk,rst",
+    [
+        ("apb3_intf.sv", "PCLK", "PRESETn"),
+        ("apb4_intf.sv", "PCLK", "PRESETn"),
+        ("axi4lite_intf.sv", "ACLK", "ARESETn"),
+    ],
+)
+def test_master_modport_drives_clk_reset(intf_file: str, clk: str, rst: str) -> None:
+    """clk_src='cpuif' fanout assigns m_*.PCLK through the master modport, so
+    the shipped interface definitions must declare clock/reset as master
+    outputs -- strict simulators reject assignments to modport inputs."""
+    text = (Path(__file__).resolve().parents[2] / "hdl-src" / intf_file).read_text()
+    master = text.split("modport master")[1].split(");")[0]
+    assert re.search(rf"output\s+{clk}\b", master)
+    assert re.search(rf"output\s+{rst}\b", master)
 
 
 @pytest.mark.parametrize(

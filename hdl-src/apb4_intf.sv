@@ -21,8 +21,10 @@ interface apb4_intf #(
     logic PSLVERR;
 
     modport master (
-        input PCLK,
-        input PRESETn,
+        // The bus decoder forwards clock/reset downstream when generated
+        // with --clk-src cpuif, so the master side drives them.
+        output PCLK,
+        output PRESETn,
 
         output PSEL,
         output PENABLE,
