@@ -48,9 +48,9 @@ class DesignState:
         self.cpuif_unroll: bool = kwargs.pop("cpuif_unroll", False)
         self.parametrize: bool = kwargs.pop("parametrize", False)
         self.max_decode_depth: int = kwargs.pop("max_decode_depth", 1)
-        self.clk_src: str = kwargs.pop("clk_src", "design")
-        if self.clk_src not in ("cpuif", "design"):
-            msg.fatal(f"clk_src must be 'cpuif' or 'design', got {self.clk_src!r}")
+        self.clk_src: str = kwargs.pop("clk_src", "off")
+        if self.clk_src not in ("off", "cpuif", "design"):
+            msg.fatal(f"clk_src must be 'off', 'cpuif' or 'design', got {self.clk_src!r}")
         self.gate_signals: bool = kwargs.pop("gate_signals", False)
 
         self.apb_buffer: str = kwargs.pop("apb_buffer", "none")

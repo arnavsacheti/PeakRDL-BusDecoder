@@ -137,14 +137,15 @@ class Exporter(ExporterSubcommandPlugin):
 
         arg_group.add_argument(
             "--clk-src",
-            choices=("cpuif", "design"),
-            default="design",
+            choices=("off", "cpuif", "design"),
+            default="off",
             help="""Select where the bus decoder gets its clock and reset.
-            'cpuif' bundles clk/reset with the CPU interface (slave carries
-            PCLK/PRESETn or ACLK/ARESETn, fanned out to each master).
-            'design' (default) drops clk/reset from the CPU interface and
-            exposes top-level 'clk'/'rst' ports — the design distributes
-            clock/reset to downstream slaves itself.
+            'off' (default) uses no clock or reset at all — the decoder is
+            purely combinational and nothing is fanned out. 'design' exposes
+            top-level 'clk'/'rst' ports consumed by clocked features (e.g.
+            --apb-buffer) but not fanned out to the masters. 'cpuif' bundles
+            clk/reset with the CPU interface (slave carries PCLK/PRESETn or
+            ACLK/ARESETn, fanned out to each master).
             """,
         )
 

@@ -30,8 +30,10 @@ interface axi4lite_intf #(
     logic [1:0] RRESP;
 
     modport master (
-        input ACLK,
-        input ARESETn,
+        // The bus decoder forwards clock/reset downstream when generated
+        // with --clk-src cpuif, so the master side drives them.
+        output ACLK,
+        output ARESETn,
 
         input AWREADY,
         output AWVALID,

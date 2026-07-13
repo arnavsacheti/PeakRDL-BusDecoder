@@ -48,7 +48,7 @@ def test_default_no_buffer_signals(simple_top: AddrmapNode, cpuif_cls: type[Base
 # apb_buffer="in"
 # ---------------------------------------------------------------------------
 def test_buffer_in_apb4_flat(simple_top: AddrmapNode) -> None:
-    content = _export_and_read(simple_top, cpuif_cls=APB4CpuifFlat, apb_buffer="in")
+    content = _export_and_read(simple_top, cpuif_cls=APB4CpuifFlat, apb_buffer="in", clk_src="design")
     # Input wire declarations
     for sig in ("PSEL", "PENABLE", "PWRITE", "PADDR", "PWDATA", "PPROT", "PSTRB"):
         assert f"apb_in_{sig}" in content
@@ -65,7 +65,7 @@ def test_buffer_in_apb4_flat(simple_top: AddrmapNode) -> None:
 
 def test_buffer_in_apb3_omits_pprot_pstrb(simple_top: AddrmapNode) -> None:
     """APB3 has no PPROT/PSTRB, so the buffer must skip them too."""
-    content = _export_and_read(simple_top, cpuif_cls=APB3CpuifFlat, apb_buffer="in")
+    content = _export_and_read(simple_top, cpuif_cls=APB3CpuifFlat, apb_buffer="in", clk_src="design")
     assert "apb_in_PSEL" in content
     assert "apb_in_PPROT" not in content
     assert "apb_in_PSTRB" not in content
@@ -75,7 +75,7 @@ def test_buffer_in_apb3_omits_pprot_pstrb(simple_top: AddrmapNode) -> None:
 # apb_buffer="out"
 # ---------------------------------------------------------------------------
 def test_buffer_out_apb4_flat(simple_top: AddrmapNode) -> None:
-    content = _export_and_read(simple_top, cpuif_cls=APB4CpuifFlat, apb_buffer="out")
+    content = _export_and_read(simple_top, cpuif_cls=APB4CpuifFlat, apb_buffer="out", clk_src="design")
     # Output wire declarations and flop block write to slave port
     for sig in ("PRDATA", "PREADY", "PSLVERR"):
         assert f"apb_out_{sig}" in content
@@ -91,7 +91,7 @@ def test_buffer_out_apb4_flat(simple_top: AddrmapNode) -> None:
 # apb_buffer="both"
 # ---------------------------------------------------------------------------
 def test_buffer_both_apb4_flat(simple_top: AddrmapNode) -> None:
-    content = _export_and_read(simple_top, cpuif_cls=APB4CpuifFlat, apb_buffer="both")
+    content = _export_and_read(simple_top, cpuif_cls=APB4CpuifFlat, apb_buffer="both", clk_src="design")
     assert "apb_in_PSEL" in content
     assert "apb_out_PRDATA" in content
     # Two separate always_ff blocks
@@ -103,7 +103,7 @@ def test_buffer_both_apb4_flat(simple_top: AddrmapNode) -> None:
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize("apb_buffer", ["none", "in", "out", "both"])
 def test_master_fanout_unchanged(simple_top: AddrmapNode, apb_buffer: str) -> None:
-    content = _export_and_read(simple_top, cpuif_cls=APB4CpuifFlat, apb_buffer=apb_buffer)
+    content = _export_and_read(simple_top, cpuif_cls=APB4CpuifFlat, apb_buffer=apb_buffer, clk_src="design")
     # Master ports always exist with protocol names regardless of buffer mode
     assert "m_apb_a_PSEL" in content
     assert "m_apb_a_PADDR" in content
@@ -113,16 +113,16 @@ def test_master_fanout_unchanged(simple_top: AddrmapNode, apb_buffer: str) -> No
 # ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------
-def test_buffer_requires_clk_src_design(simple_top: AddrmapNode) -> None:
+@pytest.mark.parametrize("clk_src", [None, "off", "cpuif"])
+def test_buffer_requires_clk_src_design(simple_top: AddrmapNode, clk_src: str | None) -> None:
+    kwargs = {} if clk_src is None else {"clk_src": clk_src}
     with pytest.raises(Exception):
-        _export_and_read(
-            simple_top, cpuif_cls=APB4CpuifFlat, apb_buffer="in", clk_src="cpuif"
-        )
+        _export_and_read(simple_top, cpuif_cls=APB4CpuifFlat, apb_buffer="in", **kwargs)
 
 
 def test_buffer_rejected_on_non_apb_cpuif(simple_top: AddrmapNode) -> None:
     with pytest.raises(Exception):
-        _export_and_read(simple_top, cpuif_cls=AXI4LiteCpuif, apb_buffer="in")
+        _export_and_read(simple_top, cpuif_cls=AXI4LiteCpuif, apb_buffer="in", clk_src="design")
 
 
 def test_invalid_apb_buffer_value(simple_top: AddrmapNode) -> None:

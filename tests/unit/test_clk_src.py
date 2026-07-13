@@ -1,5 +1,6 @@
 """Tests for the clk_src exporter option."""
 
+import re
 from collections.abc import Callable
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -37,7 +38,8 @@ def simple_top(compile_rdl: Callable[..., AddrmapNode]) -> AddrmapNode:
 
 
 # ---------------------------------------------------------------------------
-# clk_src=design (default): no bus clk/reset, top-level clk/rst ports added
+# clk_src=off (default): no clk/reset at all -- no bus clk/reset bundled and
+# no top-level clk/rst ports (the decoder is purely combinational)
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize(
     "cpuif_cls,clk_signal,reset_signal",
@@ -47,7 +49,7 @@ def simple_top(compile_rdl: Callable[..., AddrmapNode]) -> AddrmapNode:
         (AXI4LiteCpuifFlat, "ACLK", "ARESETn"),
     ],
 )
-def test_design_default_drops_bus_clk_reset(
+def test_off_default_drops_bus_clk_reset(
     simple_top: AddrmapNode, cpuif_cls: type[BaseCpuif], clk_signal: str, reset_signal: str
 ) -> None:
     content = _export_and_read(simple_top, cpuif_cls=cpuif_cls)
@@ -59,12 +61,44 @@ def test_design_default_drops_bus_clk_reset(
 @pytest.mark.parametrize(
     "cpuif_cls", [APB3CpuifFlat, APB4CpuifFlat, AXI4LiteCpuifFlat, APB3Cpuif, APB4Cpuif, AXI4LiteCpuif]
 )
-def test_design_adds_top_level_clk_rst_ports(
+def test_off_default_omits_top_level_clk_rst_ports(
     simple_top: AddrmapNode, cpuif_cls: type[BaseCpuif]
 ) -> None:
     content = _export_and_read(simple_top, cpuif_cls=cpuif_cls)
+    assert "input  logic clk" not in content
+    assert "input  logic rst" not in content
+
+
+# ---------------------------------------------------------------------------
+# clk_src=design: top-level clk/rst ports added, no bus clk/reset bundled
+# and nothing fanned out to the masters
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "cpuif_cls", [APB3CpuifFlat, APB4CpuifFlat, AXI4LiteCpuifFlat, APB3Cpuif, APB4Cpuif, AXI4LiteCpuif]
+)
+def test_design_adds_top_level_clk_rst_ports(
+    simple_top: AddrmapNode, cpuif_cls: type[BaseCpuif]
+) -> None:
+    content = _export_and_read(simple_top, cpuif_cls=cpuif_cls, clk_src="design")
     assert "input  logic clk" in content
     assert "input  logic rst" in content
+
+
+@pytest.mark.parametrize(
+    "cpuif_cls,clk_signal,reset_signal",
+    [
+        (APB3CpuifFlat, "PCLK", "PRESETn"),
+        (APB4CpuifFlat, "PCLK", "PRESETn"),
+        (AXI4LiteCpuifFlat, "ACLK", "ARESETn"),
+    ],
+)
+def test_design_drops_bus_clk_reset(
+    simple_top: AddrmapNode, cpuif_cls: type[BaseCpuif], clk_signal: str, reset_signal: str
+) -> None:
+    content = _export_and_read(simple_top, cpuif_cls=cpuif_cls, clk_src="design")
+    for prefix in ("s_apb_", "s_axil_", "m_apb_a_", "m_apb_b_", "m_axil_a_", "m_axil_b_"):
+        assert f"{prefix}{clk_signal}" not in content
+        assert f"{prefix}{reset_signal}" not in content
 
 
 # ---------------------------------------------------------------------------
@@ -96,6 +130,9 @@ def test_if_adds_bus_clk_reset_on_slave(
         (APB3CpuifFlat, "m_apb_a_", "PCLK", "PRESETn"),
         (APB4CpuifFlat, "m_apb_a_", "PCLK", "PRESETn"),
         (AXI4LiteCpuifFlat, "m_axil_a_", "ACLK", "ARESETn"),
+        (APB3Cpuif, "m_apb_a.", "PCLK", "PRESETn"),
+        (APB4Cpuif, "m_apb_a.", "PCLK", "PRESETn"),
+        (AXI4LiteCpuif, "m_axil_a.", "ACLK", "ARESETn"),
     ],
 )
 def test_if_drives_master_clk_reset_in_fanout(
@@ -110,6 +147,24 @@ def test_if_drives_master_clk_reset_in_fanout(
     assert f"{master_prefix}{rst}" in content
     # And fanout assignment exists
     assert f"assign {master_prefix}{clk}" in content
+
+
+@pytest.mark.parametrize(
+    "intf_file,clk,rst",
+    [
+        ("apb3_intf.sv", "PCLK", "PRESETn"),
+        ("apb4_intf.sv", "PCLK", "PRESETn"),
+        ("axi4lite_intf.sv", "ACLK", "ARESETn"),
+    ],
+)
+def test_master_modport_drives_clk_reset(intf_file: str, clk: str, rst: str) -> None:
+    """clk_src='cpuif' fanout assigns m_*.PCLK through the master modport, so
+    the shipped interface definitions must declare clock/reset as master
+    outputs -- strict simulators reject assignments to modport inputs."""
+    text = (Path(__file__).resolve().parents[2] / "hdl-src" / intf_file).read_text()
+    master = text.split("modport master")[1].split(");")[0]
+    assert re.search(rf"output\s+{clk}\b", master)
+    assert re.search(rf"output\s+{rst}\b", master)
 
 
 @pytest.mark.parametrize(

@@ -540,7 +540,7 @@ wheels = [
 
 [[package]]
 name = "peakrdl-busdecoder"
-version = "0.7.0b6"
+version = "0.7.0b7"
 source = { editable = "." }
 dependencies = [
     { name = "jinja2" },

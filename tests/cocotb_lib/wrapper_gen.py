@@ -130,7 +130,7 @@ def generate_verilator_intf_wrapper(
     global_addr_width: int,
     global_data_width: int,
     output_dir: Path,
-    include_top_clk_rst: bool = True,
+    include_top_clk_rst: bool = False,
 ) -> Path:
     """Generate a Verilator wrapper for an interface-based bus decoder module.
 
@@ -151,8 +151,9 @@ def generate_verilator_intf_wrapper(
         Directory to write the wrapper file.
     include_top_clk_rst:
         Wire top-level ``clk``/``rst`` wrapper inputs through to the DUT.
-        Matches the exporter's default ``clk_src="design"`` mode, where the
-        module has these ports; pass False for ``clk_src="cpuif"`` DUTs.
+        Pass True only for DUTs exported with ``clk_src="design"``, which is
+        the only mode where the module has these ports; the default
+        ``clk_src="off"`` (and ``"cpuif"``) DUTs have no such ports.
 
     Returns
     -------
