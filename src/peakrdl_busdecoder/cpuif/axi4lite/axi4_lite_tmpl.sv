@@ -14,8 +14,12 @@
             else $error("WDATA width %0d != DATA_WIDTH %0d",
                         $bits({{cpuif.signal("WDATA")}}), {{ds.package_name}}::{{ds.module_name|upper}}_DATA_WIDTH);
     end
+{%- if cpuif.clk_src == "cpuif" %}
 
-    // Simple handshake sanity (one-cycle implication; relax/adjust as needed)
+    // Simple handshake sanity (one-cycle implication; relax/adjust as needed).
+    // Only emitted when the bus carries ACLK (clk_src=cpuif): in other modes
+    // the interface bundle need not expose a clock member at all, and even
+    // when it does, nothing drives it.
     assert_rd_resp_enc: assert property (@(posedge {{cpuif.signal("ACLK")}})
         {{cpuif.signal("RVALID")}} |-> (^{{cpuif.signal("RRESP")}} !== 1'bx))
             else $error("RRESP must be a legal AXI response when RVALID is high");
@@ -23,6 +27,7 @@
     assert_wr_resp_enc: assert property (@(posedge {{cpuif.signal("ACLK")}})
         {{cpuif.signal("BVALID")}} |-> (^{{cpuif.signal("BRESP")}} !== 1'bx))
             else $error("BRESP must be a legal AXI response when BVALID is high");
+{%- endif %}
 `endif
 {% endif -%}
 

@@ -181,6 +181,33 @@ def test_if_omits_top_level_clk_rst_ports(
 
 
 # ---------------------------------------------------------------------------
+# Clockless interface compatibility: without clk_src=cpuif, the generated
+# module must not reference any bus clock/reset member through the interface,
+# so it stays legal against modports that omit them entirely
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("cpuif_cls,clk,rst", [
+    (APB3Cpuif, "PCLK", "PRESETn"),
+    (APB4Cpuif, "PCLK", "PRESETn"),
+    (AXI4LiteCpuif, "ACLK", "ARESETn"),
+])
+@pytest.mark.parametrize("clk_src", ["off", "design"])
+def test_sv_interface_no_bus_clock_refs_without_cpuif_clk(
+    simple_top: AddrmapNode, cpuif_cls: type[BaseCpuif], clk: str, rst: str, clk_src: str
+) -> None:
+    content = _export_and_read(simple_top, cpuif_cls=cpuif_cls, clk_src=clk_src)
+    assert clk not in content
+    assert rst not in content
+
+
+def test_axil_sv_assertions_emitted_with_cpuif_clk(simple_top: AddrmapNode) -> None:
+    """The clocked handshake assertions come back when the bus carries ACLK."""
+    content = _export_and_read(simple_top, cpuif_cls=AXI4LiteCpuif, clk_src="cpuif")
+    assert "assert_rd_resp_enc" in content
+    assert "assert_wr_resp_enc" in content
+    assert "@(posedge s_axil.ACLK)" in content
+
+
+# ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------
 def test_invalid_clk_src_rejected(simple_top: AddrmapNode) -> None:
