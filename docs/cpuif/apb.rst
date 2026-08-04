@@ -3,6 +3,11 @@ AMBA APB
 
 Both APB3 and APB4 standards are supported.
 
+The generated decoder does not distribute ``PCLK`` or ``PRESETn``. Flattened
+APB interfaces omit these ports entirely. When using a SystemVerilog interface,
+the clock and reset fields remain part of the interface definition but must be
+connected externally to each endpoint.
+
 .. warning::
     Some IP vendors will incorrectly implement the address signalling
     assuming word-addresses. (that each increment of ``PADDR`` is the next word)
