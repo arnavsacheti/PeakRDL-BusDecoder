@@ -12,6 +12,7 @@ from .fanin_gen import FaninGenerator
 from .fanin_intermediate_gen import FaninIntermediateGenerator
 from .fanout_gen import FanoutGenerator
 from .interface import FlatInterface, Interface, SVInterface
+from .ready_fanin_gen import ReadyFaninGenerator
 
 if TYPE_CHECKING:
     from ..exporter import BusDecoderExporter
@@ -43,6 +44,8 @@ class BaseCpuif:
     # populated by FaninIntermediateGenerator.
     sv_array_fanin_wr: ClassVar[list[tuple[str, str, str]]] = []
     sv_array_fanin_rd: ClassVar[list[tuple[str, str, str]]] = []
+    sv_array_ready_fanin_wr: ClassVar[list[tuple[str, str, str]]] = []
+    sv_array_ready_fanin_rd: ClassVar[list[tuple[str, str, str]]] = []
 
     def __init__(self, exp: "BusDecoderExporter") -> None:
         self.exp = exp
@@ -236,6 +239,7 @@ class BaseCpuif:
             "fanout": FanoutGenerator,
             "fanin": FaninGenerator,
             "fanin_intermediate": FaninIntermediateGenerator,
+            "ready_fanin": ReadyFaninGenerator,
         }
 
         template = jj_env.get_template(self.template_path)
@@ -296,6 +300,24 @@ class BaseCpuif:
             return self._sv_array_override(node, self.sv_array_fanin_rd)
         return base
 
+    def ready_fanin_wr(self, node: AddressableNode | None = None) -> str:
+        """Protocol-specific request READY fanin, when required."""
+        raise NotImplementedError
+
+    def ready_fanin_rd(self, node: AddressableNode | None = None) -> str:
+        """Protocol-specific request READY fanin, when required."""
+        raise NotImplementedError
+
+    @property
+    def fanin_wr_select(self) -> str:
+        """Select struct used to choose the write-response source."""
+        return "cpuif_wr_sel"
+
+    @property
+    def fanin_rd_select(self) -> str:
+        """Select struct used to choose the read-response source."""
+        return "cpuif_rd_sel"
+
     def fanin_intermediate_assignments(
         self, node: AddressableNode, inst_name: str, array_idx: str, master_prefix: str, indexed_path: str
     ) -> list[str]:
@@ -307,7 +329,13 @@ class BaseCpuif:
         """
         seen: set[str] = set()
         assignments: list[str] = []
-        for _, suffix, source in list(self.sv_array_fanin_rd) + list(self.sv_array_fanin_wr):
+        signals = (
+            list(self.sv_array_fanin_rd)
+            + list(self.sv_array_fanin_wr)
+            + list(self.sv_array_ready_fanin_rd)
+            + list(self.sv_array_ready_fanin_wr)
+        )
+        for _, suffix, source in signals:
             if suffix in seen:
                 continue
             seen.add(suffix)

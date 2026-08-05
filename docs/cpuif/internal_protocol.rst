@@ -4,9 +4,15 @@ Internal CPUIF Protocol
 =======================
 
 Internally, the bus decoder uses a small set of common request/response signals
-that each CPU interface adapter must drive. This protocol is intentionally simple
-and supports a single outstanding transaction at a time. The CPU interface logic
-is responsible for holding request signals stable until the transaction completes.
+that each CPU interface adapter drives. The baseline protocol is intentionally
+simple and represents one decoded transaction at a time. APB adapters hold this
+transaction stable through completion.
+
+The stateful AXI4-Lite adapter uses the request side as a one-cycle decode event:
+it latches the resulting child-select metadata and request payload into ordered
+queues, then uses a retained queue head for response fanin. It can therefore
+support multiple externally outstanding transactions even though the common
+decode signals represent only one acceptance event in a cycle.
 
 
 Signal Descriptions
@@ -15,8 +21,9 @@ Signal Descriptions
 Request
 ^^^^^^^
 cpuif_req
-    When asserted, a read or write transfer is in progress. Request signals must
-    remain stable until the transfer completes.
+    When asserted, a read or write transfer is being decoded. A simple adapter
+    keeps it asserted and stable until completion; a stateful adapter may latch
+    the decode result on an acceptance event.
 
 cpuif_wr_en
     When asserted alongside ``cpuif_req``, denotes a write transfer.
@@ -38,8 +45,8 @@ cpuif_wr_byte_en
 Read Response
 ^^^^^^^^^^^^^
 cpuif_rd_ack
-    Single-cycle strobe indicating a read transfer has completed.
-    Qualifies ``cpuif_rd_err`` and ``cpuif_rd_data``.
+    Indicates that the selected read response is valid. Qualifies
+    ``cpuif_rd_err`` and ``cpuif_rd_data``.
 
 cpuif_rd_err
     Indicates that the read transaction failed. The CPU interface should return
@@ -52,8 +59,8 @@ cpuif_rd_data
 Write Response
 ^^^^^^^^^^^^^^
 cpuif_wr_ack
-    Single-cycle strobe indicating a write transfer has completed.
-    Qualifies ``cpuif_wr_err``.
+    Indicates that the selected write response is valid. Qualifies
+    ``cpuif_wr_err``.
 
 cpuif_wr_err
     Indicates that the write transaction failed. The CPU interface should return
@@ -65,7 +72,9 @@ Transfers
 
 Transfers have the following characteristics:
 
-* Only one outstanding transaction is supported.
-* The CPU interface must hold ``cpuif_req`` and request parameters stable until
-  the corresponding ``cpuif_*_ack`` is asserted.
-* Responses shall arrive in the same order as requests.
+* Baseline adapters expose one stable transaction until the corresponding
+  ``cpuif_*_ack`` is asserted.
+* Stateful adapters may latch destination metadata on a request event and
+  manage several external transactions around this decode layer.
+* The adapter is responsible for returning external responses in the ordering
+  required by its bus protocol. See :ref:`cpuif_axi4lite_response_ordering`.

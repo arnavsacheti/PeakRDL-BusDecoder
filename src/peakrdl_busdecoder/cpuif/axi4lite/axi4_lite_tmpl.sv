@@ -15,53 +15,160 @@
                         $bits({{cpuif.signal("WDATA")}}), {{ds.package_name}}::{{ds.module_name|upper}}_DATA_WIDTH);
     end
 
-    // Simple handshake sanity (one-cycle implication; relax/adjust as needed)
-    assert_rd_resp_enc: assert property (@(posedge {{cpuif.signal("ACLK")}})
+    assert_rd_resp_enc: assert property (@(posedge {{cpuif.clock_signal}})
         {{cpuif.signal("RVALID")}} |-> (^{{cpuif.signal("RRESP")}} !== 1'bx))
-            else $error("RRESP must be a legal AXI response when RVALID is high");
+            else $error("RRESP must be known when RVALID is high");
 
-    assert_wr_resp_enc: assert property (@(posedge {{cpuif.signal("ACLK")}})
+    assert_wr_resp_enc: assert property (@(posedge {{cpuif.clock_signal}})
         {{cpuif.signal("BVALID")}} |-> (^{{cpuif.signal("BRESP")}} !== 1'bx))
-            else $error("BRESP must be a legal AXI response when BVALID is high");
+            else $error("BRESP must be known when BVALID is high");
 `endif
 {% endif -%}
 
-logic axi_wr_valid;
-logic axi_wr_invalid;
-logic cpuif_wr_ack_int;
-logic cpuif_rd_ack_int;
+localparam int AXIL_PTR_WIDTH =
+    (AXI4LITE_MAX_OUTSTANDING <= 1) ? 1 : $clog2(AXI4LITE_MAX_OUTSTANDING);
+localparam int AXIL_COUNT_WIDTH = $clog2(AXI4LITE_MAX_OUTSTANDING + 1);
 
-assign axi_wr_valid = {{cpuif.signal("AWVALID")}} & {{cpuif.signal("WVALID")}};
-assign axi_wr_invalid = {{cpuif.signal("AWVALID")}} ^ {{cpuif.signal("WVALID")}};
+function automatic logic [AXIL_PTR_WIDTH-1:0] axil_next_ptr(
+    input logic [AXIL_PTR_WIDTH-1:0] ptr
+);
+    if (ptr == AXIL_PTR_WIDTH'(AXI4LITE_MAX_OUTSTANDING - 1)) begin
+        axil_next_ptr = '0;
+    end else begin
+        axil_next_ptr = ptr + 1'b1;
+    end
+endfunction
 
-// Ready/acceptance follows the simplified single-beat requirement
-assign {{cpuif.signal("AWREADY")}} = axi_wr_valid;
-assign {{cpuif.signal("WREADY")}}  = axi_wr_valid;
-assign {{cpuif.signal("ARREADY")}} = {{cpuif.signal("ARVALID")}};
+// AW and W are independent AXI channels. Each can be accepted first and is
+// retained here until a complete write request can be enqueued.
+logic aw_hold_valid;
+logic [{{cpuif.addr_width-1}}:0] aw_hold_addr;
+logic [2:0] aw_hold_prot;
+logic w_hold_valid;
+logic [{{cpuif.data_width-1}}:0] w_hold_data;
+logic [{{cpuif.data_width//8-1}}:0] w_hold_strb;
 
-assign cpuif_req     = {{cpuif.signal("AWVALID")}} | {{cpuif.signal("ARVALID")}};
-assign cpuif_wr_en   = axi_wr_valid;
-assign cpuif_rd_en   = {{cpuif.signal("ARVALID")}};
+// Write request/response order queue.
+cpuif_sel_t axil_wr_dest_q [0:AXI4LITE_MAX_OUTSTANDING-1];
+logic [{{cpuif.addr_width-1}}:0] axil_wr_addr_q [0:AXI4LITE_MAX_OUTSTANDING-1];
+logic [2:0] axil_wr_prot_q [0:AXI4LITE_MAX_OUTSTANDING-1];
+logic [{{cpuif.data_width-1}}:0] axil_wr_data_q [0:AXI4LITE_MAX_OUTSTANDING-1];
+logic [{{cpuif.data_width//8-1}}:0] axil_wr_strb_q [0:AXI4LITE_MAX_OUTSTANDING-1];
+logic axil_wr_issued_q [0:AXI4LITE_MAX_OUTSTANDING-1];
+logic axil_wr_aw_sent_q [0:AXI4LITE_MAX_OUTSTANDING-1];
+logic axil_wr_w_sent_q [0:AXI4LITE_MAX_OUTSTANDING-1];
+logic [AXIL_PTR_WIDTH-1:0] axil_wr_head_ptr;
+logic [AXIL_PTR_WIDTH-1:0] axil_wr_tail_ptr;
+logic [AXIL_PTR_WIDTH-1:0] axil_wr_issue_ptr;
+logic [AXIL_COUNT_WIDTH-1:0] axil_wr_count;
+logic [AXIL_COUNT_WIDTH-1:0] axil_wr_issue_count;
 
-assign cpuif_wr_addr = {{cpuif.signal("AWADDR")}};
+// Read request/response order queue.
+cpuif_sel_t axil_rd_dest_q [0:AXI4LITE_MAX_OUTSTANDING-1];
+logic [{{cpuif.addr_width-1}}:0] axil_rd_addr_q [0:AXI4LITE_MAX_OUTSTANDING-1];
+logic [2:0] axil_rd_prot_q [0:AXI4LITE_MAX_OUTSTANDING-1];
+logic axil_rd_issued_q [0:AXI4LITE_MAX_OUTSTANDING-1];
+logic [AXIL_PTR_WIDTH-1:0] axil_rd_head_ptr;
+logic [AXIL_PTR_WIDTH-1:0] axil_rd_tail_ptr;
+logic [AXIL_PTR_WIDTH-1:0] axil_rd_issue_ptr;
+logic [AXIL_COUNT_WIDTH-1:0] axil_rd_count;
+logic [AXIL_COUNT_WIDTH-1:0] axil_rd_issue_count;
+
+// The issue selection and response-head selection are deliberately separate.
+// A later request may be issued while only the oldest response is permitted
+// to see READY.
+cpuif_sel_t axil_wr_issue_sel;
+cpuif_sel_t axil_rd_issue_sel;
+cpuif_sel_t axil_wr_resp_sel;
+cpuif_sel_t axil_rd_resp_sel;
+
+logic [{{cpuif.addr_width-1}}:0] axil_wr_issue_addr;
+logic [2:0] axil_wr_issue_prot;
+logic [{{cpuif.data_width-1}}:0] axil_wr_issue_data;
+logic [{{cpuif.data_width//8-1}}:0] axil_wr_issue_strb;
+logic axil_wr_issue_aw_sent;
+logic axil_wr_issue_w_sent;
+logic [{{cpuif.addr_width-1}}:0] axil_rd_issue_addr;
+logic [2:0] axil_rd_issue_prot;
+
+logic axil_wr_issue_aw_ready;
+logic axil_wr_issue_w_ready;
+logic axil_rd_issue_ar_ready;
+logic [1:0] axil_wr_resp;
+logic [1:0] axil_rd_resp;
+
+wire axil_in_reset = {{cpuif.reset_asserted}};
+wire axil_wr_queue_has_space =
+    axil_wr_count < AXIL_COUNT_WIDTH'(AXI4LITE_MAX_OUTSTANDING);
+wire axil_rd_queue_has_space =
+    axil_rd_count < AXIL_COUNT_WIDTH'(AXI4LITE_MAX_OUTSTANDING);
+
+assign {{cpuif.signal("AWREADY")}} =
+    !axil_in_reset && !aw_hold_valid && axil_wr_queue_has_space;
+assign {{cpuif.signal("WREADY")}} =
+    !axil_in_reset && !w_hold_valid && axil_wr_queue_has_space;
+assign {{cpuif.signal("ARREADY")}} = !axil_in_reset && axil_rd_queue_has_space;
+
+wire axil_aw_capture = {{cpuif.signal("AWVALID")}} & {{cpuif.signal("AWREADY")}};
+wire axil_w_capture = {{cpuif.signal("WVALID")}} & {{cpuif.signal("WREADY")}};
+wire axil_wr_enqueue = aw_hold_valid & w_hold_valid & axil_wr_queue_has_space;
+wire axil_rd_enqueue = {{cpuif.signal("ARVALID")}} & {{cpuif.signal("ARREADY")}};
+
+// Feed the existing address decoder from the complete request being accepted
+// into an order queue. Read and write decode can occur in the same cycle.
+assign cpuif_req = axil_wr_enqueue | axil_rd_enqueue;
+assign cpuif_wr_en = axil_wr_enqueue;
+assign cpuif_rd_en = axil_rd_enqueue;
+assign cpuif_wr_addr = aw_hold_addr;
 assign cpuif_rd_addr = {{cpuif.signal("ARADDR")}};
+assign cpuif_wr_data = w_hold_data;
+assign cpuif_wr_byte_en = w_hold_strb;
 
-assign cpuif_wr_data    = {{cpuif.signal("WDATA")}};
-assign cpuif_wr_byte_en = {{cpuif.signal("WSTRB")}};
+always_comb begin
+    axil_wr_issue_sel = '{default: '0};
+    axil_wr_issue_addr = '0;
+    axil_wr_issue_prot = '0;
+    axil_wr_issue_data = '0;
+    axil_wr_issue_strb = '0;
+    axil_wr_issue_aw_sent = 1'b0;
+    axil_wr_issue_w_sent = 1'b0;
 
-//
-// Return paths back to AXI master from generic cpuif_*
-// Read: ack=RVALID, err=RRESP[1] (SLVERR/DECERR), data=RDATA
-//
-assign {{cpuif.signal("RDATA")}}  = cpuif_rd_data;
-assign cpuif_rd_ack_int = cpuif_rd_ack | cpuif_rd_sel.cpuif_err;
-assign {{cpuif.signal("RVALID")}} = cpuif_rd_ack_int;
-assign {{cpuif.signal("RRESP")}}  = (cpuif_rd_err | cpuif_rd_sel.cpuif_err | cpuif_wr_sel.cpuif_err) ? 2'b10 : 2'b00;
+    if (axil_wr_issue_count != '0) begin
+        axil_wr_issue_sel = axil_wr_dest_q[axil_wr_issue_ptr];
+        axil_wr_issue_addr = axil_wr_addr_q[axil_wr_issue_ptr];
+        axil_wr_issue_prot = axil_wr_prot_q[axil_wr_issue_ptr];
+        axil_wr_issue_data = axil_wr_data_q[axil_wr_issue_ptr];
+        axil_wr_issue_strb = axil_wr_strb_q[axil_wr_issue_ptr];
+        axil_wr_issue_aw_sent = axil_wr_aw_sent_q[axil_wr_issue_ptr];
+        axil_wr_issue_w_sent = axil_wr_w_sent_q[axil_wr_issue_ptr];
+    end
+end
 
-// Write: ack=BVALID, err=BRESP[1]
-assign cpuif_wr_ack_int = cpuif_wr_ack | cpuif_wr_sel.cpuif_err | axi_wr_invalid;
-assign {{cpuif.signal("BVALID")}} = cpuif_wr_ack_int;
-assign {{cpuif.signal("BRESP")}}  = (cpuif_wr_err | cpuif_wr_sel.cpuif_err | cpuif_rd_sel.cpuif_err | axi_wr_invalid) ? 2'b10 : 2'b00;
+always_comb begin
+    axil_rd_issue_sel = '{default: '0};
+    axil_rd_issue_addr = '0;
+    axil_rd_issue_prot = '0;
+
+    if (axil_rd_issue_count != '0) begin
+        axil_rd_issue_sel = axil_rd_dest_q[axil_rd_issue_ptr];
+        axil_rd_issue_addr = axil_rd_addr_q[axil_rd_issue_ptr];
+        axil_rd_issue_prot = axil_rd_prot_q[axil_rd_issue_ptr];
+    end
+end
+
+always_comb begin
+    axil_wr_resp_sel = '{default: '0};
+    if ((axil_wr_count != '0) && axil_wr_issued_q[axil_wr_head_ptr]) begin
+        axil_wr_resp_sel = axil_wr_dest_q[axil_wr_head_ptr];
+    end
+end
+
+always_comb begin
+    axil_rd_resp_sel = '{default: '0};
+    if ((axil_rd_count != '0) && axil_rd_issued_q[axil_rd_head_ptr]) begin
+        axil_rd_resp_sel = axil_rd_dest_q[axil_rd_head_ptr];
+    end
+end
 
 //--------------------------------------------------------------------------
 // Fanout CPU Bus interface signals
@@ -76,6 +183,133 @@ assign {{cpuif.signal("BRESP")}}  = (cpuif_wr_err | cpuif_wr_sel.cpuif_err | cpu
 {%- endif %}
 
 //--------------------------------------------------------------------------
+// Request READY fanin
+//--------------------------------------------------------------------------
+{{ready_fanin|walk(cpuif=cpuif)}}
+
+wire axil_wr_issue_valid =
+    (axil_wr_issue_count != '0) && !axil_wr_issue_sel.cpuif_err;
+wire axil_wr_issue_aw_fire =
+    axil_wr_issue_valid && !axil_wr_issue_aw_sent && axil_wr_issue_aw_ready;
+wire axil_wr_issue_w_fire =
+    axil_wr_issue_valid && !axil_wr_issue_w_sent && axil_wr_issue_w_ready;
+wire axil_wr_issue_advance =
+    (axil_wr_issue_count != '0) &&
+    (axil_wr_issue_sel.cpuif_err ||
+     ((axil_wr_issue_aw_sent || axil_wr_issue_aw_fire) &&
+      (axil_wr_issue_w_sent || axil_wr_issue_w_fire)));
+
+wire axil_rd_issue_valid =
+    (axil_rd_issue_count != '0) && !axil_rd_issue_sel.cpuif_err;
+wire axil_rd_issue_advance =
+    (axil_rd_issue_count != '0) &&
+    (axil_rd_issue_sel.cpuif_err || axil_rd_issue_ar_ready);
+
+//--------------------------------------------------------------------------
 // Fanin CPU Bus interface signals
 //--------------------------------------------------------------------------
 {{fanin|walk(cpuif=cpuif)}}
+
+assign {{cpuif.signal("BVALID")}} =
+    (axil_wr_count != '0) && axil_wr_issued_q[axil_wr_head_ptr] && cpuif_wr_ack;
+assign {{cpuif.signal("BRESP")}} = axil_wr_resp;
+assign {{cpuif.signal("RVALID")}} =
+    (axil_rd_count != '0) && axil_rd_issued_q[axil_rd_head_ptr] && cpuif_rd_ack;
+assign {{cpuif.signal("RDATA")}} = cpuif_rd_data;
+assign {{cpuif.signal("RRESP")}} = axil_rd_resp;
+
+wire axil_wr_dequeue = {{cpuif.signal("BVALID")}} & {{cpuif.signal("BREADY")}};
+wire axil_rd_dequeue = {{cpuif.signal("RVALID")}} & {{cpuif.signal("RREADY")}};
+
+always_ff @(posedge {{cpuif.clock_signal}} or {{cpuif.reset_sensitivity}}) begin
+    if ({{cpuif.reset_asserted}}) begin
+        aw_hold_valid <= 1'b0;
+        w_hold_valid <= 1'b0;
+        axil_wr_head_ptr <= '0;
+        axil_wr_tail_ptr <= '0;
+        axil_wr_issue_ptr <= '0;
+        axil_wr_count <= '0;
+        axil_wr_issue_count <= '0;
+        axil_rd_head_ptr <= '0;
+        axil_rd_tail_ptr <= '0;
+        axil_rd_issue_ptr <= '0;
+        axil_rd_count <= '0;
+        axil_rd_issue_count <= '0;
+    end else begin
+        if (axil_aw_capture) begin
+            aw_hold_valid <= 1'b1;
+            aw_hold_addr <= {{cpuif.signal("AWADDR")}};
+            aw_hold_prot <= {{cpuif.signal("AWPROT")}};
+        end
+        if (axil_w_capture) begin
+            w_hold_valid <= 1'b1;
+            w_hold_data <= {{cpuif.signal("WDATA")}};
+            w_hold_strb <= {{cpuif.signal("WSTRB")}};
+        end
+
+        if (axil_wr_enqueue) begin
+            aw_hold_valid <= 1'b0;
+            w_hold_valid <= 1'b0;
+            axil_wr_dest_q[axil_wr_tail_ptr] <= cpuif_wr_sel;
+            axil_wr_addr_q[axil_wr_tail_ptr] <= aw_hold_addr;
+            axil_wr_prot_q[axil_wr_tail_ptr] <= aw_hold_prot;
+            axil_wr_data_q[axil_wr_tail_ptr] <= w_hold_data;
+            axil_wr_strb_q[axil_wr_tail_ptr] <= w_hold_strb;
+            axil_wr_issued_q[axil_wr_tail_ptr] <= cpuif_wr_sel.cpuif_err;
+            axil_wr_aw_sent_q[axil_wr_tail_ptr] <= 1'b0;
+            axil_wr_w_sent_q[axil_wr_tail_ptr] <= 1'b0;
+            axil_wr_tail_ptr <= axil_next_ptr(axil_wr_tail_ptr);
+        end
+
+        if (axil_wr_issue_aw_fire) begin
+            axil_wr_aw_sent_q[axil_wr_issue_ptr] <= 1'b1;
+        end
+        if (axil_wr_issue_w_fire) begin
+            axil_wr_w_sent_q[axil_wr_issue_ptr] <= 1'b1;
+        end
+        if (axil_wr_issue_advance) begin
+            axil_wr_issued_q[axil_wr_issue_ptr] <= 1'b1;
+            axil_wr_issue_ptr <= axil_next_ptr(axil_wr_issue_ptr);
+        end
+        if (axil_wr_dequeue) begin
+            axil_wr_head_ptr <= axil_next_ptr(axil_wr_head_ptr);
+        end
+
+        case ({axil_wr_enqueue, axil_wr_dequeue})
+            2'b10: axil_wr_count <= axil_wr_count + 1'b1;
+            2'b01: axil_wr_count <= axil_wr_count - 1'b1;
+            default: axil_wr_count <= axil_wr_count;
+        endcase
+        case ({axil_wr_enqueue, axil_wr_issue_advance})
+            2'b10: axil_wr_issue_count <= axil_wr_issue_count + 1'b1;
+            2'b01: axil_wr_issue_count <= axil_wr_issue_count - 1'b1;
+            default: axil_wr_issue_count <= axil_wr_issue_count;
+        endcase
+
+        if (axil_rd_enqueue) begin
+            axil_rd_dest_q[axil_rd_tail_ptr] <= cpuif_rd_sel;
+            axil_rd_addr_q[axil_rd_tail_ptr] <= {{cpuif.signal("ARADDR")}};
+            axil_rd_prot_q[axil_rd_tail_ptr] <= {{cpuif.signal("ARPROT")}};
+            axil_rd_issued_q[axil_rd_tail_ptr] <= cpuif_rd_sel.cpuif_err;
+            axil_rd_tail_ptr <= axil_next_ptr(axil_rd_tail_ptr);
+        end
+        if (axil_rd_issue_advance) begin
+            axil_rd_issued_q[axil_rd_issue_ptr] <= 1'b1;
+            axil_rd_issue_ptr <= axil_next_ptr(axil_rd_issue_ptr);
+        end
+        if (axil_rd_dequeue) begin
+            axil_rd_head_ptr <= axil_next_ptr(axil_rd_head_ptr);
+        end
+
+        case ({axil_rd_enqueue, axil_rd_dequeue})
+            2'b10: axil_rd_count <= axil_rd_count + 1'b1;
+            2'b01: axil_rd_count <= axil_rd_count - 1'b1;
+            default: axil_rd_count <= axil_rd_count;
+        endcase
+        case ({axil_rd_enqueue, axil_rd_issue_advance})
+            2'b10: axil_rd_issue_count <= axil_rd_issue_count + 1'b1;
+            2'b01: axil_rd_issue_count <= axil_rd_issue_count - 1'b1;
+            default: axil_rd_issue_count <= axil_rd_issue_count;
+        endcase
+    end
+end

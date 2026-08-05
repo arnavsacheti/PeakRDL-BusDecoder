@@ -271,7 +271,10 @@ def parse_fanin_sel_paths(module_text: str) -> set[str]:
     section = section[:end]
     paths = {
         re.sub(r"\[\w+\]", "", m.group(1))
-        for m in re.finditer(r"if \(cpuif_(?:wr|rd)_sel\.([\w.\[\]]+)\)", section)
+        for m in re.finditer(
+            r"if \((?:cpuif_(?:wr|rd)_sel|axil_(?:wr|rd)_resp_sel)\.([\w.\[\]]+)\)",
+            section,
+        )
     }
     return paths - {"cpuif_err"}
 

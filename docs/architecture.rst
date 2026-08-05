@@ -1,13 +1,17 @@
 Bus Decoder Architecture
 ========================
 
-The generated RTL is a pure bus-routing layer. It accepts a single CPU interface
-on the slave side and fans transactions out to a set of child interfaces on the
-master side. No register storage or field logic is generated.
+The generated RTL is a bus-routing layer. It accepts a single CPU interface on
+the slave side and fans transactions out to a set of child interfaces on the
+master side. No user register or field logic is generated, though a protocol
+adapter may include handshake buffers and ordering state.
 
 Although you do not need to know the inner workings to use the exporter, the
 sections below explain the structure of the generated module and how it maps to
 SystemRDL hierarchy.
+
+For side-by-side diagrams of the structures emitted by command-line options,
+see :ref:`generated_decoder_structure`.
 
 
 CPU Interface Adapter
@@ -46,9 +50,10 @@ unchanged.
 
 Fanin and Error Handling
 ------------------------
-Read and write responses are muxed back from the selected child to the slave
-interface. If no child is selected for a transaction, the decoder generates an
-error response on the slave interface.
+Read and write responses are muxed back from the retained selected child to the
+slave interface. If no child is selected for a transaction, the decoder
+generates an error response on the slave interface. Stateful protocols may
+retain several selections and choose the response source from an order queue.
 
 The exact error signaling depends on the chosen CPU interface protocol (e.g.,
 ``PSLVERR`` for APB, ``RRESP/BRESP`` for AXI4-Lite).

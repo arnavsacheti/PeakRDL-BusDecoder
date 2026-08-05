@@ -1,7 +1,7 @@
 import os
 from importlib.metadata import version
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 import jinja2 as jj
 from systemrdl.node import AddrmapNode, RootNode
@@ -11,7 +11,7 @@ from typing_extensions import Unpack
 from .cpuif import BaseCpuif
 from .cpuif.apb4 import APB4Cpuif
 from .decode_logic_gen import DecodeLogicFlavor, DecodeLogicGenerator
-from .design_state import DesignState
+from .design_state import DesignState, DesignStateKwargs
 from .identifier_filter import kw_filter as kwf
 from .listener import BusDecoderListener
 from .struct_gen import StructGenerator
@@ -32,6 +32,7 @@ class ExporterKwargs(TypedDict, total=False):
     clk_src: str
     gate_signals: bool
     apb_buffer: str
+    axi4lite_max_outstanding: int
 
 
 if TYPE_CHECKING:
@@ -116,6 +117,10 @@ class BusDecoderExporter:
             (slave-side outputs only), "both". Only applies to APB cpuifs;
             requires ``clk_src='design'`` (uses the design clk/rst). APB
             handshake is preserved via PREADY-stretching.
+        axi4lite_max_outstanding: int
+            Maximum accepted AXI4-Lite read transactions and paired write
+            transactions retained by their respective order queues. Defaults
+            to 4. AW and W each also have one independent holding register.
         """
         # If it is the root node, skip to top addrmap
         if isinstance(node, RootNode):
@@ -123,9 +128,8 @@ class BusDecoderExporter:
         else:
             top_node = node
 
-        self.ds = DesignState(top_node, kwargs)
-
         cpuif_cls: type[BaseCpuif] = kwargs.pop("cpuif_cls", None) or APB4Cpuif
+        self.ds = DesignState(top_node, cast(DesignStateKwargs, kwargs))
 
         # Check for stray kwargs
         if kwargs:

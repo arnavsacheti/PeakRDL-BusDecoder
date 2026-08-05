@@ -136,6 +136,16 @@ class Exporter(ExporterSubcommandPlugin):
         )
 
         arg_group.add_argument(
+            "--axi4lite-max-outstanding",
+            type=int,
+            default=4,
+            help="""Maximum number of accepted AXI4-Lite reads and paired
+            writes retained by each ordered response queue. Default is 4.
+            Only applies to AXI4-Lite CPU interfaces.
+            """,
+        )
+
+        arg_group.add_argument(
             "--clk-src",
             choices=("cpuif", "design"),
             default="design",
@@ -187,4 +197,5 @@ class Exporter(ExporterSubcommandPlugin):
             clk_src=options.clk_src,
             gate_signals=options.gate_signals,
             apb_buffer=options.apb_buffer,
+            axi4lite_max_outstanding=options.axi4lite_max_outstanding,
         )

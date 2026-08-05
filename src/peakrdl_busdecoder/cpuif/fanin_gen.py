@@ -43,12 +43,16 @@ class FaninGenerator(BusDecoderListener):
 
         if should_generate:
             ifb = IfBody()
-            with ifb.cm(f"cpuif_wr_sel.{get_indexed_path(self._cpuif.exp.ds.top_node, node)}") as b:
+            with ifb.cm(
+                f"{self._cpuif.fanin_wr_select}.{get_indexed_path(self._cpuif.exp.ds.top_node, node)}"
+            ) as b:
                 b += self._cpuif.fanin_wr(node)
             self._stack[-1] += ifb
 
             ifb = IfBody()
-            with ifb.cm(f"cpuif_rd_sel.{get_indexed_path(self._cpuif.exp.ds.top_node, node)}") as b:
+            with ifb.cm(
+                f"{self._cpuif.fanin_rd_select}.{get_indexed_path(self._cpuif.exp.ds.top_node, node)}"
+            ) as b:
                 b += self._cpuif.fanin_rd(node)
             self._stack[-1] += ifb
 
@@ -67,12 +71,12 @@ class FaninGenerator(BusDecoderListener):
 
     def __str__(self) -> str:
         wr_ifb = IfBody()
-        with wr_ifb.cm("cpuif_wr_sel.cpuif_err") as b:
+        with wr_ifb.cm(f"{self._cpuif.fanin_wr_select}.cpuif_err") as b:
             b += self._cpuif.fanin_wr(error=True)
         self._stack[-1] += wr_ifb
 
         rd_ifb = IfBody()
-        with rd_ifb.cm("cpuif_rd_sel.cpuif_err") as b:
+        with rd_ifb.cm(f"{self._cpuif.fanin_rd_select}.cpuif_err") as b:
             b += self._cpuif.fanin_rd(error=True)
         self._stack[-1] += rd_ifb
 

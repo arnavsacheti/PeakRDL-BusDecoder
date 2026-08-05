@@ -1,99 +1,27 @@
-"""AXI4-Lite stress tests: long randomized transaction streams with write/read-back checks."""
+"""AXI4-Lite randomized transaction-stream smoke coverage."""
 
 from __future__ import annotations
 
-from typing import Any
-
 import cocotb
-from cocotb.triggers import Timer
 
 from tests.cocotb.axi4lite.smoke.test_register_access import (
     _AxilSlaveShim,
+    _accept_read,
+    _accept_write,
     _build_master_table,
-    _idle_masters,
-    _idle_slave,
+    _complete_read_response,
+    _complete_write_response,
+    _initialize,
+    _issue_read,
+    _issue_write,
     _write_pattern,
 )
-from tests.cocotb_lib.protocol_utils import (
-    load_config,
-    make_rng,
-    set_value,
-    shuffle_transactions,
-)
-
-
-async def _axil_write(
-    slave: _AxilSlaveShim,
-    entry: dict[str, Any],
-    index: tuple[int, ...],
-    address: int,
-    data: int,
-    strobe: int,
-) -> None:
-    set_value(entry["inputs"]["BRESP"], index, 0)
-    set_value(entry["inputs"]["BVALID"], index, 1)
-
-    slave.AWADDR.value = address
-    slave.AWPROT.value = 0
-    slave.AWVALID.value = 1
-    slave.WDATA.value = data
-    slave.WSTRB.value = strobe
-    slave.WVALID.value = 1
-    slave.BREADY.value = 1
-    await Timer(1, unit="ns")
-
-    assert int(slave.AWREADY.value) == 1, "AWREADY should assert once both AW & W are valid"
-    assert int(slave.WREADY.value) == 1, "WREADY should assert once both AW & W are valid"
-    assert int(slave.BVALID.value) == 1, "BVALID should mirror master BVALID"
-    assert int(slave.BRESP.value) == 0, f"Stress write 0x{address:x} expected OKAY BRESP"
-
-    slave.AWVALID.value = 0
-    slave.WVALID.value = 0
-    slave.BREADY.value = 0
-    set_value(entry["inputs"]["BVALID"], index, 0)
-    await Timer(1, unit="ns")
-
-
-async def _axil_read(
-    slave: _AxilSlaveShim,
-    entry: dict[str, Any],
-    index: tuple[int, ...],
-    address: int,
-    expected: int,
-    rvalid_delay: int,
-) -> None:
-    set_value(entry["inputs"]["RVALID"], index, 0)
-    set_value(entry["inputs"]["RDATA"], index, expected)
-    set_value(entry["inputs"]["RRESP"], index, 0)
-
-    slave.ARADDR.value = address
-    slave.ARPROT.value = 0
-    slave.ARVALID.value = 1
-    slave.RREADY.value = 1
-
-    for _ in range(rvalid_delay):
-        await Timer(1, unit="ns")
-
-    set_value(entry["inputs"]["RVALID"], index, 1)
-    await Timer(1, unit="ns")
-
-    assert int(slave.RVALID.value) == 1, f"RVALID must propagate at 0x{address:x}"
-    assert int(slave.RDATA.value) == expected, (
-        f"Stress read mismatch at 0x{address:x}: "
-        f"expected 0x{expected:x}, got 0x{int(slave.RDATA.value):x}"
-    )
-    assert int(slave.RRESP.value) == 0, "Stress read should yield OKAY"
-
-    slave.ARVALID.value = 0
-    slave.RREADY.value = 0
-    set_value(entry["inputs"]["RVALID"], index, 0)
-    set_value(entry["inputs"]["RDATA"], index, 0)
-    await Timer(1, unit="ns")
+from tests.cocotb_lib.protocol_utils import load_config, make_rng, shuffle_transactions
 
 
 @cocotb.test()
 async def test_axi4lite_random_traffic(dut) -> None:
-    """Drive every sampled register with write/read-back in a shuffled, jittered sequence."""
+    """Write/read every sampled register in deterministic randomized order."""
     config = load_config()
     if not config["transactions"]:
         dut._log.warning("No transactions available; skipping stress run")
@@ -102,10 +30,7 @@ async def test_axi4lite_random_traffic(dut) -> None:
     is_intf = config.get("cpuif_style") == "interface"
     slave = _AxilSlaveShim(dut, is_interface=is_intf)
     masters = _build_master_table(dut, config["masters"], is_interface=is_intf)
-
-    _idle_slave(slave)
-    _idle_masters(masters)
-    await Timer(1, unit="ns")
+    await _initialize(dut, slave, masters)
 
     rng = make_rng()
     addr_mask = (1 << config["address_width"]) - 1
@@ -117,10 +42,22 @@ async def test_axi4lite_random_traffic(dut) -> None:
         entry = masters[txn["master"]]
         index = tuple(txn["index"])
         address = txn["address"] & addr_mask
+        child_addr = (address - entry["inst_address"]) % entry["inst_size"]
         data = _write_pattern(address, config["data_width"])
         strobe_choices = [strobe_mask, strobe_mask, strobe_mask & 0x5, strobe_mask & 0xA]
-        strobe = rng.choice([s for s in strobe_choices if s]) or strobe_mask
-        await _axil_write(slave, entry, index, address, data, strobe)
+        strobe = rng.choice([candidate for candidate in strobe_choices if candidate])
+        order = rng.choice(["together", "aw_first", "w_first"])
+
+        await _accept_write(dut, slave, address, data, strobe, order=order)
+        await _issue_write(
+            dut,
+            entry,
+            index,
+            expected_addr=child_addr,
+            data=data,
+            strobe=strobe,
+        )
+        await _complete_write_response(dut, slave, entry, index, 0)
         shadow[(txn["master"], index, address)] = data
 
     read_order = shuffle_transactions(config["transactions"], rng)
@@ -128,8 +65,12 @@ async def test_axi4lite_random_traffic(dut) -> None:
         entry = masters[txn["master"]]
         index = tuple(txn["index"])
         address = txn["address"] & addr_mask
+        child_addr = (address - entry["inst_address"]) % entry["inst_size"]
         expected = shadow[(txn["master"], index, address)]
-        await _axil_read(slave, entry, index, address, expected, rng.randint(0, 2))
+
+        await _accept_read(dut, slave, address)
+        await _issue_read(dut, entry, index, expected_addr=child_addr)
+        await _complete_read_response(dut, slave, entry, index, expected, 0)
 
     dut._log.info(
         f"AXI4-Lite stress: completed {len(write_order)} writes + {len(read_order)} reads"

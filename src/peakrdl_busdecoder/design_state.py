@@ -25,6 +25,7 @@ class DesignStateKwargs(TypedDict, total=False):
     clk_src: str
     gate_signals: bool
     apb_buffer: str
+    axi4lite_max_outstanding: int
 
 
 class DesignState:
@@ -52,6 +53,13 @@ class DesignState:
         if self.clk_src not in ("cpuif", "design"):
             msg.fatal(f"clk_src must be 'cpuif' or 'design', got {self.clk_src!r}")
         self.gate_signals: bool = kwargs.pop("gate_signals", False)
+
+        self.axi4lite_max_outstanding: int = kwargs.pop("axi4lite_max_outstanding", 4)
+        if self.axi4lite_max_outstanding < 1:
+            msg.fatal(
+                "axi4lite_max_outstanding must be greater than or equal to 1, "
+                f"got {self.axi4lite_max_outstanding}"
+            )
 
         self.apb_buffer: str = kwargs.pop("apb_buffer", "none")
         if self.apb_buffer not in ("none", "in", "out", "both"):

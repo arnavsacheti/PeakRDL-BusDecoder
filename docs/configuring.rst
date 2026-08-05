@@ -29,6 +29,9 @@ Command-Line Options
 
 The following options are available on the ``peakrdl busdecoder`` command:
 
+See :ref:`generated_decoder_structure` for diagrams showing which options
+change ports, routing boundaries, queues, or pipeline state.
+
 * ``--cpuif``: Select the CPU interface (``apb3``, ``apb3-flat``, ``apb4``,
   ``apb4-flat``, ``axi4-lite``, ``axi4-lite-flat``)
 * ``--module-name``: Override the generated module name
@@ -46,3 +49,5 @@ The following options are available on the ``peakrdl busdecoder`` command:
 * ``--apb-buffer``: Insert a single-flop register slice on the APB slave-side
   I/O (``none`` (default), ``in``, ``out``, ``both``); requires
   ``--clk-src design``
+* ``--axi4lite-max-outstanding``: Set the separate AXI4-Lite read and write
+  order-queue depths (default ``4``; minimum ``1``)

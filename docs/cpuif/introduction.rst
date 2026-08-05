@@ -23,19 +23,22 @@ Where the bus decoder gets its clock and reset is selected with ``--clk-src``:
     The CPU interface carries no clock or reset. The generated module exposes
     top-level ``clk`` and ``rst`` input ports instead, and the design is
     responsible for distributing clock and reset to downstream slaves. The
-    decoder's datapath is purely combinational unless a register slice is
-    enabled (see ``--apb-buffer``); the ports anchor the decoder's clock
-    domain for such features.
+    APB decode is combinational unless a register slice is enabled (see
+    ``--apb-buffer``). The AXI4-Lite adapter always uses this clock and reset
+    for its request holding registers and ordered-response queues.
 
 ``cpuif``
     Clock and reset are bundled with the CPU interface bus. The slave
     interface carries the protocol-defined clock and reset (``PCLK``/``PRESETn``
-    for APB, ``ACLK``/``ARESETn`` for AXI4-Lite), and the decoder fans them out
-    to every master interface.
+    for APB, ``ACLK``/``ARESETn`` for AXI4-Lite). Flat-port variants fan these
+    signals out to every master port. In SystemVerilog-interface variants,
+    clock/reset members of downstream manager modports are inputs and must be
+    connected to the same domain by the surrounding design.
 
 The SystemVerilog interface definitions linked from the protocol pages declare
-``PCLK``/``PRESETn`` (``ACLK``/``ARESETn``) members. These are only driven and
-consumed by the decoder when ``--clk-src cpuif`` is selected.
+``PCLK``/``PRESETn`` (``ACLK``/``ARESETn``) members. The subordinate member is
+used as the decoder's sequential clock/reset only when ``--clk-src cpuif`` is
+selected.
 
 
 Addressing

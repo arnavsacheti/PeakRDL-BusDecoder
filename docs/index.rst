@@ -55,6 +55,7 @@ Key command-line options:
 * ``--clk-src``: Select where the decoder gets its clock and reset (``cpuif`` or ``design``, default ``design``)
 * ``--gate-signals``: Gate APB broadcast signals with each slave's select (off by default)
 * ``--apb-buffer``: Insert a register slice on the APB slave-side I/O (``none``, ``in``, ``out``, ``both``)
+* ``--axi4lite-max-outstanding``: Set each AXI4-Lite ordered-response queue depth (default ``4``)
 
 
 Looking for VHDL?
@@ -79,6 +80,7 @@ Links
 
     self
     architecture
+    generated_structure
     parameters
     configuring
     limitations
@@ -92,5 +94,6 @@ Links
     cpuif/introduction
     cpuif/apb
     cpuif/axi4lite
+    cpuif/axi4lite_response_ordering
     cpuif/internal_protocol
     cpuif/customizing
