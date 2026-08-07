@@ -207,6 +207,14 @@ async def test_apb4_address_decoding(dut) -> None:
             f"{master_name} must keep write strobes stable"
         )
 
+        for other_name, other_idx in all_index_pairs(masters):
+            if other_name == master_name and other_idx == index:
+                continue
+            other_entry = masters[other_name]
+            assert get_int(other_entry["outputs"]["PENABLE"], other_idx) == 0, (
+                f"{other_name}{other_idx} must hold PENABLE low while unselected"
+            )
+
         assert int(slave.PREADY.value) == 1, "Slave ready should reflect selected master"
         assert int(slave.PSLVERR.value) == 0, "No error expected during write"
 
@@ -275,6 +283,14 @@ async def test_apb4_address_decoding(dut) -> None:
         assert get_int(entry["outputs"]["PENABLE"], index) == 1, (
             f"{master_name} must assert PENABLE in access"
         )
+
+        for other_name, other_idx in all_index_pairs(masters):
+            if other_name == master_name and other_idx == index:
+                continue
+            other_entry = masters[other_name]
+            assert get_int(other_entry["outputs"]["PENABLE"], other_idx) == 0, (
+                f"{other_name}{other_idx} must hold PENABLE low while unselected"
+            )
 
         assert int(slave.PRDATA.value) == read_data, "Slave should observe readback data from master"
         assert int(slave.PREADY.value) == 1, "Slave ready should follow responding master"
@@ -345,6 +361,9 @@ async def test_apb4_invalid_address_response(dut) -> None:
         entry = masters[master_name]
         assert get_int(entry["outputs"]["PSEL"], idx) == 0, (
             f"{master_name}{idx} must stay idle for invalid address"
+        )
+        assert get_int(entry["outputs"]["PENABLE"], idx) == 0, (
+            f"{master_name}{idx} must hold PENABLE low for invalid address"
         )
 
     assert int(slave.PREADY.value) == 1, "Invalid address should still complete the transfer"

@@ -47,10 +47,9 @@ class APB3CpuifFlat(BaseCpuif):
 
         addr_width = f"{self.exp.ds.module_name.upper()}_{node.inst_name.upper()}_ADDR_WIDTH"
 
-        fanout[self.signal("PSEL", node, "gi")] = (
-            f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}|cpuif_rd_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
-        )
-        fanout[self.signal("PENABLE", node, "gi")] = self.signal("PENABLE")
+        sel_expr = f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}|cpuif_rd_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
+        fanout[self.signal("PSEL", node, "gi")] = sel_expr
+        fanout[self.signal("PENABLE", node, "gi")] = f"({sel_expr}) & {self.signal('PENABLE')}"
         fanout[self.signal("PWRITE", node, "gi")] = (
             f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
         )

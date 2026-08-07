@@ -1,4 +1,4 @@
-"""Regression tests for simple APB broadcast-signal fanout."""
+"""Regression tests for simple APB downstream fanout."""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -41,31 +41,33 @@ def test_flat_apb_interfaces_omit_clock_and_reset_ports(
         assert "PRESETn" not in sv
 
 
-def test_apb3_broadcast_signals_are_not_select_gated(
+def test_apb3_fanout_gates_enable_but_not_payload_signals(
     compile_rdl: Callable[..., AddrmapNode], tmp_path: Path
 ) -> None:
     fanout = _master_fanout(_export(compile_rdl, tmp_path, APB3CpuifFlat))
 
     for child in ("a", "b"):
-        assert f"assign m_apb_{child}_PENABLE = s_apb_PENABLE;" in fanout
-        assert f"assign m_apb_{child}_PWDATA = cpuif_wr_data;" in fanout
-        assert f"assign m_apb_{child}_PSEL = cpuif_wr_sel.{child}|cpuif_rd_sel.{child};" in fanout
+        sel_expr = f"cpuif_wr_sel.{child}|cpuif_rd_sel.{child}"
 
-    assert "& s_apb_PENABLE" not in fanout
+        assert f"assign m_apb_{child}_PSEL = {sel_expr};" in fanout
+        assert f"assign m_apb_{child}_PENABLE = ({sel_expr}) & s_apb_PENABLE;" in fanout
+        assert f"assign m_apb_{child}_PWDATA = cpuif_wr_data;" in fanout
+
     assert all("?" not in line for line in fanout.splitlines() if "_PADDR =" in line)
 
 
-def test_apb4_broadcast_signals_are_not_select_gated(
+def test_apb4_fanout_gates_enable_but_not_payload_signals(
     compile_rdl: Callable[..., AddrmapNode], tmp_path: Path
 ) -> None:
     fanout = _master_fanout(_export(compile_rdl, tmp_path, APB4CpuifFlat))
 
     for child in ("a", "b"):
-        assert f"assign m_apb_{child}_PENABLE = s_apb_PENABLE;" in fanout
+        sel_expr = f"cpuif_wr_sel.{child}|cpuif_rd_sel.{child}"
+
+        assert f"assign m_apb_{child}_PSEL = {sel_expr};" in fanout
+        assert f"assign m_apb_{child}_PENABLE = ({sel_expr}) & s_apb_PENABLE;" in fanout
         assert f"assign m_apb_{child}_PPROT = s_apb_PPROT;" in fanout
         assert f"assign m_apb_{child}_PWDATA = cpuif_wr_data;" in fanout
         assert f"assign m_apb_{child}_PSTRB = cpuif_wr_byte_en;" in fanout
-        assert f"assign m_apb_{child}_PSEL = cpuif_wr_sel.{child}|cpuif_rd_sel.{child};" in fanout
 
-    assert "& s_apb_PENABLE" not in fanout
     assert all("?" not in line for line in fanout.splitlines() if "_PADDR =" in line)
