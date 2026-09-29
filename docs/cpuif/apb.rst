@@ -8,6 +8,11 @@ APB interfaces omit these ports entirely. When using a SystemVerilog interface,
 the clock and reset fields remain part of the interface definition but must be
 connected externally to each endpoint.
 
+An unmapped address completes with an error in the first access cycle. The
+decoder asserts ``PREADY`` and ``PSLVERR`` together only when ``PSEL`` and
+``PENABLE`` are high; both remain low during setup and while unselected.
+Mapped transfers pass through the selected endpoint's response signals.
+
 .. warning::
     Some IP vendors will incorrectly implement the address signalling
     assuming word-addresses. (that each increment of ``PADDR`` is the next word)

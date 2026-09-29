@@ -7,10 +7,10 @@ from typing import Any
 import cocotb
 from cocotb.triggers import RisingEdge, Timer
 
+from tests.cocotb_lib.apb_checks import check_invalid_address_response
 from tests.cocotb_lib.handle_utils import make_signal_handle
 from tests.cocotb_lib.protocol_utils import (
     all_index_pairs,
-    find_invalid_address,
     get_int,
     load_config,
     set_value,
@@ -288,59 +288,10 @@ async def test_apb3_address_decoding(dut) -> None:
 
 @cocotb.test()
 async def test_apb3_invalid_address_response(dut) -> None:
-    """Ensure invalid addresses yield an error response and no master select."""
+    """Check invalid-address timing and back-to-back transfers for reads and writes."""
     config = load_config()
     is_intf = config.get("cpuif_style") == "interface"
     slave = _Apb3SlaveShim(dut, is_interface=is_intf)
     masters = _build_master_table(dut, config["masters"], is_interface=is_intf)
 
-    await start_clock(slave.PCLK)
-    if slave.PRESETn is not None:
-        slave.PRESETn.value = 1
-
-    slave.PSEL.value = 0
-    slave.PENABLE.value = 0
-    slave.PWRITE.value = 0
-    slave.PADDR.value = 0
-    slave.PWDATA.value = 0
-
-    for master_name, idx in all_index_pairs(masters):
-        entry = masters[master_name]
-        set_value(entry["inputs"]["PREADY"], idx, 0)
-        set_value(entry["inputs"]["PSLVERR"], idx, 0)
-        set_value(entry["inputs"]["PRDATA"], idx, 0)
-
-    invalid_addr = find_invalid_address(config)
-    if invalid_addr is None:
-        dut._log.warning("No unmapped address found; skipping invalid address test")
-        return
-
-    slave.PADDR.value = invalid_addr
-    slave.PWRITE.value = 1
-    slave.PWDATA.value = _write_pattern(invalid_addr, config["data_width"])
-    slave.PSEL.value = 1
-    slave.PENABLE.value = 0
-
-    if slave.PCLK is not None:
-        await RisingEdge(slave.PCLK)
-    else:
-        await Timer(1, unit="ns")
-
-    slave.PENABLE.value = 1
-
-    if slave.PCLK is not None:
-        await RisingEdge(slave.PCLK)
-    else:
-        await Timer(1, unit="ns")
-
-    for master_name, idx in all_index_pairs(masters):
-        entry = masters[master_name]
-        assert get_int(entry["outputs"]["PSEL"], idx) == 0, (
-            f"{master_name}{idx} must stay idle for invalid address"
-        )
-        assert get_int(entry["outputs"]["PENABLE"], idx) == 0, (
-            f"{master_name}{idx} must hold PENABLE low for invalid address"
-        )
-
-    assert int(slave.PREADY.value) == 1, "Invalid address should still complete the transfer"
-    assert int(slave.PSLVERR.value) == 1, "Invalid address should raise PSLVERR"
+    await check_invalid_address_response(dut, slave, masters, config)

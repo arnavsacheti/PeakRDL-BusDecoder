@@ -72,8 +72,9 @@ class APB3CpuifFlat(BaseCpuif):
             fanin["cpuif_wr_ack"] = "'0"
             fanin["cpuif_wr_err"] = "'0"
             if error:
-                fanin["cpuif_wr_ack"] = "'1"
-                fanin["cpuif_wr_err"] = "cpuif_wr_sel.cpuif_err"
+                # The error branch is already selected; respond only in the access phase.
+                fanin["cpuif_wr_ack"] = self.signal("PENABLE")
+                fanin["cpuif_wr_err"] = self.signal("PENABLE")
         else:
             fanin["cpuif_wr_ack"] = self.signal("PREADY", node, "i")
             fanin["cpuif_wr_err"] = self.signal("PSLVERR", node, "i")
@@ -86,8 +87,9 @@ class APB3CpuifFlat(BaseCpuif):
             fanin["cpuif_rd_err"] = "'0"
             fanin["cpuif_rd_data"] = "'0"
             if error:
-                fanin["cpuif_rd_ack"] = "'1"
-                fanin["cpuif_rd_err"] = "cpuif_rd_sel.cpuif_err"
+                # The error branch is already selected; respond only in the access phase.
+                fanin["cpuif_rd_ack"] = self.signal("PENABLE")
+                fanin["cpuif_rd_err"] = self.signal("PENABLE")
         else:
             fanin["cpuif_rd_ack"] = self.signal("PREADY", node, "i")
             fanin["cpuif_rd_err"] = self.signal("PSLVERR", node, "i")
