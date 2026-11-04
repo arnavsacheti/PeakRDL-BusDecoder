@@ -173,18 +173,19 @@ async def test_axi4lite_address_decoding(dut) -> None:
 
         await Timer(1, unit="ns")
 
-        assert get_int(entry["outputs"]["AWVALID"], index) == 1, f"{master_name} should see AWVALID asserted"
-        assert get_int(entry["outputs"]["AWADDR"], index) == master_address, (
-            f"{master_name} must receive AWADDR"
-        )
-        assert get_int(entry["outputs"]["WVALID"], index) == 1, f"{master_name} should see WVALID asserted"
-        assert get_int(entry["outputs"]["WDATA"], index) == write_data, f"{master_name} must receive WDATA"
-        assert get_int(entry["outputs"]["WSTRB"], index) == strobe_mask, f"{master_name} must receive WSTRB"
+        if txn["writable"]:
+            assert get_int(entry["outputs"]["AWVALID"], index) == 1, f"{master_name} should see AWVALID asserted"
+            assert get_int(entry["outputs"]["AWADDR"], index) == master_address, (
+                f"{master_name} must receive AWADDR"
+            )
+            assert get_int(entry["outputs"]["WVALID"], index) == 1, f"{master_name} should see WVALID asserted"
+            assert get_int(entry["outputs"]["WDATA"], index) == write_data, f"{master_name} must receive WDATA"
+            assert get_int(entry["outputs"]["WSTRB"], index) == strobe_mask, f"{master_name} must receive WSTRB"
         assert int(slave.AWREADY.value) == 1, "AWREADY should assert when write address/data are valid"
         assert int(slave.WREADY.value) == 1, "WREADY should assert when write address/data are valid"
 
         for other_name, other_idx in all_index_pairs(masters):
-            if other_name == master_name and other_idx == index:
+            if txn["writable"] and other_name == master_name and other_idx == index:
                 continue
             other_entry = masters[other_name]
             assert get_int(other_entry["outputs"]["AWVALID"], other_idx) == 0, (
@@ -194,8 +195,10 @@ async def test_axi4lite_address_decoding(dut) -> None:
                 f"{other_name}{other_idx} WVALID should remain low during {txn['label']}"
             )
 
-        assert int(slave.BVALID.value) == 1, "Slave should observe BVALID from selected master"
-        assert int(slave.BRESP.value) == 0, "BRESP should indicate OKAY on write"
+        assert int(slave.BVALID.value) == 1, "Writes must respond, including locally denied writes"
+        assert int(slave.BRESP.value) == (0 if txn["writable"] else 2), (
+            "Denied writes must return local SLVERR; permitted writes must return OKAY"
+        )
 
         slave.AWVALID.value = 0
         slave.WVALID.value = 0
@@ -215,23 +218,27 @@ async def test_axi4lite_address_decoding(dut) -> None:
 
         await Timer(1, unit="ns")
 
-        assert get_int(entry["outputs"]["ARVALID"], index) == 1, f"{master_name} should assert ARVALID"
-        assert get_int(entry["outputs"]["ARADDR"], index) == master_address, (
-            f"{master_name} must receive ARADDR"
-        )
+        if txn["readable"]:
+            assert get_int(entry["outputs"]["ARVALID"], index) == 1, f"{master_name} should assert ARVALID"
+            assert get_int(entry["outputs"]["ARADDR"], index) == master_address, (
+                f"{master_name} must receive ARADDR"
+            )
         assert int(slave.ARREADY.value) == 1, "ARREADY should assert when ARVALID is high"
 
         for other_name, other_idx in all_index_pairs(masters):
-            if other_name == master_name and other_idx == index:
+            if txn["readable"] and other_name == master_name and other_idx == index:
                 continue
             other_entry = masters[other_name]
             assert get_int(other_entry["outputs"]["ARVALID"], other_idx) == 0, (
                 f"{other_name}{other_idx} ARVALID should remain low during read of {txn['label']}"
             )
 
-        assert int(slave.RVALID.value) == 1, "Slave should observe RVALID when master responds"
-        assert int(slave.RDATA.value) == read_data, "Read data must fold back to slave"
-        assert int(slave.RRESP.value) == 0, "Read response should indicate success"
+        assert int(slave.RVALID.value) == 1, "Reads must respond, including locally denied reads"
+        if txn["readable"]:
+            assert int(slave.RDATA.value) == read_data, "Read data must fold back to slave"
+        assert int(slave.RRESP.value) == (0 if txn["readable"] else 2), (
+            "Denied reads must return local SLVERR; permitted reads must return OKAY"
+        )
 
         slave.ARVALID.value = 0
         slave.RREADY.value = 0
@@ -356,9 +363,39 @@ async def test_axi4lite_invalid_address_response(dut) -> None:
     assert int(slave.RVALID.value) == 1, "Invalid read should return RVALID"
     assert int(slave.RRESP.value) == 2, "Invalid read should return SLVERR"
 
+    # Recover with a readable target while ARVALID remains asserted, if one exists.
+    read_txn = next((txn for txn in config["transactions"] if txn["readable"]), None)
+    if read_txn is not None:
+        target = (read_txn["master"], tuple(read_txn["index"]))
+        entry = masters[target[0]]
+        address = read_txn["address"] & ((1 << config["address_width"]) - 1)
+        read_data = _read_pattern(address, config["data_width"])
+        set_value(entry["inputs"]["RVALID"], target[1], 1)
+        set_value(entry["inputs"]["RDATA"], target[1], read_data)
+        slave.ARADDR.value = address
+        await Timer(1, unit="ns")
+        for master_name, idx in all_index_pairs(masters):
+            outputs = masters[master_name]["outputs"]
+            assert get_int(outputs["ARVALID"], idx) == int((master_name, idx) == target), (
+                f"{master_name}{idx}: unexpected read selection during recovery"
+            )
+        assert int(slave.ARREADY.value) == 1, "Read recovery must accept the address"
+        assert int(slave.RVALID.value) == 1, "Read recovery must return RVALID"
+        assert int(slave.RRESP.value) == 0, "Read recovery must return OKAY"
+        assert int(slave.RDATA.value) == read_data, "Read recovery must forward selected data"
+        set_value(entry["inputs"]["RVALID"], target[1], 0)
+        set_value(entry["inputs"]["RDATA"], target[1], 0)
+
     slave.ARVALID.value = 0
     slave.RREADY.value = 0
     await Timer(1, unit="ns")
+    assert int(slave.ARREADY.value) == 0, "Idle read must not accept an address"
+    assert int(slave.RVALID.value) == 0, "Idle read must clear the response"
+    assert int(slave.RRESP.value) == 0, "Idle read must clear the error"
+    for master_name, idx in all_index_pairs(masters):
+        assert get_int(masters[master_name]["outputs"]["ARVALID"], idx) == 0, (
+            f"{master_name}{idx} must stay idle after read completion"
+        )
 
     # Invalid write
     slave.AWADDR.value = invalid_addr
@@ -382,3 +419,44 @@ async def test_axi4lite_invalid_address_response(dut) -> None:
 
     assert int(slave.BVALID.value) == 1, "Invalid write should return BVALID"
     assert int(slave.BRESP.value) == 2, "Invalid write should return SLVERR"
+
+    # Select a writable target independently of the readable recovery target.
+    write_txn = next((txn for txn in config["transactions"] if txn["writable"]), None)
+    if write_txn is not None:
+        target = (write_txn["master"], tuple(write_txn["index"]))
+        entry = masters[target[0]]
+        address = write_txn["address"] & ((1 << config["address_width"]) - 1)
+        set_value(entry["inputs"]["BVALID"], target[1], 1)
+        slave.AWADDR.value = address
+        await Timer(1, unit="ns")
+        for master_name, idx in all_index_pairs(masters):
+            outputs = masters[master_name]["outputs"]
+            selected = int((master_name, idx) == target)
+            assert get_int(outputs["AWVALID"], idx) == selected, (
+                f"{master_name}{idx}: unexpected write address selection during recovery"
+            )
+            assert get_int(outputs["WVALID"], idx) == selected, (
+                f"{master_name}{idx}: unexpected write data selection during recovery"
+            )
+        assert int(slave.AWREADY.value) == 1, "Write recovery must accept the address"
+        assert int(slave.WREADY.value) == 1, "Write recovery must accept the data"
+        assert int(slave.BVALID.value) == 1, "Write recovery must return BVALID"
+        assert int(slave.BRESP.value) == 0, "Write recovery must return OKAY"
+        set_value(entry["inputs"]["BVALID"], target[1], 0)
+
+    slave.AWVALID.value = 0
+    slave.WVALID.value = 0
+    slave.BREADY.value = 0
+    await Timer(1, unit="ns")
+    assert int(slave.AWREADY.value) == 0, "Idle write must not accept an address"
+    assert int(slave.WREADY.value) == 0, "Idle write must not accept data"
+    assert int(slave.BVALID.value) == 0, "Idle write must clear the response"
+    assert int(slave.BRESP.value) == 0, "Idle write must clear the error"
+    for master_name, idx in all_index_pairs(masters):
+        outputs = masters[master_name]["outputs"]
+        assert get_int(outputs["AWVALID"], idx) == 0, (
+            f"{master_name}{idx} must stay idle after write completion"
+        )
+        assert get_int(outputs["WVALID"], idx) == 0, (
+            f"{master_name}{idx} must stay idle after write completion"
+        )

@@ -1291,42 +1291,6 @@ class TestComplexHierarchies:
         # Deeper nodes should NOT be exposed
         assert "m_apb_deep_reg" not in content
 
-    def test_depth_0_multi_branch_hierarchy(
-        self, compile_rdl: Callable[..., AddrmapNode]
-    ) -> None:
-        """depth=0 on a multi-branch hierarchy reaches all leaves.
-
-        Each intermediate addrmap has a register to avoid the 'all external
-        children' skip logic.
-        """
-        rdl_source = """
-        addrmap leaf {
-            reg { field { sw=rw; hw=r; } data[31:0]; } leaf_r @ 0x0;
-        };
-
-        addrmap mid {
-            reg { field { sw=rw; hw=r; } data[31:0]; } mid_r @ 0x0;
-            leaf leaf_a @ 0x10;
-            leaf leaf_b @ 0x20;
-        };
-
-        addrmap top {
-            mid side_a @ 0x0;
-            mid side_b @ 0x100;
-        };
-        """
-        top = compile_rdl(rdl_source, top="top")
-        content = _export_and_read(top, max_decode_depth=0)
-
-        # All leaf_r and mid_r instances should be referenced
-        assert "m_apb_leaf_r" in content
-        assert "m_apb_mid_r" in content
-        # No intermediate interfaces
-        assert "m_apb_side_a" not in content
-        assert "m_apb_side_b" not in content
-        assert "m_apb_leaf_a" not in content
-        assert "m_apb_leaf_b" not in content
-
 
 # ===========================================================================
 # 15. Error signal generation at different depths

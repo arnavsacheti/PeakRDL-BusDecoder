@@ -233,9 +233,13 @@ def _build_case_config(
     max_samples_per_master: int,
 ) -> dict[str, Any]:
     master_entries: dict[str, dict[str, Any]] = {}
+    boundary_instances: set[int] = set()
 
     for child in cpuif.addressable_children:
+        boundary_instances.add(id(child.inst))
         port_prefix = _derive_port_prefix(cpuif, control_signal, child)
+        # Blocks route both directions; only a decoded register boundary
+        # applies software access permissions to the sampled transactions.
 
         master_entries[child.inst_name] = {
             "inst_name": child.inst_name,
@@ -246,34 +250,25 @@ def _build_case_config(
             "inst_size": child.array_stride if child.is_array else child.size,
             "child_size": child.size,
             "inst_address": child.raw_absolute_address,
+            "readable": bool(child.has_sw_readable) if isinstance(child, RegNode) else True,
+            "writable": bool(child.has_sw_writable) if isinstance(child, RegNode) else True,
         }
 
-    # Map each register to its top-level master and collect addresses
+    # Map each register to its exported decode boundary and collect addresses.
     groups: dict[tuple[str, tuple[int, ...]], list[tuple[int, str]]] = defaultdict(list)
 
     def visit(node: AddressableNode) -> None:
         if isinstance(node, RegNode):
             master = node  # type: AddressableNode
-            while master.parent is not top_node:
+            # Unrolled array nodes share their component instance with the
+            # exported boundary, even though their node wrappers differ.
+            while id(master.inst) not in boundary_instances:
                 parent = master.parent
                 if not isinstance(parent, AddressableNode):
                     raise RuntimeError("Encountered unexpected hierarchy while resolving master node")
                 master = parent
 
             inst_name = master.inst_name
-            if inst_name not in master_entries:
-                # Handles cases where the register itself is the master (direct child of top)
-                port_prefix = _derive_port_prefix(cpuif, control_signal, master)
-                master_entries[inst_name] = {
-                    "inst_name": inst_name,
-                    "port_prefix": port_prefix,
-                    "is_array": bool(master.is_array),
-                    "dimensions": list(master.array_dimensions or []),
-                    "indices": set(),
-                    "inst_size": master.array_stride if master.is_array else master.size,
-                    "child_size": master.size,
-                    "inst_address": master.raw_absolute_address,
-                }
 
             idx_tuple = tuple(master.current_idx or [])
             master_entries[inst_name]["indices"].add(idx_tuple)
@@ -318,6 +313,8 @@ def _build_case_config(
                     "master": inst_name,
                     "index": list(idx_tuple),
                     "label": label,
+                    "readable": master_entries[inst_name]["readable"],
+                    "writable": master_entries[inst_name]["writable"],
                 }
             )
 

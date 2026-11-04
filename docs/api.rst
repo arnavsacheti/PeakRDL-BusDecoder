@@ -13,7 +13,7 @@ Below is a simple example that demonstrates how to generate a SystemVerilog
 implementation from SystemRDL source.
 
 .. code-block:: python
-    :emphasize-lines: 2-4, 29-33
+    :emphasize-lines: 3-5, 25-30
 
     import sys
 

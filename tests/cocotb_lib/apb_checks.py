@@ -70,12 +70,12 @@ async def check_invalid_address_response(
                     f"{phase}: unselected peripheral {master_name}{index} must hold PENABLE low"
                 )
 
-    valid_txn = config["transactions"][0]
-    valid_target = (valid_txn["master"], tuple(valid_txn["index"]))
     addr_mask = (1 << config["address_width"]) - 1
 
     for write in (0, 1):
         operation = "write" if write else "read"
+        permission = "writable" if write else "readable"
+        valid_txn = next((txn for txn in config["transactions"] if txn[permission]), None)
         slave.PADDR.value = invalid_addr
         slave.PWRITE.value = write
         slave.PWDATA.value = (0xCAFE_BABE & ((1 << config["data_width"]) - 1)) if write else 0
@@ -97,13 +97,16 @@ async def check_invalid_address_response(
             slave.PENABLE.value = 1
             await check_phase(f"{operation} invalid {transfer} access", 1, 1)
 
-        # Follow the error immediately with a mapped transfer. Its PSEL must
-        # assert in setup, and its PREADY must pass through without gating.
-        slave.PADDR.value = valid_txn["address"] & addr_mask
-        slave.PENABLE.value = 0
-        await check_phase(f"{operation} valid setup after error", 1, 0, valid_target)
-        slave.PENABLE.value = 1
-        await check_phase(f"{operation} valid access after error", 1, 0, valid_target)
+        # Recover with a target that permits this direction. If none exists,
+        # preserve the invalid transfers above and the idle check below.
+        if valid_txn is not None:
+            valid_target = (valid_txn["master"], tuple(valid_txn["index"]))
+            slave.PADDR.value = valid_txn["address"] & addr_mask
+            slave.PENABLE.value = 0
+            # Mapped setup responses pass through the selected peripheral.
+            await check_phase(f"{operation} valid setup after error", 1, 0, valid_target)
+            slave.PENABLE.value = 1
+            await check_phase(f"{operation} valid access after error", 1, 0, valid_target)
 
         slave.PSEL.value = 0
         slave.PENABLE.value = 0

@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from systemrdl.node import AddressableNode, AddrmapNode, FieldNode, Node, RegfileNode, RegNode, SignalNode
+from systemrdl.node import AddressableNode, AddrmapNode, Node, RegfileNode, RegNode, SignalNode
 from systemrdl.rdltypes.references import PropertyReference
 from systemrdl.walker import RDLListener, RDLWalker, WalkerAction
 
@@ -116,37 +116,6 @@ class DesignValidator(RDLListener):
                     f"Multi-word registers that have an accesswidth ({accesswidth}) "
                     "that are inconsistent with this busdecoder's CPU bus width "
                     f"({self.exp.cpuif.data_width}) are not supported.",
-                    node.inst.inst_src_ref,
-                )
-
-    def enter_Field(self, node: "FieldNode") -> None:
-        parent_accesswidth = node.parent.get_property("accesswidth")
-        parent_regwidth = node.parent.get_property("regwidth")
-        if (parent_accesswidth < parent_regwidth) and (node.lsb // parent_accesswidth) != (
-            node.msb // parent_accesswidth
-        ):
-            # field spans multiple sub-words
-
-            if node.is_sw_writable and not node.parent.get_property("buffer_writes"):
-                # ... and is writable without the protection of double-buffering
-                # Enforce 10.6.1-f
-                self.msg.error(
-                    f"Software-writable field '{node.inst_name}' shall not span"
-                    " multiple software-accessible subwords. Consider enabling"
-                    " write double-buffering.\n"
-                    "For more details, see: https://peakrdl-busdecoder.readthedocs.io/en/latest/udps/write_buffering.html",
-                    node.inst.inst_src_ref,
-                )
-
-            if node.get_property("onread") is not None and not node.parent.get_property("buffer_reads"):
-                # ... is modified by an onread action without the atomicity of read buffering
-                # Enforce 10.6.1-f
-                self.msg.error(
-                    f"The field '{node.inst_name}' spans multiple software-accessible"
-                    " subwords and is modified on-read, making it impossible to"
-                    " access its value correctly. Consider enabling read"
-                    " double-buffering. \n"
-                    "For more details, see: https://peakrdl-busdecoder.readthedocs.io/en/latest/udps/read_buffering.html",
                     node.inst.inst_src_ref,
                 )
 

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from collections import Counter
 from typing import TypedDict
 
-from systemrdl.node import AddressableNode, AddrmapNode
+from systemrdl.node import AddressableNode, AddrmapNode, RegNode
 from systemrdl.rdltypes.user_enum import UserEnum
 
 from .design_scanner import DesignScanner
@@ -113,6 +114,39 @@ class DesignState:
             self.enable_rdl_params = []
             self._enable_params_by_node_dim = {}
 
+        self._target_names = self._build_target_names()
+
+    def _target_path(self, node: AddressableNode) -> str:
+        """Identify a target independently of array indices and node wrappers."""
+        return node.get_rel_path(self.top_node, array_suffix="", empty_array_suffix="")
+
+    def _build_target_names(self) -> dict[str, str]:
+        paths = {self._target_path(node): node.inst_name for node in self.get_addressable_children_at_depth()}
+        # Constants use upper-case names, so uniqueness must hold there as well
+        # as in the case-sensitive port and intermediate-signal namespaces.
+        counts = Counter(name.upper() for name in paths.values())
+        names = {path: name for path, name in paths.items() if counts[name.upper()] == 1}
+        used = {name.upper() for name in names.values()}
+
+        # Reserve unique legacy names before assigning hierarchical names. Both
+        # flattening (a_b.c versus a.b_c) and case folding can still collide.
+        for path in sorted(paths):
+            if path in names:
+                continue
+            base = path.replace(".", "_")
+            name = base
+            suffix = 2
+            while name.upper() in used:
+                name = f"{base}__{suffix}"
+                suffix += 1
+            names[path] = name
+            used.add(name.upper())
+        return names
+
+    def get_target_name(self, node: AddressableNode) -> str:
+        """Return the shared identifier for a target's ports and constants."""
+        return self._target_names[self._target_path(node)]
+
     def get_enable_param_for_dimension(self, node: AddressableNode, dim_index: int) -> RdlParameter | None:
         """
         Look up the enable parameter for a specific array dimension of a node.
@@ -128,12 +162,27 @@ class DesignState:
         param = self.get_enable_param_for_dimension(node, dim_index)
         return param.name if param is not None else dim
 
+    def is_decode_boundary(self, node: AddressableNode, depth: int) -> bool:
+        """Use one boundary policy for target collection and RTL generators."""
+        if self.max_decode_depth > 0 and depth >= self.max_decode_depth:
+            return True
+
+        children = [child for child in node.children() if isinstance(child, AddressableNode)]
+        # Preserve the existing early boundary for containers whose addressable
+        # children are all external.
+        if node != self.top_node and not isinstance(node, RegNode):
+            if children and all(child.external for child in children):
+                return True
+
+        # Unlimited depth includes any addressable leaf, not just registers.
+        return self.max_decode_depth == 0 and not children
+
     def get_addressable_children_at_depth(self, unroll: bool = False) -> list[AddressableNode]:
         """
         Get addressable children at the decode boundary based on max_decode_depth.
 
         max_decode_depth semantics:
-        - 0: decode all levels (return leaf registers)
+        - 0: decode all levels (return addressable leaves and early external boundaries)
         - 1: decode only top level (return children at depth 1)
         - 2: decode top + 1 level (return children at depth 2)
         - N: decode down to depth N (return children at depth N)
@@ -144,33 +193,14 @@ class DesignState:
         Returns:
             List of addressable nodes at the decode boundary
         """
-        from systemrdl.node import RegNode
 
         def collect_nodes(node: AddressableNode, current_depth: int) -> list[AddressableNode]:
-            """Recursively collect nodes at the decode boundary."""
+            if self.is_decode_boundary(node, current_depth):
+                return [node]
             result: list[AddressableNode] = []
-
-            # For depth 0, collect all leaf registers
-            if self.max_decode_depth == 0:
-                # If this is a register, it's a leaf
-                if isinstance(node, RegNode):
-                    result.append(node)
-                else:
-                    # Recurse into children
-                    for child in node.children(unroll=unroll):
-                        if isinstance(child, AddressableNode):
-                            result.extend(collect_nodes(child, current_depth + 1))
-            else:
-                # For depth N, collect children at depth N
-                if current_depth == self.max_decode_depth:
-                    # We're at the decode boundary - return this node
-                    result.append(node)
-                elif current_depth < self.max_decode_depth:
-                    # We haven't reached the boundary yet - recurse
-                    for child in node.children(unroll=unroll):
-                        if isinstance(child, AddressableNode):
-                            result.extend(collect_nodes(child, current_depth + 1))
-
+            for child in node.children(unroll=unroll):
+                if isinstance(child, AddressableNode):
+                    result.extend(collect_nodes(child, current_depth + 1))
             return result
 
         # Start collecting from top node's children

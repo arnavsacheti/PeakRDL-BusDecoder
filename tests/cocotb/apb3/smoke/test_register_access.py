@@ -146,24 +146,30 @@ async def test_apb3_address_decoding(dut) -> None:
         else:
             await Timer(1, unit="ns")
 
-        assert get_int(entry["outputs"]["PSEL"], index) == 1, f"{master_name} should assert PSEL for write"
-        assert get_int(entry["outputs"]["PENABLE"], index) == 0, (
-            f"{master_name} must hold PENABLE low in setup"
-        )
-        assert get_int(entry["outputs"]["PWRITE"], index) == 1, f"{master_name} should see write direction"
-        assert get_int(entry["outputs"]["PADDR"], index) == master_address, (
-            f"{master_name} must receive write address"
-        )
-        assert get_int(entry["outputs"]["PWDATA"], index) == write_data, (
-            f"{master_name} must receive write data"
-        )
+        if txn["writable"]:
+            assert get_int(entry["outputs"]["PSEL"], index) == 1, f"{master_name} should assert PSEL for write"
+            assert get_int(entry["outputs"]["PENABLE"], index) == 0, (
+                f"{master_name} must hold PENABLE low in setup"
+            )
+            assert get_int(entry["outputs"]["PWRITE"], index) == 1, f"{master_name} should see write direction"
+            assert get_int(entry["outputs"]["PADDR"], index) == master_address, (
+                f"{master_name} must receive write address"
+            )
+            assert get_int(entry["outputs"]["PWDATA"], index) == write_data, (
+                f"{master_name} must receive write data"
+            )
+        assert int(slave.PREADY.value) == 0, "Setup must not acknowledge a stalled or denied write"
+        assert int(slave.PSLVERR.value) == 0, "Setup must not signal a local write error"
 
         for other_name, other_idx in all_index_pairs(masters):
-            if other_name == master_name and other_idx == index:
+            if txn["writable"] and other_name == master_name and other_idx == index:
                 continue
             other_entry = masters[other_name]
             assert get_int(other_entry["outputs"]["PSEL"], other_idx) == 0, (
                 f"{other_name}{other_idx} should remain idle during {txn['label']}"
+            )
+            assert get_int(other_entry["outputs"]["PENABLE"], other_idx) == 0, (
+                f"{other_name}{other_idx} must hold PENABLE low while unselected"
             )
 
         # ------------------------------------------------------------------
@@ -177,27 +183,33 @@ async def test_apb3_address_decoding(dut) -> None:
         else:
             await Timer(1, unit="ns")
 
-        assert get_int(entry["outputs"]["PSEL"], index) == 1, f"{master_name} must keep PSEL asserted"
-        assert get_int(entry["outputs"]["PENABLE"], index) == 1, (
-            f"{master_name} must assert PENABLE in access"
-        )
-        assert get_int(entry["outputs"]["PADDR"], index) == master_address, (
-            f"{master_name} must keep write address stable"
-        )
-        assert get_int(entry["outputs"]["PWDATA"], index) == write_data, (
-            f"{master_name} must keep write data stable"
-        )
+        if txn["writable"]:
+            assert get_int(entry["outputs"]["PSEL"], index) == 1, f"{master_name} must keep PSEL asserted"
+            assert get_int(entry["outputs"]["PENABLE"], index) == 1, (
+                f"{master_name} must assert PENABLE in access"
+            )
+            assert get_int(entry["outputs"]["PADDR"], index) == master_address, (
+                f"{master_name} must keep write address stable"
+            )
+            assert get_int(entry["outputs"]["PWDATA"], index) == write_data, (
+                f"{master_name} must keep write data stable"
+            )
 
         for other_name, other_idx in all_index_pairs(masters):
-            if other_name == master_name and other_idx == index:
+            if txn["writable"] and other_name == master_name and other_idx == index:
                 continue
             other_entry = masters[other_name]
+            assert get_int(other_entry["outputs"]["PSEL"], other_idx) == 0, (
+                f"{other_name}{other_idx} must remain unselected during write access"
+            )
             assert get_int(other_entry["outputs"]["PENABLE"], other_idx) == 0, (
                 f"{other_name}{other_idx} must hold PENABLE low while unselected"
             )
 
-        assert int(slave.PREADY.value) == 1, "Slave ready should mirror selected master"
-        assert int(slave.PSLVERR.value) == 0, "Write should complete without error"
+        assert int(slave.PREADY.value) == 1, "Write access must complete, including local errors"
+        assert int(slave.PSLVERR.value) == int(not txn["writable"]), (
+            "Only denied writes should return a local error"
+        )
 
         slave.PSEL.value = 0
         slave.PENABLE.value = 0
@@ -229,23 +241,29 @@ async def test_apb3_address_decoding(dut) -> None:
         else:
             await Timer(1, unit="ns")
 
-        assert get_int(entry["outputs"]["PSEL"], index) == 1, f"{master_name} must assert PSEL for read"
-        assert get_int(entry["outputs"]["PENABLE"], index) == 0, (
-            f"{master_name} must hold PENABLE low in setup"
-        )
-        assert get_int(entry["outputs"]["PWRITE"], index) == 0, (
-            f"{master_name} should clear write during read"
-        )
-        assert get_int(entry["outputs"]["PADDR"], index) == master_address, (
-            f"{master_name} must receive read address"
-        )
+        if txn["readable"]:
+            assert get_int(entry["outputs"]["PSEL"], index) == 1, f"{master_name} must assert PSEL for read"
+            assert get_int(entry["outputs"]["PENABLE"], index) == 0, (
+                f"{master_name} must hold PENABLE low in setup"
+            )
+            assert get_int(entry["outputs"]["PWRITE"], index) == 0, (
+                f"{master_name} should clear write during read"
+            )
+            assert get_int(entry["outputs"]["PADDR"], index) == master_address, (
+                f"{master_name} must receive read address"
+            )
+        assert int(slave.PREADY.value) == 0, "Setup must not acknowledge a stalled or denied read"
+        assert int(slave.PSLVERR.value) == 0, "Setup must not signal a local read error"
 
         for other_name, other_idx in all_index_pairs(masters):
-            if other_name == master_name and other_idx == index:
+            if txn["readable"] and other_name == master_name and other_idx == index:
                 continue
             other_entry = masters[other_name]
             assert get_int(other_entry["outputs"]["PSEL"], other_idx) == 0, (
                 f"{other_name}{other_idx} must stay idle during read of {txn['label']}"
+            )
+            assert get_int(other_entry["outputs"]["PENABLE"], other_idx) == 0, (
+                f"{other_name}{other_idx} must hold PENABLE low while unselected"
             )
 
         # ------------------------------------------------------------------
@@ -259,22 +277,29 @@ async def test_apb3_address_decoding(dut) -> None:
         else:
             await Timer(1, unit="ns")
 
-        assert get_int(entry["outputs"]["PSEL"], index) == 1, f"{master_name} must keep PSEL asserted"
-        assert get_int(entry["outputs"]["PENABLE"], index) == 1, (
-            f"{master_name} must assert PENABLE in access"
-        )
+        if txn["readable"]:
+            assert get_int(entry["outputs"]["PSEL"], index) == 1, f"{master_name} must keep PSEL asserted"
+            assert get_int(entry["outputs"]["PENABLE"], index) == 1, (
+                f"{master_name} must assert PENABLE in access"
+            )
 
         for other_name, other_idx in all_index_pairs(masters):
-            if other_name == master_name and other_idx == index:
+            if txn["readable"] and other_name == master_name and other_idx == index:
                 continue
             other_entry = masters[other_name]
+            assert get_int(other_entry["outputs"]["PSEL"], other_idx) == 0, (
+                f"{other_name}{other_idx} must remain unselected during read access"
+            )
             assert get_int(other_entry["outputs"]["PENABLE"], other_idx) == 0, (
                 f"{other_name}{other_idx} must hold PENABLE low while unselected"
             )
 
-        assert int(slave.PRDATA.value) == read_data, "Read data should propagate back to the slave"
-        assert int(slave.PREADY.value) == 1, "Slave ready should acknowledge the read"
-        assert int(slave.PSLVERR.value) == 0, "Read should not signal an error"
+        if txn["readable"]:
+            assert int(slave.PRDATA.value) == read_data, "Read data should propagate back to the slave"
+        assert int(slave.PREADY.value) == 1, "Read access must complete, including local errors"
+        assert int(slave.PSLVERR.value) == int(not txn["readable"]), (
+            "Only denied reads should return a local error"
+        )
 
         slave.PSEL.value = 0
         slave.PENABLE.value = 0
