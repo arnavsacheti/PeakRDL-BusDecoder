@@ -1,0 +1,18 @@
+// Planned AHB-Lite adapter (feature/ahb-lite-isolated, unreleased).
+// An unmapped transfer receives the required two-cycle ERROR response.
+{
+  signal: [
+    { name: "HCLK",              wave: "p....." },
+    ["Upstream",
+      { name: "HTRANS",          wave: "====..", data: ["NONSEQ", "IDLE", "NONSEQ", "IDLE"] },
+      { name: "HADDR",           wave: "=x=x..", data: ["hole", "mapped"] },
+      { name: "HREADYOUT",       wave: "101..." },
+      { name: "HRESP",           wave: "01.0.." }
+    ],
+    {},
+    { name: "downstream HSEL",   wave: "0.10.." }
+  ],
+  head: { text: "Planned AHB-Lite: local two-cycle ERROR (illustrative)" },
+  foot: { text: "No child is selected for the hole; recovery waits for HREADY high." },
+  config: { hscale: 2 }
+}

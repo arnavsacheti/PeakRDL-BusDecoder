@@ -90,3 +90,4 @@ Links
     cpuif/axi4lite
     cpuif/internal_protocol
     cpuif/customizing
+    cpuif/upcoming

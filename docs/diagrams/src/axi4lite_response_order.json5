@@ -1,0 +1,29 @@
+// Planned ordered AXI4-Lite adapter (PR #83, unreleased).
+// Child B answers first, but upstream responses stay in acceptance order.
+{
+  signal: [
+    { name: "ACLK",        wave: "p.........." },
+    ["Upstream",
+      { name: "ARVALID",   wave: "01.0......." },
+      { name: "ARREADY",   wave: "1.........." },
+      { name: "ARADDR",    wave: "x==x.......", data: ["A", "B"] },
+      { name: "RVALID",    wave: "0.....1..0.", node: "......e.f.." },
+      { name: "RREADY",    wave: "1.....01..." },
+      { name: "RDATA",     wave: "x.....=.=x.", data: ["A", "B"] }
+    ],
+    {},
+    ["Child A",
+      { name: "RVALID",    wave: "0.....1.0.." },
+      { name: "RREADY",    wave: "0......10.." }
+    ],
+    {},
+    ["Child B",
+      { name: "RVALID",    wave: "0...1....0.", node: "....b......" },
+      { name: "RREADY",    wave: "0.......10." }
+    ]
+  ],
+  edge: ["b~>f"],
+  head: { text: "Planned AXI4-Lite: slow child A, fast child B, responses stay in order (illustrative)" },
+  foot: { text: "B waits behind A: only the queue-head child sees RREADY." },
+  config: { hscale: 2 }
+}
