@@ -17,15 +17,9 @@ If a register is wider than its ``accesswidth`` (a multi-word register), its
 ``accesswidth`` must match the CPU interface data width. Multi-word registers
 with a smaller accesswidth are not supported.
 
-
-Fields Spanning Sub-Words
--------------------------
-If a field spans multiple sub-words of a wide register:
-
-* Software-writable fields must have write buffering enabled
-* Fields with ``onread`` side-effects must have read buffering enabled
-
-These rules are enforced to avoid ambiguous multi-word access behavior.
+Field storage, read side-effects and multi-word access atomicity are owned by
+the downstream register block. The decoder does not require field read/write
+buffering properties; it forwards each bus transfer independently.
 
 
 External Boundary References

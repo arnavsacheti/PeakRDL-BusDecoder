@@ -77,7 +77,8 @@ class SVInterface(Interface):
         master_ports: list[str] = []
 
         for child in self.cpuif.addressable_children:
-            base = f"{self.get_interface_type()}.{self.master_modport_name} {master_prefix}{child.inst_name}"
+            target_name = self.cpuif.exp.ds.get_target_name(child)
+            base = f"{self.get_interface_type()}.{self.master_modport_name} {master_prefix}{target_name}"
 
             # When unrolled, current_idx is set - append it to the name
             if child.current_idx is not None:
@@ -111,7 +112,13 @@ class SVInterface(Interface):
 
         # Master signal
         master_prefix = self.get_master_prefix()
-        return f"{master_prefix}{get_indexed_path(node.parent, node, indexer, skip_kw_filter=True)}.{signal}"
+        target_name = self.cpuif.exp.ds.get_target_name(node)
+        if node.current_idx is not None:
+            target_name += f"_{'_'.join(map(str, node.current_idx))}"
+            return f"{master_prefix}{target_name}.{signal}"
+        indexed_path = get_indexed_path(node.parent, node, indexer, skip_kw_filter=True)
+        indexes = "".join(re.findall(r"\[.*?\]", indexed_path))
+        return f"{master_prefix}{target_name}{indexes}.{signal}"
 
     @abstractmethod
     def get_interface_type(self) -> str:
@@ -160,7 +167,8 @@ class FlatInterface(Interface):
 
         # Master signal
         master_prefix = self.get_master_prefix()
-        base = f"{master_prefix}{node.inst_name}"
+        target_name = self.cpuif.exp.ds.get_target_name(node)
+        base = f"{master_prefix}{target_name}"
 
         if not self.cpuif.check_is_array(node):
             # Not an array or an unrolled element
@@ -179,7 +187,7 @@ class FlatInterface(Interface):
                 return f"{base}_{signal}{''.join(indexes)}"
 
             return f"{base}_{signal}[{indexer}]"
-        return f"{base}_{signal}[N_{node.inst_name.upper()}S]"
+        return f"{base}_{signal}[N_{target_name.upper()}S]"
 
     @abstractmethod
     def _get_slave_port_declarations(self, slave_prefix: str) -> list[str]:

@@ -1,7 +1,7 @@
 from collections import deque
 from enum import Enum
 
-from systemrdl.node import AddressableNode
+from systemrdl.node import AddressableNode, RegNode
 from systemrdl.walker import WalkerAction
 
 from .body import Body, ForLoopBody, IfBody
@@ -42,8 +42,9 @@ class DecodeLogicGenerator(BusDecoderListener):
     def cpuif_addr_predicate(self, node: AddressableNode, total_size: bool = True) -> list[str]:
         # Generate address bounds
         addr_width = self._ds.addr_width
+        rel_addr = node.raw_absolute_address - self._ds.top_node.raw_absolute_address
         l_bound = SVInt(
-            node.raw_absolute_address,
+            rel_addr,
             addr_width,
         )
         if total_size:
@@ -91,21 +92,20 @@ class DecodeLogicGenerator(BusDecoderListener):
         # TODO: Implement
         return []
 
+    def _access_predicate(self, node: AddressableNode) -> list[str]:
+        if not isinstance(node, RegNode):
+            return []
+        permitted = node.has_sw_readable if self._flavor == DecodeLogicFlavor.READ else node.has_sw_writable
+        return [] if permitted else ["1'b0"]
+
     def enter_AddressableComponent(self, node: AddressableNode) -> WalkerAction | None:
         action = super().enter_AddressableComponent(node)
         should_decode = action == WalkerAction.SkipDescendants
 
-        if not should_decode and self._ds.max_decode_depth == 0:
-            # When decoding all levels, treat leaf registers as decode boundary
-            for child in node.children():
-                if isinstance(child, AddressableNode):
-                    break
-            else:
-                should_decode = True
-
         conditions: list[str] = []
         conditions.extend(self.cpuif_addr_predicate(node))
         conditions.extend(self.cpuif_prot_predicate(node))
+        conditions.extend(self._access_predicate(node))
         condition = " && ".join(f"({c})" for c in conditions) if len(conditions) > 1 else conditions[0]
 
         # Generate condition string and manage stack
@@ -127,23 +127,24 @@ class DecodeLogicGenerator(BusDecoderListener):
             ifb = self._decode_stack[-1]
             with ifb.cm(condition) as b:
                 b += f"{self._flavor.cpuif_select}.{get_indexed_path(self._ds.top_node, node)} = 1'b1;"
-
+                b += f"{self._flavor.cpuif_select}.cpuif_err = 1'b0;"
         return action
 
     def exit_AddressableComponent(self, node: AddressableNode) -> None:
         if not node.array_dimensions:
+            super().exit_AddressableComponent(node)
             return
 
         ifb = self._decode_stack.pop()
         if not ifb and isinstance(ifb, IfBody):
             conditions: list[str] = []
             conditions.extend(self.cpuif_addr_predicate(node, total_size=False))
+            conditions.extend(self._access_predicate(node))
             condition = " && ".join(f"({c})" for c in conditions)
-
             with ifb.cm(condition) as b:
                 b += f"{self._flavor.cpuif_select}.{get_indexed_path(self._ds.top_node, node)} = 1'b1;"
+                b += f"{self._flavor.cpuif_select}.cpuif_err = 1'b0;"
         self._decode_stack[-1] += ifb
-
         for _ in node.array_dimensions:
             b = self._decode_stack.pop()
             if not b:

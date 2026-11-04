@@ -45,7 +45,9 @@ class APB4CpuifFlat(BaseCpuif):
     def fanout(self, node: AddressableNode, array_stack: deque[int]) -> str:
         fanout: dict[str, str] = {}
 
-        addr_width = f"{self.exp.ds.module_name.upper()}_{node.inst_name.upper()}_ADDR_WIDTH"
+        addr_width = (
+            f"{self.exp.ds.module_name.upper()}_{self.exp.ds.get_target_name(node).upper()}_ADDR_WIDTH"
+        )
 
         sel_expr = f"cpuif_wr_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}|cpuif_rd_sel.{get_indexed_path(self.exp.ds.top_node, node, 'gi')}"
         fanout[self.signal("PSEL", node, "gi")] = sel_expr
@@ -57,7 +59,8 @@ class APB4CpuifFlat(BaseCpuif):
             # Size is a power of 2 and aligned, so we can directly use the address bits as the slave address
             fanout[self.signal("PADDR", node, "gi")] = f"{self.signal('PADDR')}[{addr_width}-1:0]"
         else:
-            addr_comp = [f"{self.signal('PADDR')}", f"{SVInt(node.raw_absolute_address, self.addr_width)}"]
+            rel_addr = node.raw_absolute_address - self.exp.ds.top_node.raw_absolute_address
+            addr_comp = [f"{self.signal('PADDR')}", f"{SVInt(rel_addr, self.addr_width)}"]
             for i, stride in enumerate(array_stack):
                 addr_comp.append(f"{self.addr_width}'(gi{i}*{SVInt(stride, self.addr_width)})")
 
@@ -118,8 +121,9 @@ class APB4Cpuif(APB4CpuifFlat):
             fanin: dict[str, str] = {}
             # Generate array index string [i0][i1]... for the intermediate signal
             array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
-            fanin["cpuif_wr_ack"] = f"{node.inst_name}_fanin_ready{array_idx}"
-            fanin["cpuif_wr_err"] = f"{node.inst_name}_fanin_err{array_idx}"
+            target_name = self.exp.ds.get_target_name(node)
+            fanin["cpuif_wr_ack"] = f"{target_name}_fanin_ready{array_idx}"
+            fanin["cpuif_wr_err"] = f"{target_name}_fanin_err{array_idx}"
 
             fanin_wr = "\n" + "\n".join([f"{lhs} = {rhs};" for lhs, rhs in fanin.items()])
         return fanin_wr
@@ -130,9 +134,10 @@ class APB4Cpuif(APB4CpuifFlat):
             fanin: dict[str, str] = {}
             # Generate array index string [i0][i1]... for the intermediate signal
             array_idx = "".join(f"[i{i}]" for i in range(len(node.array_dimensions)))
-            fanin["cpuif_rd_ack"] = f"{node.inst_name}_fanin_ready{array_idx}"
-            fanin["cpuif_rd_err"] = f"{node.inst_name}_fanin_err{array_idx}"
-            fanin["cpuif_rd_data"] = f"{node.inst_name}_fanin_data{array_idx}"
+            target_name = self.exp.ds.get_target_name(node)
+            fanin["cpuif_rd_ack"] = f"{target_name}_fanin_ready{array_idx}"
+            fanin["cpuif_rd_err"] = f"{target_name}_fanin_err{array_idx}"
+            fanin["cpuif_rd_data"] = f"{target_name}_fanin_data{array_idx}"
 
             fanin_rd = "\n" + "\n".join([f"{lhs} = {rhs};" for lhs, rhs in fanin.items()])
         return fanin_rd

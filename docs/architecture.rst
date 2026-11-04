@@ -26,12 +26,27 @@ Address Decode
 The address decoder computes per-child select signals based on address ranges.
 The decode boundary is controlled by ``max_decode_depth``:
 
-* ``0``: Decode all the way down to leaf registers
+* ``0``: Decode down to addressable leaves, including registers and external memories
 * ``1`` (default): Decode only top-level children
 * ``N``: Decode down to depth ``N`` from the top-level
 
 This allows you to choose whether the bus decoder routes to large blocks (e.g.,
 child addrmaps) or to smaller sub-blocks.
+
+Port collection, target naming, select generation, and fanout/fanin use the same
+decode-boundary decision. A container whose addressable children are all external
+remains an early boundary, preserving the existing treatment of opaque blocks.
+
+When the decode boundary is a register, read requests select it only if a
+present field is software-readable; write requests select it only if a present
+field is software-writable. This separates legal read-only/write-only register
+overlaps at one address. A disallowed direction returns a local unmapped error.
+Block targets remain opaque address regions and forward both directions.
+
+Decode bounds and downstream addresses are relative to the exported addrmap,
+including when the Python API exports an inner addrmap with a nonzero system
+base address. Array stride gaps select no child and return a local error rather
+than waiting indefinitely for a downstream response.
 
 
 Fanout to Child Interfaces
@@ -42,6 +57,27 @@ All address, data, and control signals are forwarded to the selected child.
 Arrayed children can be kept as arrays or unrolled into discrete interfaces using
 ``--unroll``. This only affects port structure and naming; decode semantics are
 unchanged.
+
+Target naming
+~~~~~~~~~~~~~
+A target keeps its local SystemRDL instance name when that name is unique among
+the decoded targets. Uniqueness is checked after converting to uppercase, since
+package constants and array-count localparams use uppercase identifiers.
+
+When local names collide, the exporter uses the target's complete path relative
+to the exported top-level addrmap, replacing hierarchy separators with
+underscores. For example, ``blk_a.ctrl`` and ``blk_b.ctrl`` become
+``blk_a_ctrl`` and ``blk_b_ctrl``. Existing unique local names are reserved first.
+If flattened paths still collide with each other or with a reserved name,
+``__2``, ``__3``, and so on are appended until the name is unique. These names
+are allocated in sorted relative-path order, independently of traversal order.
+Array indices are not part of this base identifier.
+
+The same resolved identifier is used for APB3, APB4, and AXI4-Lite interface and
+flat master ports, their fanout and fanin references, interface-array
+intermediate signals, ``<MODULE>_<TARGET>_ADDR_WIDTH`` package constants, and
+``N_<TARGET>S`` array-count localparams. The internal select structures retain
+their hierarchical member paths; they are not flattened to match the ports.
 
 
 Fanin and Error Handling

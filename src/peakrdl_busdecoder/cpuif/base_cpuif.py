@@ -73,7 +73,7 @@ class BaseCpuif:
             child_path = child.get_rel_path(ds.top_node)
             if child_path in enable_covered_paths:
                 continue
-            params.append(f"localparam N_{child.inst_name.upper()}S = {child.n_elements}")
+            params.append(f"localparam N_{ds.get_target_name(child).upper()}S = {child.n_elements}")
 
         # Address-modifying RDL parameters as SV module parameters
         for rdl_param in ds.enable_rdl_params:
@@ -134,7 +134,8 @@ class BaseCpuif:
     def _can_truncate_addr(self, node: AddressableNode, array_stack: deque[int]) -> bool:
         if node.size.bit_count() != 1:
             return False
-        if node.raw_absolute_address % node.size != 0:
+        rel_addr = node.raw_absolute_address - self.exp.ds.top_node.raw_absolute_address
+        if rel_addr % node.size != 0:
             return False
         for stride in array_stack:
             if stride % node.size != 0:
@@ -161,7 +162,7 @@ class BaseCpuif:
 
         Args:
             node: The addressable node
-            inst_name: Instance name for the intermediate signals
+            inst_name: Resolved target identifier for the intermediate signals
             array_idx: Array index string (e.g., "[gi0][gi1]")
             master_prefix: Master interface prefix
             indexed_path: Indexed path to the interface element

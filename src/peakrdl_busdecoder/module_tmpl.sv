@@ -67,7 +67,8 @@ module {{ds.module_name}}
         cpuif_wr_sel = '{default: '0};
 
         if (cpuif_req && cpuif_wr_en) begin
-            // A write request is pending
+            // A write request is pending (default to unmapped error until a target matches)
+            cpuif_wr_sel.cpuif_err = 1'b1;
             {{cpuif_decode|walk(flavor=cpuif_decode_flavor.WRITE)|indent(12)}}
         end else begin
             // No write request, all select signals remain 0
@@ -82,7 +83,8 @@ module {{ds.module_name}}
         cpuif_rd_sel = '{default: '0};
 
         if (cpuif_req && cpuif_rd_en) begin
-            // A read request is pending
+            // A read request is pending (default to unmapped error until a target matches)
+            cpuif_rd_sel.cpuif_err = 1'b1;
             {{cpuif_decode|walk(flavor=cpuif_decode_flavor.READ)|indent(12)}}
         end else begin
             // No read request, all select signals remain 0
