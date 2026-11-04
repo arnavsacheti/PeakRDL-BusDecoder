@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum, auto
@@ -103,7 +103,7 @@ class RdlParameterExtractor:
         return self.classify()
 
     @contextmanager
-    def trace(self) -> Iterator[None]:
+    def trace(self) -> Generator[None, None, None]:
         """Install the ParameterRef.get_value monkeypatch for the block."""
         from systemrdl.ast.references import ParameterRef
 
