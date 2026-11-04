@@ -1,7 +1,6 @@
 from textwrap import indent
 from types import EllipsisType
-
-from typing_extensions import Self
+from typing import Self
 
 from .body import Body, SupportsStr
 

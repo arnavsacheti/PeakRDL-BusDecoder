@@ -31,7 +31,7 @@ inside arrayed blocks.
 
 
 Signals, clock, and reset
-------------------------
+-------------------------
 
 The subordinate interface is named ``s_ahb`` in the interface form; flat signals
 have the prefix ``s_ahb_``. Ingress address/control signals are ``HSEL``,

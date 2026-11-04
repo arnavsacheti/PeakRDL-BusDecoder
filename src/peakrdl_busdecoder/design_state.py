@@ -150,9 +150,7 @@ class DesignState:
         """Identify a target independently of array indices and node wrappers."""
         return node.get_rel_path(self.top_node, array_suffix="", empty_array_suffix="")
 
-    def _build_unique_names(
-        self, paths: dict[str, str], reserved: Iterable[str] = ()
-    ) -> dict[str, str]:
+    def _build_unique_names(self, paths: dict[str, str], reserved: Iterable[str] = ()) -> dict[str, str]:
         # Package constants fold names to upper case. Reserve unique legacy
         # names before qualifying duplicates, then disambiguate flattened paths.
         counts = Counter(name.upper() for name in paths.values())
@@ -178,10 +176,7 @@ class DesignState:
 
     def _build_target_names(self) -> dict[str, str]:
         # MIN_ADDR_WIDTH belongs to the decoder itself, not a routed target.
-        paths = {
-            self._target_path(node): node.inst_name
-            for node in self.get_addressable_children_at_depth()
-        }
+        paths = {self._target_path(node): node.inst_name for node in self.get_addressable_children_at_depth()}
         return self._build_unique_names(paths, reserved=("MIN",))
 
     def get_target_name(self, node: AddressableNode) -> str:
@@ -231,9 +226,7 @@ class DesignState:
         current: AddressableNode | None = node
         while current is not None and current != self.top_node:
             address += (
-                current.address_offset
-                if current.current_idx is not None
-                else current.raw_address_offset
+                current.address_offset if current.current_idx is not None else current.raw_address_offset
             )
             parent = current.parent
             current = parent if isinstance(parent, AddressableNode) else None

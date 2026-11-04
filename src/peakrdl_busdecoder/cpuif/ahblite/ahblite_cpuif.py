@@ -58,8 +58,7 @@ class AHBLiteCpuifFlat(BaseCpuif):
         super().__init__(exp)
 
         self.targets = tuple(
-            self._make_target(node)
-            for node in exp.ds.get_addressable_children_at_depth(unroll=False)
+            self._make_target(node) for node in exp.ds.get_addressable_children_at_depth(unroll=False)
         )
         self._targets_by_name = {target.name: target for target in self.targets}
         self._validate_layout()
@@ -242,7 +241,9 @@ class AHBLiteCpuifFlat(BaseCpuif):
         checks = ["`ifndef SYNTHESIS"]
         endpoints = [("s_ahb", self.addr_width)]
         for binding in self.bindings:
-            endpoint = self._interface.target_signal("HADDR", binding.target, binding.indices).rsplit(".", 1)[0]
+            endpoint = self._interface.target_signal("HADDR", binding.target, binding.indices).rsplit(".", 1)[
+                0
+            ]
             endpoints.append((endpoint, binding.target.addr_width))
         for endpoint, addr_width in endpoints:
             checks.extend(

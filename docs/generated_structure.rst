@@ -240,7 +240,7 @@ dimension, such as ``m_*_matrix_1_2``.
 
 
 AHB-Lite address and data phases
-------------------------------
+--------------------------------
 AHB-Lite supports one upstream manager and one shared read/write pipeline,
 not multi-manager arbitration or independent read/write queues. Address decode
 can present the following transfer while the retained data phase is waiting:

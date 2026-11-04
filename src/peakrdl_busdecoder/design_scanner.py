@@ -6,6 +6,7 @@ from systemrdl.walker import RDLListener, RDLWalker, WalkerAction
 
 from .node_meta import NodeMeta
 from .rdl_params import RdlParameterExtractor
+from .utils import ref_is_internal
 
 if TYPE_CHECKING:
     from .design_state import DesignState
@@ -101,7 +102,7 @@ class DesignScanner(RDLListener):
                 self.ds.has_external_block = True
 
     def enter_Reg(self, node: RegNode) -> None:
-        if node.external and node != self.top_node:
+        if not ref_is_internal(self.top_node, node):
             return
 
         accesswidth = node.get_property("accesswidth")

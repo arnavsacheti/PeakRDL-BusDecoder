@@ -475,9 +475,11 @@ async def test_apb4_back_to_back(dut) -> None:
     slave = _Apb4SlaveShim(dut, is_interface=is_intf)
     masters = _build_master_table(dut, config["masters"], is_interface=is_intf)
 
-    pair = pick_distinct_pairs(config["transactions"], count=2)
+    pair = pick_distinct_pairs(
+        [txn for txn in config["transactions"] if txn["writable"]], count=2
+    )
     if len(pair) < 2:
-        dut._log.warning("Need at least two distinct master/index transactions; skipping")
+        dut._log.warning("Need at least two distinct writable master/index transactions; skipping")
         return
 
     await start_clock(slave.PCLK)
@@ -516,6 +518,7 @@ async def test_apb4_back_to_back(dut) -> None:
         slave.PENABLE.value = 1
         await advance(slave.PCLK)
         assert int(slave.PREADY.value) == 1, "Slave must see PREADY when target is ready"
+        assert int(slave.PSLVERR.value) == 0, "Permitted back-to-back writes must not error"
 
         for other_name, other_idx in all_index_pairs(masters):
             if other_name == txn["master"] and other_idx == index:

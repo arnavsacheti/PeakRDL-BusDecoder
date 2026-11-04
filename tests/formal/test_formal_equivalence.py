@@ -93,12 +93,33 @@ mem storage_t {
     memwidth = 32;
     sw = r;
 };
-regfile downstream_t {
+addrmap downstream_t {
     external storage_t storage @ 0;
 };
 addrmap opaque_external {
     reg { field { sw=rw; hw=r; } payload[31:0]; } control @ 0;
     downstream_t routed @ 0x100;
+};
+"""
+
+EXTERNAL_WIDTH_SCOPE_RDL = """
+regfile local_t {
+    reg {
+        regwidth = 32;
+        accesswidth = 32;
+        field { sw=rw; hw=r; } data[31:0];
+    } last @ 0x3fc;
+};
+addrmap remote_t {
+    reg {
+        regwidth = 64;
+        accesswidth = 64;
+        field { sw=rw; hw=r; } data[63:0];
+    } last @ 0x3f8;
+};
+addrmap width_scope {
+    local_t local_block @ 0;
+    remote_t remote_block @ 0x800;
 };
 """
 
@@ -222,8 +243,7 @@ class TestFormalModelAxioms:
 
 
 def _cpp_testbench(module_name: str, model: FormalBusDecoderModel) -> str:
-    """Generate a driver for safe-named, depth-one, 32-bit APB4-flat targets."""
-    assert model.max_decode_depth == 1
+    """Generate a driver for safe-named 32-bit APB4-flat decode boundaries."""
     assert model.data_width == 32
     target_indices = {target: index for index, target in enumerate(model.targets)}
     tables = []
@@ -295,6 +315,10 @@ static bool matches(const char* signal, std::uint32_t actual, std::uint32_t want
 int main(int argc, char** argv) {{
     Verilated::commandArgs(argc, argv);
     V{module_name} dut;
+    static_assert(sizeof(dut.s_apb_PWDATA) == sizeof(std::uint32_t),
+                  "The upstream write bus must remain 32 bits");
+    static_assert(sizeof(dut.s_apb_PRDATA) == sizeof(std::uint32_t),
+                  "The upstream read bus must remain 32 bits");
     std::uint32_t child_ready[kChildCount];
     std::uint32_t child_error[kChildCount];
     std::uint32_t child_data[kChildCount];
@@ -391,6 +415,7 @@ class TestRtlFormalEquivalence:
             pytest.param(ARRAY_REGISTER_PERMISSIONS_RDL, None, 1, id="array-register-permissions"),
             pytest.param(OPAQUE_EXTERNAL_CONTAINER_RDL, None, 0, id="opaque-external-depth-zero"),
             pytest.param(OPAQUE_EXTERNAL_CONTAINER_RDL, None, 3, id="opaque-external-before-cap"),
+            pytest.param(EXTERNAL_WIDTH_SCOPE_RDL, None, 1, id="external-width-scope"),
         ],
     )
     def test_verilator_oracle_sweep(
