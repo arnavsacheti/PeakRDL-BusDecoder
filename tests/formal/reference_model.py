@@ -243,26 +243,23 @@ class FormalBusDecoderModel:
         nodes: list[AddressableNode] = []
 
         def collect(curr: AddressableNode, depth: int) -> None:
-            if self.max_decode_depth == 0:
-                # Depth 0: leaf registers and leaf memories
-                has_addressable_children = False
-                for child in curr.children(unroll=False):
-                    if isinstance(child, AddressableNode):
-                        has_addressable_children = True
-                        collect(child, depth + 1)
-                if not has_addressable_children:
-                    nodes.append(curr)
-            elif depth == self.max_decode_depth:
+            children = [
+                child for child in curr.children(unroll=False) if isinstance(child, AddressableNode)
+            ]
+            at_depth_cap = self.max_decode_depth > 0 and depth >= self.max_decode_depth
+            opaque_external_container = (
+                not isinstance(curr, RegNode)
+                and bool(children)
+                and all(child.external for child in children)
+            )
+            # A depth cap never discards shallower leaves. A container whose
+            # entire addressable contents are external is routed opaquely in
+            # both directions, including when no finite depth cap is requested.
+            if at_depth_cap or not children or opaque_external_container:
                 nodes.append(curr)
-            elif depth < self.max_decode_depth:
-                # Recurse, or if this is a leaf before reaching max depth, treat as target
-                has_addressable_children = False
-                for child in curr.children(unroll=False):
-                    if isinstance(child, AddressableNode):
-                        has_addressable_children = True
-                        collect(child, depth + 1)
-                if not has_addressable_children:
-                    nodes.append(curr)
+                return
+            for child in children:
+                collect(child, depth + 1)
 
         for top_child in self.top_node.children(unroll=False):
             if isinstance(top_child, AddressableNode):

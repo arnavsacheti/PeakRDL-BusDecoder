@@ -8,6 +8,13 @@
     end
 `endif
 {%- endif %}
+{%- if cpuif.has_apb_buffer %}
+
+//--------------------------------------------------------------------------
+// APB I/O buffer (single-flop register slice)
+//--------------------------------------------------------------------------
+{{cpuif.apb_buffer_block()}}
+{%- endif %}
 
 assign cpuif_req   = {{cpuif.signal("PSEL")}};
 assign cpuif_wr_en = {{cpuif.signal("PWRITE")}};
@@ -17,7 +24,9 @@ assign cpuif_wr_addr = {{cpuif.signal("PADDR")}};
 assign cpuif_rd_addr = {{cpuif.signal("PADDR")}};
 
 assign cpuif_wr_data = {{cpuif.signal("PWDATA")}};
+{%- if cpuif.has_pstrb %}
 assign cpuif_wr_byte_en = {{cpuif.signal("PSTRB")}};
+{%- endif %}
 
 assign {{cpuif.signal("PRDATA")}} = cpuif_rd_data;
 assign {{cpuif.signal("PREADY")}} = cpuif_rd_ack | cpuif_wr_ack; 

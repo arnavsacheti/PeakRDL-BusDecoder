@@ -31,6 +31,8 @@ Pull requests are the best way to propose changes to the codebase. We actively
 welcome your pull requests. To maximize the chance of your pull request getting accepted,
 please review the expectations below.
 
+Development requires Python 3.11 or newer. CI covers Python 3.11, 3.12, 3.13, and 3.14.
+
 Pull request expectations:
 * Before starting a pull request, please consider discussing the change with us
   first by **opening an issue ticket**. Unfortunately many of the PRs that get rejected

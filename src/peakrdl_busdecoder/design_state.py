@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Iterable
 from typing import TypedDict
 
 from systemrdl.node import AddressableNode, AddrmapNode, RegNode
@@ -8,7 +9,8 @@ from systemrdl.rdltypes.user_enum import UserEnum
 
 from .design_scanner import DesignScanner
 from .identifier_filter import kw_filter as kwf
-from .rdl_params import ParameterUsage, RdlParameter, RdlParameterExtractor
+from .node_meta import NodeMeta
+from .rdl_params import ParameterUsage, RdlParameter
 from .utils import clog2
 
 
@@ -20,6 +22,10 @@ class DesignStateKwargs(TypedDict, total=False):
     cpuif_unroll: bool
     parametrize: bool
     max_decode_depth: int
+    clk_src: str
+    gate_signals: bool
+    apb_buffer: str
+    axi4lite_max_outstanding: int
 
 
 class DesignState:
@@ -43,6 +49,23 @@ class DesignState:
         self.cpuif_unroll: bool = kwargs.pop("cpuif_unroll", False)
         self.parametrize: bool = kwargs.pop("parametrize", False)
         self.max_decode_depth: int = kwargs.pop("max_decode_depth", 1)
+        self.clk_src: str = kwargs.pop("clk_src", "design")
+        if self.clk_src not in ("cpuif", "design"):
+            msg.fatal(f"clk_src must be 'cpuif' or 'design', got {self.clk_src!r}")
+        self.gate_signals: bool = kwargs.pop("gate_signals", False)
+
+        self.axi4lite_max_outstanding: int = kwargs.pop("axi4lite_max_outstanding", 4)
+        if self.axi4lite_max_outstanding < 1:
+            msg.fatal(
+                "axi4lite_max_outstanding must be greater than or equal to 1, "
+                f"got {self.axi4lite_max_outstanding}"
+            )
+
+        self.apb_buffer: str = kwargs.pop("apb_buffer", "none")
+        if self.apb_buffer not in ("none", "in", "out", "both"):
+            msg.fatal(f"apb_buffer must be one of 'none', 'in', 'out', 'both', got {self.apb_buffer!r}")
+        if self.apb_buffer != "none" and self.clk_src != "design":
+            msg.fatal("apb_buffer requires clk_src='design' (the buffer flops use the design clk/rst)")
 
         # ------------------------
         # Info about the design
@@ -55,8 +78,17 @@ class DesignState:
         self.has_external_addressable = False
         self.has_external_block = False
 
-        # Scan the design to fill in above variables
-        DesignScanner(self).do_scan()
+        # Per-node facts cached during the scan walk so downstream listeners
+        # don't recompute the same predicates on each pass.
+        self._node_meta: dict[str, NodeMeta] = {}
+        self._addressable_children_cache: dict[tuple[int, bool], list[AddressableNode]] = {}
+
+        # Scan the design to fill in above variables.
+        scanner = DesignScanner(self)
+        scanner.do_scan()
+
+        self._target_names = self._build_target_names()
+        self._struct_type_names = self._compute_struct_type_names()
 
         if self.cpuif_data_width == 0:
             # Scanner did not find any registers in the design being exported,
@@ -87,8 +119,8 @@ class DesignState:
         self._enable_params_by_node_dim: dict[tuple[str, int], RdlParameter | None]
 
         if self.parametrize:
-            extractor = RdlParameterExtractor(self.top_node)
-            self.rdl_params = extractor.extract()
+            assert scanner.param_extractor is not None
+            self.rdl_params = scanner.param_extractor.classify()
 
             # Cache the enable params list (extract() only returns ADDRESS_MODIFYING)
             self.enable_rdl_params = [
@@ -114,22 +146,23 @@ class DesignState:
             self.enable_rdl_params = []
             self._enable_params_by_node_dim = {}
 
-        self._target_names = self._build_target_names()
-
     def _target_path(self, node: AddressableNode) -> str:
         """Identify a target independently of array indices and node wrappers."""
         return node.get_rel_path(self.top_node, array_suffix="", empty_array_suffix="")
 
-    def _build_target_names(self) -> dict[str, str]:
-        paths = {self._target_path(node): node.inst_name for node in self.get_addressable_children_at_depth()}
-        # Constants use upper-case names, so uniqueness must hold there as well
-        # as in the case-sensitive port and intermediate-signal namespaces.
+    def _build_unique_names(
+        self, paths: dict[str, str], reserved: Iterable[str] = ()
+    ) -> dict[str, str]:
+        # Package constants fold names to upper case. Reserve unique legacy
+        # names before qualifying duplicates, then disambiguate flattened paths.
         counts = Counter(name.upper() for name in paths.values())
-        names = {path: name for path, name in paths.items() if counts[name.upper()] == 1}
-        used = {name.upper() for name in names.values()}
-
-        # Reserve unique legacy names before assigning hierarchical names. Both
-        # flattening (a_b.c versus a.b_c) and case folding can still collide.
+        used = {name.upper() for name in reserved}
+        names = {
+            path: name
+            for path, name in paths.items()
+            if counts[name.upper()] == 1 and name.upper() not in used
+        }
+        used.update(name.upper() for name in names.values())
         for path in sorted(paths):
             if path in names:
                 continue
@@ -143,9 +176,71 @@ class DesignState:
             used.add(name.upper())
         return names
 
+    def _build_target_names(self) -> dict[str, str]:
+        # MIN_ADDR_WIDTH belongs to the decoder itself, not a routed target.
+        paths = {
+            self._target_path(node): node.inst_name
+            for node in self.get_addressable_children_at_depth()
+        }
+        return self._build_unique_names(paths, reserved=("MIN",))
+
     def get_target_name(self, node: AddressableNode) -> str:
         """Return the shared identifier for a target's ports and constants."""
         return self._target_names[self._target_path(node)]
+
+    def _compute_struct_type_names(self) -> dict[str, str]:
+        """Name selector typedefs by their full top-relative paths."""
+        emitters: dict[str, AddressableNode] = {}
+        for boundary in self.get_addressable_children_at_depth():
+            parent = boundary.parent
+            while isinstance(parent, AddressableNode) and parent != self.top_node:
+                emitters[self._target_path(parent)] = parent
+                parent = parent.parent
+        names = self._build_unique_names({path: path.replace(".", "_") for path in emitters})
+        return {path: f"cpuif_sel_{name}_t" for path, name in names.items()}
+
+    def struct_type_name(self, node: AddressableNode) -> str:
+        """SystemVerilog type name for a node's nested select struct."""
+        return self._struct_type_names[self._target_path(node)]
+
+    def open_array_dims(self, node: AddressableNode) -> list[int]:
+        """Rolled dimensions from the top node through the target, outermost first."""
+        dims: list[int] = []
+        current: AddressableNode | None = node
+        while current is not None and current != self.top_node:
+            if current.array_dimensions and current.current_idx is None:
+                dims = list(current.array_dimensions) + dims
+            parent = current.parent
+            current = parent if isinstance(parent, AddressableNode) else None
+        return dims
+
+    def unrolled_indices(self, node: AddressableNode) -> list[int]:
+        """Concrete array indices along a target's path, outermost first."""
+        indices: list[int] = []
+        current: AddressableNode | None = node
+        while current is not None and current != self.top_node:
+            if current.current_idx is not None:
+                indices = list(current.current_idx) + indices
+            parent = current.parent
+            current = parent if isinstance(parent, AddressableNode) else None
+        return indices
+
+    def node_base_address(self, node: AddressableNode) -> int:
+        """Top-relative base, including concrete indices but not rolled dimensions."""
+        address = 0
+        current: AddressableNode | None = node
+        while current is not None and current != self.top_node:
+            address += (
+                current.address_offset
+                if current.current_idx is not None
+                else current.raw_address_offset
+            )
+            parent = current.parent
+            current = parent if isinstance(parent, AddressableNode) else None
+        return address
+
+    def node_meta(self, node: AddressableNode) -> NodeMeta:
+        return self._node_meta[self._target_path(node)]
 
     def get_enable_param_for_dimension(self, node: AddressableNode, dim_index: int) -> RdlParameter | None:
         """
@@ -154,7 +249,7 @@ class DesignState:
         Returns the RdlParameter if this dimension is controlled by a
         root-level ADDRESS_MODIFYING parameter, or None otherwise.
         """
-        node_path = node.get_rel_path(self.top_node)
+        node_path = self.node_meta(node).rel_path
         return self._enable_params_by_node_dim.get((node_path, dim_index))
 
     def resolve_loop_bound(self, node: AddressableNode, dim_index: int, dim: int) -> int | str:
@@ -167,15 +262,15 @@ class DesignState:
         if self.max_decode_depth > 0 and depth >= self.max_decode_depth:
             return True
 
-        children = [child for child in node.children() if isinstance(child, AddressableNode)]
-        # Preserve the existing early boundary for containers whose addressable
-        # children are all external.
+        meta = self.node_meta(node)
+        # Containers whose addressable children are all external remain opaque.
         if node != self.top_node and not isinstance(node, RegNode):
-            if children and all(child.external for child in children):
+            if meta.has_only_external_addressable_children:
                 return True
 
-        # Unlimited depth includes any addressable leaf, not just registers.
-        return self.max_decode_depth == 0 and not children
+        # Registers, external memories, and empty blocks are boundaries even
+        # when they occur before a positive depth limit.
+        return not meta.has_addressable_children
 
     def get_addressable_children_at_depth(self, unroll: bool = False) -> list[AddressableNode]:
         """
@@ -187,12 +282,20 @@ class DesignState:
         - 2: decode top + 1 level (return children at depth 2)
         - N: decode down to depth N (return children at depth N)
 
+        Leaves and containers whose addressable children are all external stop
+        decoding early, using the same policy as every walker-based generator.
+
         Args:
             unroll: Whether to unroll arrayed nodes
 
         Returns:
             List of addressable nodes at the decode boundary
         """
+
+        cache_key = (self.max_decode_depth, unroll)
+        cached = self._addressable_children_cache.get(cache_key)
+        if cached is not None:
+            return cached
 
         def collect_nodes(node: AddressableNode, current_depth: int) -> list[AddressableNode]:
             if self.is_decode_boundary(node, current_depth):
@@ -209,4 +312,5 @@ class DesignState:
             if isinstance(child, AddressableNode):
                 nodes.extend(collect_nodes(child, 1))
 
+        self._addressable_children_cache[cache_key] = nodes
         return nodes

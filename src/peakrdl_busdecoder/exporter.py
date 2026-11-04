@@ -1,7 +1,7 @@
 import os
 from importlib.metadata import version
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 import jinja2 as jj
 from systemrdl.node import AddrmapNode, RootNode
@@ -9,9 +9,9 @@ from systemrdl.walker import RDLSteerableWalker
 from typing_extensions import Unpack
 
 from .cpuif import BaseCpuif
-from .cpuif.apb4 import APB4Cpuif
+from .cpuif.apb import APB4Cpuif
 from .decode_logic_gen import DecodeLogicFlavor, DecodeLogicGenerator
-from .design_state import DesignState
+from .design_state import DesignState, DesignStateKwargs
 from .identifier_filter import kw_filter as kwf
 from .listener import BusDecoderListener
 from .struct_gen import StructGenerator
@@ -29,6 +29,10 @@ class ExporterKwargs(TypedDict, total=False):
     parametrize: bool
     reuse_hwif_typedefs: bool
     max_decode_depth: int
+    clk_src: str
+    gate_signals: bool
+    apb_buffer: str
+    axi4lite_max_outstanding: int
 
 
 if TYPE_CHECKING:
@@ -92,6 +96,32 @@ class BusDecoderExporter:
             components. A value of 0 decodes all levels (infinite depth). A value
             of 1 decodes only top-level children. A value of 2 decodes top-level
             and one level deeper, etc. By default, the decoder descends 1 level deep.
+        clk_src: str
+            Selects where the bus decoder gets its clock and reset.
+
+            - "cpuif": clk/reset are bundled with the CPU interface. The slave
+              bus carries the protocol-defined clock/reset (PCLK/PRESETn for
+              APB, ACLK/ARESETn for AXI4-Lite). Flat master ports forward
+              clock/reset; SystemVerilog interface endpoints must be wired
+              externally because their modports treat these as inputs.
+            - "design" (default): the CPU interface carries no clk/reset. The
+              module exposes top-level ``clk`` and ``rst`` ports; the design
+              is responsible for distributing clock/reset to downstream slaves.
+        gate_signals: bool
+            Gate downstream broadcast payload signals with the per-slave select.
+            For APB this drives PADDR/PWDATA/PSTRB/PPROT to '0 on unselected
+            masters. By default, payload signals fan out unmodified. PENABLE
+            is always gated with the per-slave select.
+        apb_buffer: str
+            Insert a single-flop register slice on the APB slave-side I/O.
+            One of: "none" (default), "in" (slave-side inputs only), "out"
+            (slave-side outputs only), "both". Only applies to APB cpuifs;
+            requires ``clk_src='design'`` (uses the design clk/rst). APB
+            handshake is preserved via PREADY-stretching.
+        axi4lite_max_outstanding: int
+            Maximum accepted AXI4-Lite read transactions and paired write
+            transactions retained by their respective order queues. Defaults
+            to 4. AW and W each also have one independent holding register.
         """
         # If it is the root node, skip to top addrmap
         if isinstance(node, RootNode):
@@ -99,9 +129,8 @@ class BusDecoderExporter:
         else:
             top_node = node
 
-        self.ds = DesignState(top_node, kwargs)
-
         cpuif_cls: type[BaseCpuif] = kwargs.pop("cpuif_cls", None) or APB4Cpuif
+        self.ds = DesignState(top_node, cast(DesignStateKwargs, kwargs))
 
         # Check for stray kwargs
         if kwargs:
@@ -137,7 +166,10 @@ class BusDecoderExporter:
         stream.dump(module_file_path)
 
     def walk(self, listener_cls: type[BusDecoderListener], **kwargs: dict[str, Any]) -> str:
-        walker = RDLSteerableWalker()
+        # Port-referencing listeners walk unrolled when cpuif_unroll is set, so
+        # each array element is fanned out/in as an individual master port.
+        unroll = self.ds.cpuif_unroll and listener_cls.walk_unrolled
+        walker = RDLSteerableWalker(unroll=unroll)
         listener = listener_cls(self.ds, **kwargs)
         walker.walk(self.ds.top_node, listener, skip_top=True)
         return str(listener)

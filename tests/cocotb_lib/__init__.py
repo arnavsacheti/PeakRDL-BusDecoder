@@ -11,3 +11,8 @@ RDL_CASES: list[tuple[str, str]] = [
     ("asymmetric_bus.rdl", "asymmetric_bus"),
     ("array_only.rdl", "decode_repro"),
 ]
+
+AXI4LITE_RDL_CASES: list[tuple[str, str]] = [
+    *RDL_CASES,
+    ("direction_permissions.rdl", "direction_permissions"),
+]

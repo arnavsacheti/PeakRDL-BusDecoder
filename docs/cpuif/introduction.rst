@@ -15,6 +15,38 @@ design. If the exported addrmap contains only external components, the width
 cannot be inferred and will default to 32 bits.
 
 
+Clock and Reset
+^^^^^^^^^^^^^^^
+For APB and AXI4-Lite, the clock/reset source is selected with ``--clk-src``:
+
+``design`` (default)
+    The CPU interface carries no clock or reset. The generated module exposes
+    top-level ``clk`` and ``rst`` input ports instead, and the design is
+    responsible for distributing clock and reset to downstream slaves. The
+    APB decode is combinational unless a register slice is enabled (see
+    ``--apb-buffer``). The AXI4-Lite adapter always uses this clock and reset
+    for its request holding registers and ordered-response queues.
+
+``cpuif``
+    Clock and reset are bundled with the CPU interface bus. The slave
+    interface carries the protocol-defined clock and reset (``PCLK``/``PRESETn``
+    for APB, ``ACLK``/``ARESETn`` for AXI4-Lite). Flat-port variants fan these
+    signals out to every master port. In SystemVerilog-interface variants,
+    clock/reset members of downstream manager modports are inputs and must be
+    connected to the same domain by the surrounding design.
+
+The SystemVerilog interface definitions linked from the protocol pages declare
+``PCLK``/``PRESETn`` (``ACLK``/``ARESETn``) members. The subordinate member is
+used as the decoder's sequential clock/reset only when ``--clk-src cpuif`` is
+selected.
+
+AHB-Lite always uses ingress ``HCLK`` and active-low asynchronous ``HRESETn``;
+``--clk-src`` does not change that protocol's ports. Flat AHB ports include
+``s_ahb_HCLK`` and ``s_ahb_HRESETn``. Interface instances receive the same
+clock/reset externally on both ingress and children; the router does not
+distribute clocks or resets through child output ports. See :doc:`ahblite`.
+
+
 Addressing
 ^^^^^^^^^^
 

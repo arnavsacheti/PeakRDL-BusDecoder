@@ -1,7 +1,8 @@
 import inspect
 import os
+import re
 from collections import deque
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import jinja2 as jj
 from systemrdl.node import AddressableNode
@@ -10,6 +11,8 @@ from ..utils import clog2, get_indexed_path, is_pow2, roundup_pow2
 from .fanin_gen import FaninGenerator
 from .fanin_intermediate_gen import FaninIntermediateGenerator
 from .fanout_gen import FanoutGenerator
+from .interface import FlatInterface, Interface, SVInterface
+from .ready_fanin_gen import ReadyFaninGenerator
 
 if TYPE_CHECKING:
     from ..exporter import BusDecoderExporter
@@ -19,10 +22,52 @@ class BaseCpuif:
     # Path is relative to the location of the class that assigns this variable
     template_path = ""
 
+    # Concrete cpuif classes set these to wire up the interface helpers.
+    flat_interface_cls: ClassVar[type[FlatInterface]]
+    sv_interface_cls: ClassVar[type[SVInterface] | None] = None
+
+    # Whether this cpuif uses the SystemVerilog `interface` form (vs. flat ports).
+    use_sv_interface: ClassVar[bool] = False
+
+    # Whether this cpuif honors the ``apb_buffer`` exporter option.
+    supports_apb_buffer: ClassVar[bool] = False
+
+    # Slave/master signal/interface names.
+    slave_name_flat: ClassVar[str] = ""  # e.g. "s_apb_"
+    slave_name_sv: ClassVar[str] = ""  # e.g. "s_apb"
+    master_signal_prefix: ClassVar[str] = ""  # e.g. "m_apb_"
+
+    # Declarative table for SV-interface array fanin overrides.
+    # Each entry is (cpuif_lhs, intermediate_suffix, master_signal_or_expr).
+    # When the cpuif uses SV interfaces and the slave is an array, the default
+    # fanin assignments are replaced with reads from the intermediate signals
+    # populated by FaninIntermediateGenerator.
+    sv_array_fanin_wr: ClassVar[list[tuple[str, str, str]]] = []
+    sv_array_fanin_rd: ClassVar[list[tuple[str, str, str]]] = []
+    sv_array_ready_fanin_wr: ClassVar[list[tuple[str, str, str]]] = []
+    sv_array_ready_fanin_rd: ClassVar[list[tuple[str, str, str]]] = []
+
     def __init__(self, exp: "BusDecoderExporter") -> None:
         self.exp = exp
         self.reset = exp.ds.top_node.cpuif_reset
         self.unroll = exp.ds.cpuif_unroll
+        self.clk_src = exp.ds.clk_src
+
+        if exp.ds.apb_buffer != "none" and not self.supports_apb_buffer:
+            exp.ds.top_node.env.msg.fatal(
+                f"apb_buffer={exp.ds.apb_buffer!r} is not supported by "
+                f"{type(self).__name__}; only APB cpuifs honor this option."
+            )
+
+        interface_cls: type[Interface]
+        if self.use_sv_interface:
+            assert self.sv_interface_cls is not None, (
+                f"{type(self).__name__} sets use_sv_interface=True but sv_interface_cls is None"
+            )
+            interface_cls = self.sv_interface_cls
+        else:
+            interface_cls = self.flat_interface_cls
+        self._interface = interface_cls(self)
 
     @property
     def addressable_children(self) -> list[AddressableNode]:
@@ -40,9 +85,30 @@ class BaseCpuif:
     def data_width_bytes(self) -> int:
         return self.data_width // 8
 
+    def addr_width_param(self, node: AddressableNode) -> str:
+        """Name of the package localparam holding this master's address width."""
+        return f"{self.exp.ds.module_name.upper()}_{self.exp.ds.get_target_name(node).upper()}_ADDR_WIDTH"
+
+    @property
+    def is_interface(self) -> bool:
+        """Returns True if this cpuif uses a SystemVerilog interface."""
+        return self._interface.is_interface
+
     @property
     def port_declaration(self) -> str:
-        raise NotImplementedError()
+        slave_name = self.slave_name_sv if self.use_sv_interface else self.slave_name_flat
+        intf_ports = self._interface.get_port_declaration(slave_name, self.master_signal_prefix)
+        if self.clk_src == "design":
+            return ",\n".join(["input  logic clk", "input  logic rst", intf_ports])
+        return intf_ports
+
+    def signal(
+        self,
+        signal: str,
+        node: AddressableNode | None = None,
+        idx: str | int | None = None,
+    ) -> str:
+        return self._interface.signal(signal, node, idx)
 
     @property
     def parameters(self) -> list[str]:
@@ -99,6 +165,38 @@ class BaseCpuif:
             return False
         return node.is_array
 
+    def is_master_array(self, node: AddressableNode) -> bool:
+        """Whether a boundary node exposes an *array* of master interfaces.
+
+        Unlike :meth:`check_is_array` (which only looks at the node's own
+        dimensions), this accounts for rolled array *ancestors*: a scalar
+        register under ``bar[3]`` is still a 3-element interface array. Unrolled
+        elements are always scalar.
+        """
+        if self.unroll and getattr(node, "current_idx", None) is not None:
+            return False
+        return bool(self.exp.ds.open_array_dims(node))
+
+    def master_array_dims(self, node: AddressableNode) -> list[int]:
+        """Full open array dimensions (ancestors' + own) for a master port."""
+        if self.unroll and getattr(node, "current_idx", None) is not None:
+            return []
+        return self.exp.ds.open_array_dims(node)
+
+    def open_dim_index(self, node: AddressableNode, indexer: str = "i") -> str:
+        """Bracket index string over every open dim, e.g. ``[i0][i1]``.
+
+        Numbers are positional from the top node, matching the loop variables
+        allocated by the fanin/fanout generators (see
+        ``BusDecoderListener.loop_base_index``).
+        """
+        indexed = get_indexed_path(self.exp.ds.top_node, node, indexer, skip_kw_filter=True)
+        return "".join(re.findall(r"\[[^\]]*\]", indexed))
+
+    def node_base_address(self, node: AddressableNode) -> int:
+        """Return a target's top-relative base, including unrolled element indices."""
+        return self.exp.ds.node_base_address(node)
+
     def get_implementation(self) -> str:
         class_dir = self._get_template_path_class_dir()
         loader = jj.FileSystemLoader(class_dir)
@@ -120,13 +218,14 @@ class BaseCpuif:
             "fanout": FanoutGenerator,
             "fanin": FaninGenerator,
             "fanin_intermediate": FaninIntermediateGenerator,
+            "ready_fanin": ReadyFaninGenerator,
         }
 
         template = jj_env.get_template(self.template_path)
         return template.render(context)
 
     def get_address_slice(self, node: AddressableNode, cpuif_addr: str = "cpuif_addr") -> str:
-        addr = node.raw_absolute_address - self.exp.ds.top_node.raw_absolute_address
+        addr = self.node_base_address(node)
         size = node.size
 
         return f"({cpuif_addr} - 'h{addr:x})[{clog2(size) - 1}:0]"
@@ -134,8 +233,7 @@ class BaseCpuif:
     def _can_truncate_addr(self, node: AddressableNode, array_stack: deque[int]) -> bool:
         if node.size.bit_count() != 1:
             return False
-        rel_addr = node.raw_absolute_address - self.exp.ds.top_node.raw_absolute_address
-        if rel_addr % node.size != 0:
+        if self.node_base_address(node) % node.size != 0:
             return False
         for stride in array_stack:
             if stride % node.size != 0:
@@ -145,32 +243,87 @@ class BaseCpuif:
     def fanout(self, node: AddressableNode, array_stack: deque[int]) -> str:
         raise NotImplementedError
 
-    def fanin_wr(self, node: AddressableNode | None = None, *, error: bool = False) -> str:
+    # ---- Fanin: protocol-specific defaults + shared SV-array override ----
+
+    def _default_fanin_wr(self, node: AddressableNode | None, *, error: bool) -> str:
+        """Protocol-specific write fanin for the flat / non-array case."""
         raise NotImplementedError
 
-    def fanin_rd(self, node: AddressableNode | None = None, *, error: bool = False) -> str:
+    def _default_fanin_rd(self, node: AddressableNode | None, *, error: bool) -> str:
+        """Protocol-specific read fanin for the flat / non-array case."""
         raise NotImplementedError
+
+    def _sv_array_override(self, node: AddressableNode, signals: list[tuple[str, str, str]]) -> str:
+        # Read from the intermediate signals populated by
+        # FaninIntermediateGenerator. Both the intermediate net name (the
+        # path-qualified master port name) and the index (every open array
+        # dimension, ancestors' + own) must match what that generator emits.
+        name = self.exp.ds.get_target_name(node)
+        array_idx = self.open_dim_index(node)
+        return "\n" + "\n".join(f"{lhs} = {name}{suffix}{array_idx};" for lhs, suffix, _ in signals)
+
+    def _should_apply_sv_array_override(self, node: AddressableNode | None) -> bool:
+        return node is not None and self.is_interface and self.is_master_array(node)
+
+    def fanin_wr(self, node: AddressableNode | None = None, *, error: bool = False) -> str:
+        base = self._default_fanin_wr(node, error=error)
+        if self._should_apply_sv_array_override(node) and self.sv_array_fanin_wr:
+            assert node is not None
+            return self._sv_array_override(node, self.sv_array_fanin_wr)
+        return base
+
+    def fanin_rd(self, node: AddressableNode | None = None, *, error: bool = False) -> str:
+        base = self._default_fanin_rd(node, error=error)
+        if self._should_apply_sv_array_override(node) and self.sv_array_fanin_rd:
+            assert node is not None
+            return self._sv_array_override(node, self.sv_array_fanin_rd)
+        return base
+
+    def ready_fanin_wr(self, node: AddressableNode | None = None) -> str:
+        """Protocol-specific request READY fanin, when required."""
+        raise NotImplementedError
+
+    def ready_fanin_rd(self, node: AddressableNode | None = None) -> str:
+        """Protocol-specific request READY fanin, when required."""
+        raise NotImplementedError
+
+    @property
+    def fanin_wr_select(self) -> str:
+        """Select struct used to choose the write-response source."""
+        return "cpuif_wr_sel"
+
+    @property
+    def fanin_rd_select(self) -> str:
+        """Select struct used to choose the read-response source."""
+        return "cpuif_rd_sel"
 
     def fanin_intermediate_assignments(
         self, node: AddressableNode, inst_name: str, array_idx: str, master_prefix: str, indexed_path: str
     ) -> list[str]:
         """Generate intermediate signal assignments for interface array fanin.
 
-        This method should be implemented by cpuif classes that use interfaces.
-        It returns a list of assignment strings that copy signals from interface
-        arrays to intermediate unpacked arrays using constant (genvar) indexing.
+        Built from the response and request-READY fanin tables, deduplicated
+        by intermediate suffix (read order first, then write-only extras).
 
-        Args:
-            node: The addressable node
-            inst_name: Resolved target identifier for the intermediate signals
-            array_idx: Array index string (e.g., "[gi0][gi1]")
-            master_prefix: Master interface prefix
-            indexed_path: Indexed path to the interface element
-
-        Returns:
-            List of assignment strings
+        ``inst_name`` is the resolved target identifier; ``array_idx`` and
+        ``indexed_path`` cover every open ancestor and target dimension.
         """
-        return []  # Default: no intermediate assignments needed
+        seen: set[str] = set()
+        assignments: list[str] = []
+        signals = (
+            list(self.sv_array_fanin_rd)
+            + list(self.sv_array_fanin_wr)
+            + list(self.sv_array_ready_fanin_rd)
+            + list(self.sv_array_ready_fanin_wr)
+        )
+        for _, suffix, source in signals:
+            if suffix in seen:
+                continue
+            seen.add(suffix)
+            assignments.append(
+                f"assign {inst_name}{suffix}{array_idx} = {master_prefix}{indexed_path}.{source};"
+            )
+        return assignments
 
     def fanin_intermediate_declarations(self, node: AddressableNode) -> list[str]:
         """Optional extra intermediate signal declarations for interface arrays."""

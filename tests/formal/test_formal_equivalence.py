@@ -18,7 +18,7 @@ from systemrdl import RDLCompiler
 from systemrdl.node import AddrmapNode
 
 from peakrdl_busdecoder import BusDecoderExporter
-from peakrdl_busdecoder.cpuif.apb4 import APB4CpuifFlat
+from peakrdl_busdecoder.cpuif.apb.apb_cpuif import APB4CpuifFlat
 from tests.formal.reference_model import Direction, FormalBusDecoderModel, TargetElement
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "cocotb_lib" / "rdl"
@@ -84,6 +84,21 @@ ARRAY_REGISTER_PERMISSIONS_RDL = REGISTER_TYPES_RDL + """
 addrmap register_array_permissions {
     read_register_t status[3] @ 0x8 += 0x8;
     write_register_t command[2] @ 0x28 += 0x10;
+};
+"""
+
+OPAQUE_EXTERNAL_CONTAINER_RDL = """
+mem storage_t {
+    mementries = 16;
+    memwidth = 32;
+    sw = r;
+};
+regfile downstream_t {
+    external storage_t storage @ 0;
+};
+addrmap opaque_external {
+    reg { field { sw=rw; hw=r; } payload[31:0]; } control @ 0;
+    downstream_t routed @ 0x100;
 };
 """
 
@@ -364,20 +379,22 @@ class TestRtlFormalEquivalence:
     """One differential harness, with all expected address decisions from decode()."""
 
     @pytest.mark.parametrize(
-        "source,export_child",
+        "source,export_child,max_decode_depth",
         [
-            pytest.param(FIXTURE_DIR / "simple.rdl", None, id="simple"),
-            pytest.param(FIXTURE_DIR / "multiple_reg.rdl", None, id="multiple-registers"),
-            pytest.param(FIXTURE_DIR / "array_only.rdl", None, id="array-stride-gaps"),
-            pytest.param(NESTED_SUBMAP_RDL, "peripheral", id="nested-export-nonpower-two"),
-            pytest.param(WIDE_INTERNAL_RDL, None, id="wide-internal-side-effects"),
-            pytest.param(_register_permissions_rdl(False), None, id="register-overlap-read-first"),
-            pytest.param(_register_permissions_rdl(True), None, id="register-overlap-write-first"),
-            pytest.param(ARRAY_REGISTER_PERMISSIONS_RDL, None, id="array-register-permissions"),
+            pytest.param(FIXTURE_DIR / "simple.rdl", None, 1, id="simple"),
+            pytest.param(FIXTURE_DIR / "multiple_reg.rdl", None, 1, id="multiple-registers"),
+            pytest.param(FIXTURE_DIR / "array_only.rdl", None, 1, id="array-stride-gaps"),
+            pytest.param(NESTED_SUBMAP_RDL, "peripheral", 1, id="nested-export-nonpower-two"),
+            pytest.param(WIDE_INTERNAL_RDL, None, 1, id="wide-internal-side-effects"),
+            pytest.param(_register_permissions_rdl(False), None, 1, id="register-overlap-read-first"),
+            pytest.param(_register_permissions_rdl(True), None, 1, id="register-overlap-write-first"),
+            pytest.param(ARRAY_REGISTER_PERMISSIONS_RDL, None, 1, id="array-register-permissions"),
+            pytest.param(OPAQUE_EXTERNAL_CONTAINER_RDL, None, 0, id="opaque-external-depth-zero"),
+            pytest.param(OPAQUE_EXTERNAL_CONTAINER_RDL, None, 3, id="opaque-external-before-cap"),
         ],
     )
     def test_verilator_oracle_sweep(
-        self, tmp_path: Path, source: Path | str, export_child: str | None
+        self, tmp_path: Path, source: Path | str, export_child: str | None, max_decode_depth: int
     ) -> None:
         verilator = shutil.which("verilator")
         if verilator is None:
@@ -388,9 +405,10 @@ class TestRtlFormalEquivalence:
             child = top.get_child_by_name(export_child)
             assert isinstance(child, AddrmapNode)
             top = child
-        model = FormalBusDecoderModel(top, max_decode_depth=1)
+        model = FormalBusDecoderModel(top, max_decode_depth=max_decode_depth)
         BusDecoderExporter().export(
-            top, str(tmp_path), cpuif_cls=APB4CpuifFlat, max_decode_depth=1, cpuif_unroll=False
+            top, str(tmp_path), cpuif_cls=APB4CpuifFlat,
+            max_decode_depth=max_decode_depth, cpuif_unroll=False,
         )
         module_name = top.inst_name
         cpp_path = tmp_path / "main.cpp"

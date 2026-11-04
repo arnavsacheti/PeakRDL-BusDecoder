@@ -26,12 +26,39 @@ class DesignValidator(RDLListener):
 
     @property
     def top_node(self) -> "AddrmapNode":
-        return self.exp.ds.top_node
+        return self.ds.top_node
 
     def do_validate(self) -> None:
         RDLWalker().walk(self.top_node, self)
+        self._check_unique_target_ports()
         if self.msg.had_error:
             self.msg.fatal("Unable to export due to previous errors")
+
+    def _check_unique_target_ports(self) -> None:
+        """Reject collisions introduced by concrete public-port index suffixes.
+
+        Base identifiers already share DesignState's collision-free naming;
+        unrolling can still make ``target[0]`` overlap a literal ``target_0``.
+        """
+        seen: dict[str, AddressableNode] = {}
+        for child in self.ds.get_addressable_children_at_depth(unroll=self.ds.cpuif_unroll):
+            name = self.ds.get_target_name(child)
+            indices = self.ds.unrolled_indices(child)
+            if indices:
+                name += "_" + "_".join(map(str, indices))
+
+            other = seen.get(name)
+            if other is not None:
+                self.msg.error(
+                    f"Instances '{other.get_rel_path(self.top_node)}' and "
+                    f"'{child.get_rel_path(self.top_node)}' both resolve to master port "
+                    f"name '{name}' even after path qualification. Rename one of the "
+                    "instances, or lower max_decode_depth so the decode boundary stops "
+                    "above them.",
+                    child.inst.inst_src_ref,
+                )
+            else:
+                seen[name] = child
 
     def enter_Component(self, node: "Node") -> WalkerAction | None:
         if node.external and (node != self.top_node):

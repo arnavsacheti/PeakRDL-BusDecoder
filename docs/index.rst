@@ -9,6 +9,13 @@ child address spaces (master side).
 This tool **does not** generate register storage or field logic. It is strictly a
 bus-routing layer that decodes addresses and forwards requests to child blocks.
 
+.. note::
+
+    This documentation describes the **0.8.0 candidate**, pending integration
+    verification and not yet shipped. Python **3.11 or newer** is required.
+    The candidate adds ordered AXI4-Lite and single-manager AHB-Lite routing;
+    it does not implement full AXI4 or separate custom read/write layouts.
+
 This is particularly useful for:
 
 * Creating hierarchical register maps with multiple sub-components
@@ -21,7 +28,7 @@ The generated bus decoder provides:
 * Fully synthesizable SystemVerilog RTL (IEEE 1800-2012)
 * A top-level slave CPU interface and per-child master CPU interfaces
 * Address decode logic that routes transactions to child address maps
-* Support for APB3, APB4, and AXI4-Lite (plus plugin-defined CPU interfaces)
+* Support for APB3, APB4, AXI4-Lite, and AHB-Lite (plus plugin-defined CPU interfaces)
 * Configurable decode depth and array unrolling
 
 
@@ -45,12 +52,17 @@ The exporter writes two files:
 
 Key command-line options:
 
-* ``--cpuif``: Select the CPU interface (``apb3``, ``apb3-flat``, ``apb4``, ``apb4-flat``, ``axi4-lite``, ``axi4-lite-flat``)
+* ``--cpuif``: Select APB3, APB4, AXI4-Lite, or AHB-Lite, in interface or ``-flat`` form
 * ``--module-name``: Override the generated module name
 * ``--package-name``: Override the generated package name
 * ``--addr-width``: Override the slave address width
 * ``--unroll``: Unroll arrayed children into discrete interfaces
 * ``--max-decode-depth``: Control how far the decoder descends into hierarchy
+* ``--parametrize``: Propagate top-level SystemRDL parameters into the generated module
+* ``--clk-src``: Select APB/AXI clock/reset (``cpuif`` or ``design``, default ``design``); AHB always uses ingress ``HCLK/HRESETn``
+* ``--gate-signals``: Gate APB broadcast signals with each slave's select (off by default)
+* ``--apb-buffer``: Insert a register slice on the APB slave-side I/O (``none``, ``in``, ``out``, ``both``)
+* ``--axi4lite-max-outstanding``: Set each AXI4-Lite ordered-response queue depth (default ``4``)
 
 
 Looking for VHDL?
@@ -75,6 +87,7 @@ Links
 
     self
     architecture
+    generated_structure
     parameters
     configuring
     limitations
@@ -88,5 +101,7 @@ Links
     cpuif/introduction
     cpuif/apb
     cpuif/axi4lite
+    cpuif/axi4lite_response_ordering
+    cpuif/ahblite
     cpuif/internal_protocol
     cpuif/customizing

@@ -232,24 +232,27 @@ def _build_case_config(
     *,
     max_samples_per_master: int,
 ) -> dict[str, Any]:
+    ds = cpuif.exp.ds
     master_entries: dict[str, dict[str, Any]] = {}
     boundary_instances: set[int] = set()
 
     for child in cpuif.addressable_children:
         boundary_instances.add(id(child.inst))
         port_prefix = _derive_port_prefix(cpuif, control_signal, child)
+        target_name = ds.get_target_name(child)
+        dimensions = cpuif.master_array_dims(child)
         # Blocks route both directions; only a decoded register boundary
         # applies software access permissions to the sampled transactions.
 
-        master_entries[child.inst_name] = {
-            "inst_name": child.inst_name,
+        master_entries[target_name] = {
+            "inst_name": target_name,
             "port_prefix": port_prefix,
-            "is_array": bool(child.is_array),
-            "dimensions": list(child.array_dimensions or []),
+            "is_array": bool(dimensions),
+            "dimensions": list(dimensions),
             "indices": set(),
             "inst_size": child.array_stride if child.is_array else child.size,
             "child_size": child.size,
-            "inst_address": child.raw_absolute_address,
+            "inst_address": ds.node_base_address(child),
             "readable": bool(child.has_sw_readable) if isinstance(child, RegNode) else True,
             "writable": bool(child.has_sw_writable) if isinstance(child, RegNode) else True,
         }
@@ -268,9 +271,9 @@ def _build_case_config(
                     raise RuntimeError("Encountered unexpected hierarchy while resolving master node")
                 master = parent
 
-            inst_name = master.inst_name
+            inst_name = ds.get_target_name(master)
 
-            idx_tuple = tuple(master.current_idx or [])
+            idx_tuple = tuple(ds.unrolled_indices(master))
             master_entries[inst_name]["indices"].add(idx_tuple)
 
             relative_addr = int(node.absolute_address) - int(top_node.absolute_address)
@@ -329,7 +332,8 @@ def _build_case_config(
 
 
 def _sample_addresses(addresses: list[int], max_samples: int) -> list[int]:
-    if len(addresses) <= max_samples:
+    # ``max_samples <= 0`` requests every address (used by stress runners).
+    if max_samples <= 0 or len(addresses) <= max_samples:
         return addresses
 
     samples: list[int] = []

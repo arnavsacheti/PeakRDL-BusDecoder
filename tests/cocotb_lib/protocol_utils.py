@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 from collections.abc import Iterable
 from typing import Any
 
@@ -99,3 +100,50 @@ async def apb_access(slave) -> None:
     """APB access phase helper."""
     slave.PENABLE.value = 1
     await Timer(1, unit="ns")
+
+
+async def advance(clk_handle) -> None:
+    """Advance one simulation step: a rising edge if clocked, otherwise a 1ns tick."""
+    if clk_handle is not None:
+        await RisingEdge(clk_handle)
+    else:
+        await Timer(1, unit="ns")
+
+
+def make_rng(env_var: str = "RDL_TEST_SEED", default: int = 0xC0C07B) -> random.Random:
+    """Deterministic RNG seeded via environment for reproducible stress runs."""
+    seed_raw = os.environ.get(env_var)
+    if seed_raw is None:
+        seed = default
+    else:
+        seed = int(seed_raw, 0)
+    return random.Random(seed)
+
+
+def shuffle_transactions(transactions: list[dict[str, Any]], rng: random.Random) -> list[dict[str, Any]]:
+    """Return a freshly shuffled copy of ``transactions`` using ``rng``."""
+    shuffled = list(transactions)
+    rng.shuffle(shuffled)
+    return shuffled
+
+
+def pick_distinct_pairs(
+    transactions: list[dict[str, Any]], count: int = 2
+) -> list[dict[str, Any]]:
+    """Return up to ``count`` transactions that target distinct (master, index) pairs.
+
+    Stress / back-to-back tests need traffic that actually switches masters, so
+    we scan the sampled transaction list and keep the first transaction for each
+    unique (master, index) tuple.
+    """
+    seen: set[tuple[str, tuple[int, ...]]] = set()
+    picked: list[dict[str, Any]] = []
+    for txn in transactions:
+        key = (txn["master"], tuple(txn["index"]))
+        if key in seen:
+            continue
+        seen.add(key)
+        picked.append(txn)
+        if len(picked) >= count:
+            break
+    return picked

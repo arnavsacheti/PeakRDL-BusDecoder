@@ -6,8 +6,7 @@ from pathlib import Path
 from systemrdl.node import AddrmapNode
 
 from peakrdl_busdecoder import BusDecoderExporter
-from peakrdl_busdecoder.cpuif.apb3 import APB3CpuifFlat
-from peakrdl_busdecoder.cpuif.apb4 import APB4CpuifFlat
+from peakrdl_busdecoder.cpuif.apb.apb_cpuif import APB3CpuifFlat, APB4CpuifFlat
 
 _RDL = """
 addrmap multi_slave {
