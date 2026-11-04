@@ -51,6 +51,15 @@ AXI4-Lite is single-beat and has no transaction IDs. Reads and writes are
 separate ordering domains: an ``R`` response and a ``B`` response have no
 ordering relationship and may complete in the same cycle.
 
+This is AXI4-Lite support, not full AXI4. AXI4 transaction IDs, bursts,
+exclusive accesses, and cross-ID response reordering are not implemented.
+Read and write channels share the exported SystemRDL layout; generating
+standalone directional decoders from different layouts is not an exporter
+option in this release.
+AXI4-Lite standard data widths are 32 and 64 bits. Other generator-inferred
+widths are implementation extensions, not a claim of AXI4-Lite compliance;
+both endpoints must explicitly support the extension.
+
 
 Outstanding depth
 -----------------

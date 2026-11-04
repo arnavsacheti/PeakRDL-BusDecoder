@@ -18,19 +18,18 @@ addrmap multi_slave {
 """
 
 
-def test_apb4_default_does_not_gate(
+def test_apb4_default_gates_enable_but_not_payload(
     compile_rdl: Callable[..., AddrmapNode], tmp_path: Path
 ) -> None:
     top = compile_rdl(_RDL, top="multi_slave")
     BusDecoderExporter().export(top, str(tmp_path), cpuif_cls=APB4CpuifFlat)
     sv = (tmp_path / "multi_slave.sv").read_text()
-    # PENABLE/PADDR/PWDATA/PSTRB/PPROT must fan out unmodified
-    assert "= s_apb_PENABLE;" in sv
+    # PENABLE is always select-gated; payload signals fan out unmodified.
+    assert "& s_apb_PENABLE;" in sv
     assert "= cpuif_wr_data;" in sv
     assert "= s_apb_PSTRB;" in sv
     assert "= s_apb_PPROT;" in sv
-    # No gating expression on broadcast signals
-    assert "& s_apb_PENABLE" not in sv
+    # No optional gating expression on payload signals.
     assert "? cpuif_wr_data : '0" not in sv
 
 
@@ -48,15 +47,14 @@ def test_apb4_gate_signals_emits_gating(
     assert "? cpuif_wr_byte_en : '0" in sv
 
 
-def test_apb3_default_does_not_gate(
+def test_apb3_default_gates_enable_but_not_payload(
     compile_rdl: Callable[..., AddrmapNode], tmp_path: Path
 ) -> None:
     top = compile_rdl(_RDL, top="multi_slave")
     BusDecoderExporter().export(top, str(tmp_path), cpuif_cls=APB3CpuifFlat)
     sv = (tmp_path / "multi_slave.sv").read_text()
-    assert "= s_apb_PENABLE;" in sv
+    assert "& s_apb_PENABLE;" in sv
     assert "= cpuif_wr_data;" in sv
-    assert "& s_apb_PENABLE" not in sv
     assert "? cpuif_wr_data : '0" not in sv
 
 

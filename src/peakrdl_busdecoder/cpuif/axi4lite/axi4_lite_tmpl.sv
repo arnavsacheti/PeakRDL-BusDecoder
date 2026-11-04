@@ -43,6 +43,7 @@ endfunction
 // retained here until a complete write request can be enqueued.
 logic aw_hold_valid;
 logic [{{cpuif.addr_width-1}}:0] aw_hold_addr;
+logic aw_hold_addr_out_of_range;
 logic [2:0] aw_hold_prot;
 logic w_hold_valid;
 logic [{{cpuif.data_width-1}}:0] w_hold_data;
@@ -73,6 +74,9 @@ logic [AXIL_PTR_WIDTH-1:0] axil_rd_tail_ptr;
 logic [AXIL_PTR_WIDTH-1:0] axil_rd_issue_ptr;
 logic [AXIL_COUNT_WIDTH-1:0] axil_rd_count;
 logic [AXIL_COUNT_WIDTH-1:0] axil_rd_issue_count;
+
+cpuif_sel_t axil_wr_enqueue_sel;
+cpuif_sel_t axil_rd_enqueue_sel;
 
 // The issue selection and response-head selection are deliberately separate.
 // A later request may be issued while only the oldest response is permitted
@@ -114,13 +118,33 @@ wire axil_w_capture = {{cpuif.signal("WVALID")}} & {{cpuif.signal("WREADY")}};
 wire axil_wr_enqueue = aw_hold_valid & w_hold_valid & axil_wr_queue_has_space;
 wire axil_rd_enqueue = {{cpuif.signal("ARVALID")}} & {{cpuif.signal("ARREADY")}};
 
+// SV interfaces may carry more address bits than this decoder implements.
+// Reject those bits before truncation, including AW accepted ahead of W.
+wire axil_aw_addr_out_of_range =
+    ({{cpuif.signal("AWADDR")}} >> {{cpuif.addr_width}}) != '0;
+wire axil_ar_addr_out_of_range =
+    ({{cpuif.signal("ARADDR")}} >> {{cpuif.addr_width}}) != '0;
+
+always_comb begin
+    axil_wr_enqueue_sel = cpuif_wr_sel;
+    if (aw_hold_addr_out_of_range) begin
+        axil_wr_enqueue_sel = '{default: '0};
+        axil_wr_enqueue_sel.cpuif_err = 1'b1;
+    end
+    axil_rd_enqueue_sel = cpuif_rd_sel;
+    if (axil_ar_addr_out_of_range) begin
+        axil_rd_enqueue_sel = '{default: '0};
+        axil_rd_enqueue_sel.cpuif_err = 1'b1;
+    end
+end
+
 // Feed the existing address decoder from the complete request being accepted
 // into an order queue. Read and write decode can occur in the same cycle.
 assign cpuif_req = axil_wr_enqueue | axil_rd_enqueue;
 assign cpuif_wr_en = axil_wr_enqueue;
 assign cpuif_rd_en = axil_rd_enqueue;
 assign cpuif_wr_addr = aw_hold_addr;
-assign cpuif_rd_addr = {{cpuif.signal("ARADDR")}};
+assign cpuif_rd_addr = {{cpuif.addr_width}}'({{cpuif.signal("ARADDR")}});
 assign cpuif_wr_data = w_hold_data;
 assign cpuif_wr_byte_en = w_hold_strb;
 
@@ -238,7 +262,8 @@ always_ff @(posedge {{cpuif.clock_signal}} or {{cpuif.reset_sensitivity}}) begin
     end else begin
         if (axil_aw_capture) begin
             aw_hold_valid <= 1'b1;
-            aw_hold_addr <= {{cpuif.signal("AWADDR")}};
+            aw_hold_addr <= {{cpuif.addr_width}}'({{cpuif.signal("AWADDR")}});
+            aw_hold_addr_out_of_range <= axil_aw_addr_out_of_range;
             aw_hold_prot <= {{cpuif.signal("AWPROT")}};
         end
         if (axil_w_capture) begin
@@ -250,12 +275,12 @@ always_ff @(posedge {{cpuif.clock_signal}} or {{cpuif.reset_sensitivity}}) begin
         if (axil_wr_enqueue) begin
             aw_hold_valid <= 1'b0;
             w_hold_valid <= 1'b0;
-            axil_wr_dest_q[axil_wr_tail_ptr] <= cpuif_wr_sel;
+            axil_wr_dest_q[axil_wr_tail_ptr] <= axil_wr_enqueue_sel;
             axil_wr_addr_q[axil_wr_tail_ptr] <= aw_hold_addr;
             axil_wr_prot_q[axil_wr_tail_ptr] <= aw_hold_prot;
             axil_wr_data_q[axil_wr_tail_ptr] <= w_hold_data;
             axil_wr_strb_q[axil_wr_tail_ptr] <= w_hold_strb;
-            axil_wr_issued_q[axil_wr_tail_ptr] <= cpuif_wr_sel.cpuif_err;
+            axil_wr_issued_q[axil_wr_tail_ptr] <= axil_wr_enqueue_sel.cpuif_err;
             axil_wr_aw_sent_q[axil_wr_tail_ptr] <= 1'b0;
             axil_wr_w_sent_q[axil_wr_tail_ptr] <= 1'b0;
             axil_wr_tail_ptr <= axil_next_ptr(axil_wr_tail_ptr);
@@ -287,10 +312,10 @@ always_ff @(posedge {{cpuif.clock_signal}} or {{cpuif.reset_sensitivity}}) begin
         endcase
 
         if (axil_rd_enqueue) begin
-            axil_rd_dest_q[axil_rd_tail_ptr] <= cpuif_rd_sel;
-            axil_rd_addr_q[axil_rd_tail_ptr] <= {{cpuif.signal("ARADDR")}};
+            axil_rd_dest_q[axil_rd_tail_ptr] <= axil_rd_enqueue_sel;
+            axil_rd_addr_q[axil_rd_tail_ptr] <= {{cpuif.addr_width}}'({{cpuif.signal("ARADDR")}});
             axil_rd_prot_q[axil_rd_tail_ptr] <= {{cpuif.signal("ARPROT")}};
-            axil_rd_issued_q[axil_rd_tail_ptr] <= cpuif_rd_sel.cpuif_err;
+            axil_rd_issued_q[axil_rd_tail_ptr] <= axil_rd_enqueue_sel.cpuif_err;
             axil_rd_tail_ptr <= axil_next_ptr(axil_rd_tail_ptr);
         end
         if (axil_rd_issue_advance) begin

@@ -127,6 +127,14 @@ def _idle_masters(masters: dict[str, dict[str, Any]]) -> None:
             set_value(entry["inputs"][name], idx, 0)
 
 
+def _assert_no_downstream_requests(masters: dict[str, dict[str, Any]]) -> None:
+    for master_name, index in all_index_pairs(masters):
+        for name in ("AWVALID", "WVALID", "ARVALID"):
+            assert get_int(masters[master_name]["outputs"][name], index) == 0, (
+                f"Unexpected {name} at {master_name}{index}"
+            )
+
+
 async def _initialize(dut, slave: _AxilSlaveShim, masters: dict[str, dict[str, Any]]) -> None:
     """Start the design clock and put the decoder through its async reset."""
     _idle_slave(slave)
@@ -446,6 +454,9 @@ async def test_axi4lite_cross_child_response_order(dut) -> None:
     config, slave, masters = _test_context(dut)
     await _initialize(dut, slave, masters)
     pair = pick_distinct_pairs(config["transactions"], 2)
+    if config.get("axi4lite_max_outstanding", 4) < 2:
+        dut._log.info("Cross-child ordering requires at least two queue entries")
+        return
     if len(pair) < 2:
         dut._log.info("Need two child destinations; skipping cross-child ordering case")
         return
@@ -495,7 +506,7 @@ async def test_axi4lite_cross_child_response_order(dut) -> None:
     await FallingEdge(dut.clk)
     slave.RREADY.value = 0
     set_value(first_entry["inputs"]["RVALID"], first_idx, 0)
-    set_value(second_entry["inputs"]["RVALID"], second_idx, 0)
+    await _complete_read_response(dut, slave, second_entry, second_idx, 0x2222, 0)
 
     strobe = (1 << config["byte_width"]) - 1
     await _accept_write(dut, slave, first["address"], 0xAAAA, strobe)
@@ -536,6 +547,10 @@ async def test_axi4lite_cross_child_response_order(dut) -> None:
     await ReadOnly()
     assert int(slave.BVALID.value) == 1
     assert int(slave.BRESP.value) == 0b10
+    await FallingEdge(dut.clk)
+    slave.BREADY.value = 0
+    set_value(first_entry["inputs"]["BVALID"], first_idx, 0)
+    await _complete_write_response(dut, slave, second_entry, second_idx, 0b10)
 
 
 @cocotb.test()
@@ -543,6 +558,9 @@ async def test_axi4lite_same_child_delayed_responses(dut) -> None:
     """Two delayed responses from one child retain that child's AXI order."""
     config, slave, masters = _test_context(dut)
     await _initialize(dut, slave, masters)
+    if config.get("axi4lite_max_outstanding", 4) < 2:
+        dut._log.info("Same-child ordering requires at least two queue entries")
+        return
     by_child: dict[tuple[str, tuple[int, ...]], list[dict[str, Any]]] = {}
     for txn in config["transactions"]:
         by_child.setdefault((txn["master"], tuple(txn["index"])), []).append(txn)
@@ -574,25 +592,474 @@ async def test_axi4lite_same_child_delayed_responses(dut) -> None:
 
 @cocotb.test()
 async def test_axi4lite_bounded_independent_queues(dut) -> None:
-    """The default four-entry read/write queues backpressure independently."""
+    """Fill, drain and wrap both queues at depths including one and nonpowers of two."""
     config, slave, masters = _test_context(dut)
     await _initialize(dut, slave, masters)
     if not config["transactions"]:
         return
-    address = config["transactions"][0]["address"]
+    txn = config["transactions"][0]
+    entry = masters[txn["master"]]
+    index = tuple(txn["index"])
+    address = txn["address"]
+    child_addr = (address - entry["inst_address"]) % entry["inst_size"]
+    depth = config.get("axi4lite_max_outstanding", 4)
+    strobe_mask = (1 << config["byte_width"]) - 1
+    data_mask = (1 << config["data_width"]) - 1
 
-    # Leave downstream request READY low so none of these requests can finish.
-    for _ in range(4):
-        await _accept_read(dut, slave, address)
+    # Three complete laps exercise the last-to-first pointer transition,
+    # overwrite old issued/channel-sent flags, and refill after saturation.
+    for lap, order in enumerate(("w_first", "aw_first", "together")):
+        for _ in range(depth):
+            await _accept_read(dut, slave, address, prot=lap)
+        await Timer(1, unit="ps")
+        assert int(slave.ARREADY.value) == 0
+        assert int(slave.AWREADY.value) == 1
+        assert int(slave.WREADY.value) == 1
+
+        payloads = [
+            ((0x1234 + lap * depth + item) & data_mask, item & strobe_mask)
+            for item in range(depth)
+        ]
+        for data, strobe in payloads:
+            await _accept_write(
+                dut, slave, address, data, strobe, prot=lap, order=order
+            )
+        await RisingEdge(dut.clk)
+        await ReadOnly()
+        assert int(slave.ARREADY.value) == 0
+        assert int(slave.AWREADY.value) == 0
+        assert int(slave.WREADY.value) == 0
+
+        # Downstream address acceptance alone must not release a queue slot:
+        # the upstream response handshake is what retires the request.
+        for data, strobe in payloads:
+            await _issue_read(dut, entry, index, expected_addr=child_addr, prot=lap)
+            await _issue_write(
+                dut,
+                entry,
+                index,
+                expected_addr=child_addr,
+                data=data,
+                strobe=strobe,
+                prot=lap,
+            )
+        await Timer(1, unit="ps")
+        assert int(slave.ARREADY.value) == 0
+        assert int(slave.AWREADY.value) == 0
+        assert int(slave.WREADY.value) == 0
+        _assert_no_downstream_requests(masters)
+
+        for item in range(depth):
+            response = (0, 0b10, 0b11)[item % 3]
+            await _complete_read_response(
+                dut, slave, entry, index, (0xAB00 + lap * depth + item) & data_mask, response
+            )
+            await _complete_write_response(dut, slave, entry, index, response)
+        await RisingEdge(dut.clk)
+        await ReadOnly()
+        assert int(slave.RVALID.value) == 0
+        assert int(slave.BVALID.value) == 0
+        assert int(slave.ARREADY.value) == 1
+        assert int(slave.AWREADY.value) == 1
+        assert int(slave.WREADY.value) == 1
+        _assert_no_downstream_requests(masters)
+
+
+@cocotb.test()
+async def test_axi4lite_split_downstream_write_handshakes(dut) -> None:
+    """A child may accept AW or W first without replaying the accepted beat."""
+    config, slave, masters = _test_context(dut)
+    await _initialize(dut, slave, masters)
+    if not config["transactions"]:
+        return
+    txn = config["transactions"][0]
+    entry = masters[txn["master"]]
+    index = tuple(txn["index"])
+    address = txn["address"]
+    child_addr = (address - entry["inst_address"]) % entry["inst_size"]
+    strobe = (1 << config["byte_width"]) - 1
+    data_mask = (1 << config["data_width"]) - 1
+
+    for first_channel, upstream_order in (("AW", "w_first"), ("W", "aw_first")):
+        data = 0x3456 if first_channel == "AW" else 0x789A
+        await _accept_write(
+            dut, slave, address, data, strobe, prot=0b101, order=upstream_order
+        )
+        await _wait_until(
+            dut,
+            lambda: get_int(entry["outputs"]["AWVALID"], index) == 1
+            and get_int(entry["outputs"]["WVALID"], index) == 1,
+            "split write was not issued",
+        )
+
+        def assert_held_write(aw_valid: int, w_valid: int) -> None:
+            for name, expected in (
+                ("AWVALID", aw_valid),
+                ("WVALID", w_valid),
+                ("AWADDR", child_addr),
+                ("AWPROT", 0b101),
+                ("WDATA", data),
+                ("WSTRB", strobe),
+            ):
+                assert get_int(entry["outputs"][name], index) == expected
+            assert int(slave.BVALID.value) == 0
+
+        for _ in range(3):
+            await RisingEdge(dut.clk)
+            await ReadOnly()
+            assert_held_write(1, 1)
+        await FallingEdge(dut.clk)
+        set_value(entry["inputs"][f"{first_channel}READY"], index, 1)
+        # Change inactive upstream payloads; the retained request must not
+        # depend on buses whose upstream VALID has already handshaken.
+        slave.AWADDR.value = address ^ ((1 << config["address_width"]) - 1)
+        slave.AWPROT.value = 0
+        slave.WDATA.value = data ^ data_mask
+        slave.WSTRB.value = 0
+        await RisingEdge(dut.clk)
+        await ReadOnly()
+        expected_valids = (0, 1) if first_channel == "AW" else (1, 0)
+        assert_held_write(*expected_valids)
+        await FallingEdge(dut.clk)
+        set_value(entry["inputs"][f"{first_channel}READY"], index, 0)
+        for _ in range(3):
+            await RisingEdge(dut.clk)
+            await ReadOnly()
+            assert_held_write(*expected_valids)
+
+        # A half-issued write must not block the independent read pipeline.
+        await _accept_read(dut, slave, address, prot=0b011)
+        slave.ARADDR.value = address ^ ((1 << config["address_width"]) - 1)
+        slave.ARPROT.value = 0
+        for _ in range(3):
+            await RisingEdge(dut.clk)
+            await ReadOnly()
+            assert get_int(entry["outputs"]["ARVALID"], index) == 1
+            assert get_int(entry["outputs"]["ARADDR"], index) == child_addr
+            assert get_int(entry["outputs"]["ARPROT"], index) == 0b011
+            assert_held_write(*expected_valids)
+        await _issue_read(dut, entry, index, expected_addr=child_addr, prot=0b011)
+        await _complete_read_response(dut, slave, entry, index, 0x5A, 0)
+        await Timer(1, unit="ps")
+        assert_held_write(*expected_valids)
+        second_channel = "W" if first_channel == "AW" else "AW"
+        await FallingEdge(dut.clk)
+        set_value(entry["inputs"][f"{second_channel}READY"], index, 1)
+        await RisingEdge(dut.clk)
+        await FallingEdge(dut.clk)
+        set_value(entry["inputs"][f"{second_channel}READY"], index, 0)
+        await Timer(1, unit="ps")
+        assert get_int(entry["outputs"]["AWVALID"], index) == 0
+        assert get_int(entry["outputs"]["WVALID"], index) == 0
+        await _complete_write_response(dut, slave, entry, index, 0b10)
+
+
+@cocotb.test()
+async def test_axi4lite_concurrent_queue_turnover(dut) -> None:
+    """Enqueue, issue and retire in the same cycle without losing queue entries."""
+    config, slave, masters = _test_context(dut)
+    await _initialize(dut, slave, masters)
+    if config.get("axi4lite_max_outstanding", 4) < 3 or not config["transactions"]:
+        return
+    txn = config["transactions"][0]
+    entry = masters[txn["master"]]
+    index = tuple(txn["index"])
+    address = txn["address"]
+    child_addr = (address - entry["inst_address"]) % entry["inst_size"]
+    strobe = (1 << config["byte_width"]) - 1
+    await _accept_read(dut, slave, address, prot=1)
+    await _accept_write(dut, slave, address, 0x1111, strobe, prot=1)
+    await _issue_read(dut, entry, index, expected_addr=child_addr, prot=1)
+
+    # Capture write 2 while enqueuing read 2. Write 1 is still stalled.
+    await FallingEdge(dut.clk)
+    slave.AWADDR.value = address
+    slave.AWPROT.value = 2
+    slave.AWVALID.value = 1
+    slave.WDATA.value = 0x2222
+    slave.WSTRB.value = strobe
+    slave.WVALID.value = 1
+    slave.ARADDR.value = address
+    slave.ARPROT.value = 2
+    slave.ARVALID.value = 1
     await Timer(1, unit="ps")
-    assert int(slave.ARREADY.value) == 0
     assert int(slave.AWREADY.value) == 1
     assert int(slave.WREADY.value) == 1
+    assert int(slave.ARREADY.value) == 1
+    await RisingEdge(dut.clk)
 
-    strobe = (1 << config["byte_width"]) - 1
-    for value in range(4):
-        await _accept_write(dut, slave, address, value, strobe)
+    # Enqueue write 2 as write 1 issues. On the same edge read 3 enqueues,
+    # read 2 issues and read 1 retires.
+    await FallingEdge(dut.clk)
+    slave.AWVALID.value = 0
+    slave.WVALID.value = 0
+    slave.ARPROT.value = 3
+    slave.RREADY.value = 1
+    set_value(entry["inputs"]["AWREADY"], index, 1)
+    set_value(entry["inputs"]["WREADY"], index, 1)
+    set_value(entry["inputs"]["ARREADY"], index, 1)
+    set_value(entry["inputs"]["RDATA"], index, 0xA111)
+    set_value(entry["inputs"]["RVALID"], index, 1)
     await Timer(1, unit="ps")
-    assert int(slave.ARREADY.value) == 0
-    assert int(slave.AWREADY.value) == 0
-    assert int(slave.WREADY.value) == 0
+    assert int(slave.RVALID.value) == 1
+    assert int(slave.RDATA.value) == 0xA111
+    assert int(slave.ARREADY.value) == 1
+    assert get_int(entry["outputs"]["AWVALID"], index) == 1
+    assert get_int(entry["outputs"]["WVALID"], index) == 1
+    assert get_int(entry["outputs"]["WDATA"], index) == 0x1111
+    assert get_int(entry["outputs"]["ARVALID"], index) == 1
+    assert get_int(entry["outputs"]["ARPROT"], index) == 2
+    await RisingEdge(dut.clk)
+
+    # Capture write 3, then enqueue it while write 2 issues and B1 retires.
+    await FallingEdge(dut.clk)
+    slave.ARVALID.value = 0
+    slave.RREADY.value = 0
+    slave.AWPROT.value = 3
+    slave.AWVALID.value = 1
+    slave.WDATA.value = 0x3333
+    slave.WVALID.value = 1
+    for name in ("AWREADY", "WREADY", "ARREADY", "RVALID"):
+        set_value(entry["inputs"][name], index, 0)
+    set_value(entry["inputs"]["BVALID"], index, 1)
+    await Timer(1, unit="ps")
+    assert int(slave.AWREADY.value) == 1
+    assert int(slave.WREADY.value) == 1
+    assert int(slave.BVALID.value) == 1
+    await RisingEdge(dut.clk)
+    await FallingEdge(dut.clk)
+    slave.AWVALID.value = 0
+    slave.WVALID.value = 0
+    slave.BREADY.value = 1
+    set_value(entry["inputs"]["AWREADY"], index, 1)
+    set_value(entry["inputs"]["WREADY"], index, 1)
+    await Timer(1, unit="ps")
+    assert int(slave.BVALID.value) == 1
+    assert get_int(entry["outputs"]["AWVALID"], index) == 1
+    assert get_int(entry["outputs"]["AWPROT"], index) == 2
+    assert get_int(entry["outputs"]["WVALID"], index) == 1
+    assert get_int(entry["outputs"]["WDATA"], index) == 0x2222
+    await RisingEdge(dut.clk)
+    await FallingEdge(dut.clk)
+    slave.BREADY.value = 0
+    for name in ("AWREADY", "WREADY", "BVALID"):
+        set_value(entry["inputs"][name], index, 0)
+
+    await _issue_read(dut, entry, index, expected_addr=child_addr, prot=3)
+    await _issue_write(
+        dut, entry, index, expected_addr=child_addr, data=0x3333, strobe=strobe, prot=3
+    )
+    for data, response in ((0xA222, 0), (0xA333, 0b10)):
+        await _complete_read_response(dut, slave, entry, index, data, response)
+        await _complete_write_response(dut, slave, entry, index, response)
+    await RisingEdge(dut.clk)
+    await ReadOnly()
+    assert int(slave.BVALID.value) == 0
+    assert int(slave.RVALID.value) == 0
+    assert int(slave.AWREADY.value) == 1
+    assert int(slave.WREADY.value) == 1
+    assert int(slave.ARREADY.value) == 1
+    _assert_no_downstream_requests(masters)
+
+
+@cocotb.test()
+async def test_axi4lite_mapped_decerr_mapped_order(dut) -> None:
+    """Local DECERR responses keep their place among child responses in both queues."""
+    config, slave, masters = _test_context(dut)
+    await _initialize(dut, slave, masters)
+    invalid = find_invalid_address(config)
+    if (
+        config.get("axi4lite_max_outstanding", 4) < 3
+        or invalid is None
+        or not config["transactions"]
+    ):
+        return
+    pair = pick_distinct_pairs(config["transactions"], 2)
+    first = pair[0]
+    last = pair[-1]
+    first_entry = masters[first["master"]]
+    last_entry = masters[last["master"]]
+    first_index = tuple(first["index"])
+    last_index = tuple(last["index"])
+    strobe = (1 << config["byte_width"]) - 1
+    for address, data, order in (
+        (first["address"], 0x1111, "aw_first"),
+        (invalid, 0xDEAD, "w_first"),
+        (last["address"], 0x3333, "together"),
+    ):
+        await _accept_read(dut, slave, address)
+        await _accept_write(dut, slave, address, data, strobe, order=order)
+    for _ in range(3):
+        await RisingEdge(dut.clk)
+        await ReadOnly()
+        assert int(slave.BVALID.value) == 0
+        assert int(slave.RVALID.value) == 0
+
+    for txn, entry, index, data in (
+        (first, first_entry, first_index, 0x1111),
+        (last, last_entry, last_index, 0x3333),
+    ):
+        child_addr = (txn["address"] - entry["inst_address"]) % entry["inst_size"]
+        await _issue_read(dut, entry, index, expected_addr=child_addr)
+        await _issue_write(
+            dut, entry, index, expected_addr=child_addr, data=data, strobe=strobe
+        )
+    await _complete_read_response(dut, slave, first_entry, first_index, 0xA111, 0)
+    await _complete_write_response(dut, slave, first_entry, first_index, 0)
+    await FallingEdge(dut.clk)
+    set_value(last_entry["inputs"]["RDATA"], last_index, 0xA333)
+    set_value(last_entry["inputs"]["RRESP"], last_index, 0b10)
+    set_value(last_entry["inputs"]["RVALID"], last_index, 1)
+    set_value(last_entry["inputs"]["BRESP"], last_index, 0b10)
+    set_value(last_entry["inputs"]["BVALID"], last_index, 1)
+    for _ in range(3):
+        await RisingEdge(dut.clk)
+        await ReadOnly()
+        assert int(slave.RVALID.value) == 1
+        assert int(slave.RRESP.value) == 0b11
+        assert int(slave.RDATA.value) == 0
+        assert int(slave.BVALID.value) == 1
+        assert int(slave.BRESP.value) == 0b11
+        assert get_int(last_entry["outputs"]["RREADY"], last_index) == 0
+        assert get_int(last_entry["outputs"]["BREADY"], last_index) == 0
+        _assert_no_downstream_requests(masters)
+
+    # Retire R and B together. Both queues must reveal the younger child
+    # response, not lose it or forward READY to it one cycle too early.
+    await FallingEdge(dut.clk)
+    slave.RREADY.value = 1
+    slave.BREADY.value = 1
+    await Timer(1, unit="ps")
+    assert get_int(last_entry["outputs"]["RREADY"], last_index) == 0
+    assert get_int(last_entry["outputs"]["BREADY"], last_index) == 0
+    await RisingEdge(dut.clk)
+    await ReadOnly()
+    assert int(slave.RVALID.value) == 1
+    assert int(slave.RRESP.value) == 0b10
+    assert int(slave.RDATA.value) == 0xA333
+    assert int(slave.BVALID.value) == 1
+    assert int(slave.BRESP.value) == 0b10
+    await FallingEdge(dut.clk)
+    slave.RREADY.value = 0
+    slave.BREADY.value = 0
+    await _complete_read_response(dut, slave, last_entry, last_index, 0xA333, 0b10)
+    await _complete_write_response(dut, slave, last_entry, last_index, 0b10)
+    await RisingEdge(dut.clk)
+    await ReadOnly()
+    assert int(slave.RVALID.value) == 0
+    assert int(slave.BVALID.value) == 0
+
+
+async def _reset_active_decoder(
+    dut, slave: _AxilSlaveShim, masters: dict[str, dict[str, Any]]
+) -> None:
+    await FallingEdge(dut.clk)
+    dut.rst.value = 1
+    _idle_slave(slave)
+    await Timer(1, unit="ps")
+    await ReadOnly()
+    for name in ("AWREADY", "WREADY", "ARREADY", "BVALID", "RVALID"):
+        assert int(getattr(slave, name).value) == 0
+    _assert_no_downstream_requests(masters)
+    await RisingEdge(dut.clk)
+    await FallingEdge(dut.clk)
+    _idle_masters(masters)
+    dut.rst.value = 0
+    await RisingEdge(dut.clk)
+    await ReadOnly()
+    for name in ("AWREADY", "WREADY", "ARREADY"):
+        assert int(getattr(slave, name).value) == 1
+    assert int(slave.BVALID.value) == 0
+    assert int(slave.RVALID.value) == 0
+    _assert_no_downstream_requests(masters)
+
+
+@cocotb.test()
+async def test_axi4lite_reset_partial_write_and_recovery(dut) -> None:
+    """Reset drops either retained write half and does not pair it with fresh traffic."""
+    config, slave, masters = _test_context(dut)
+    await _initialize(dut, slave, masters)
+    if not config["transactions"]:
+        return
+    txn = config["transactions"][0]
+    entry = masters[txn["master"]]
+    index = tuple(txn["index"])
+    address = txn["address"]
+    child_addr = (address - entry["inst_address"]) % entry["inst_size"]
+    strobe = (1 << config["byte_width"]) - 1
+
+    async def send_half(channel: str, data: int, prot: int) -> None:
+        await FallingEdge(dut.clk)
+        if channel == "AW":
+            slave.AWADDR.value = address
+            slave.AWPROT.value = prot
+        else:
+            slave.WDATA.value = data
+            slave.WSTRB.value = strobe
+        getattr(slave, f"{channel}VALID").value = 1
+        await _handshake_ready(dut, getattr(slave, f"{channel}READY"), "write half not accepted")
+        await FallingEdge(dut.clk)
+        getattr(slave, f"{channel}VALID").value = 0
+
+    for first_channel in ("AW", "W"):
+        await send_half(first_channel, 0xDEAD, 0b111)
+        await _reset_active_decoder(dut, slave, masters)
+        other_channel = "W" if first_channel == "AW" else "AW"
+        await send_half(other_channel, 0x1234, 0b011)
+        for _ in range(3):
+            await RisingEdge(dut.clk)
+            await ReadOnly()
+            _assert_no_downstream_requests(masters)
+            assert int(slave.BVALID.value) == 0
+        await send_half(first_channel, 0x1234, 0b011)
+        await _issue_write(
+            dut, entry, index, expected_addr=child_addr, data=0x1234, strobe=strobe, prot=0b011
+        )
+        await _complete_write_response(dut, slave, entry, index, 0)
+
+    # Reset must also clear the per-channel sent flags when only one beat
+    # has reached the child, not just the upstream holding registers.
+    for first_channel in ("AW", "W"):
+        await _accept_write(dut, slave, address, 0xDEAD, strobe)
+        await _wait_until(
+            dut,
+            lambda: get_int(entry["outputs"]["AWVALID"], index) == 1
+            and get_int(entry["outputs"]["WVALID"], index) == 1,
+            "write was not pending before split-handshake reset",
+        )
+        await FallingEdge(dut.clk)
+        set_value(entry["inputs"][f"{first_channel}READY"], index, 1)
+        await RisingEdge(dut.clk)
+        await ReadOnly()
+        other_channel = "W" if first_channel == "AW" else "AW"
+        assert get_int(entry["outputs"][f"{first_channel}VALID"], index) == 0
+        assert get_int(entry["outputs"][f"{other_channel}VALID"], index) == 1
+        await _reset_active_decoder(dut, slave, masters)
+        await _accept_write(dut, slave, address, 0x1234, strobe, order="w_first")
+        await _issue_write(
+            dut, entry, index, expected_addr=child_addr, data=0x1234, strobe=strobe
+        )
+        await _complete_write_response(dut, slave, entry, index, 0)
+
+    # Also flush full queues while child responses are stalled upstream.
+    for value in range(config.get("axi4lite_max_outstanding", 4)):
+        await _accept_read(dut, slave, address)
+        await _accept_write(dut, slave, address, value, strobe)
+    await _issue_read(dut, entry, index, expected_addr=child_addr)
+    await _issue_write(dut, entry, index, expected_addr=child_addr, data=0, strobe=strobe)
+    await FallingEdge(dut.clk)
+    set_value(entry["inputs"]["RDATA"], index, 0xABCD)
+    set_value(entry["inputs"]["RVALID"], index, 1)
+    set_value(entry["inputs"]["BVALID"], index, 1)
+    await _wait_until(
+        dut,
+        lambda: int(slave.RVALID.value) == 1 and int(slave.BVALID.value) == 1,
+        "responses were not pending before reset",
+    )
+    await _reset_active_decoder(dut, slave, masters)
+    await _accept_read(dut, slave, address)
+    await _accept_write(dut, slave, address, 0x5678, 0, order="w_first")
+    await _issue_read(dut, entry, index, expected_addr=child_addr)
+    await _issue_write(dut, entry, index, expected_addr=child_addr, data=0x5678, strobe=0)
+    await _complete_read_response(dut, slave, entry, index, 0xA55A, 0)
+    await _complete_write_response(dut, slave, entry, index, 0)

@@ -3,6 +3,17 @@ AMBA APB
 
 Both APB3 and APB4 standards are supported.
 
+With the default ``--clk-src design``, the generated decoder does not distribute
+``PCLK`` or ``PRESETn``. Flattened APB interfaces omit these ports; SystemVerilog
+interface clock and reset fields must be connected externally to each endpoint.
+``--clk-src cpuif`` instead includes the slave-side clock/reset and fans them
+out to each master interface.
+
+An unmapped address completes with an error in the first access cycle. The
+decoder asserts ``PREADY`` and ``PSLVERR`` together only when ``PSEL`` and
+``PENABLE`` are high; both remain low during setup and while unselected.
+Mapped transfers pass through the selected endpoint's response signals.
+
 .. warning::
     Some IP vendors will incorrectly implement the address signalling
     assuming word-addresses. (that each increment of ``PADDR`` is the next word)
@@ -62,18 +73,18 @@ Flattened inputs/outputs
 Broadcast Signal Gating
 -----------------------
 
-By default, the broadcast signals ``PENABLE``, ``PADDR``, ``PWDATA``,
-``PSTRB``, and ``PPROT`` fan out to every master port unmodified, keeping the
-master-to-slave datapath free of extra logic stages. Per the AMBA APB
-specification, conformant slaves only sample these signals while their
-``PSEL`` is asserted, so this is protocol-safe.
+``PENABLE`` is always masked with each slave's select expression, so unselected
+slaves hold it low. By default, the payload signals ``PADDR``, ``PWDATA``,
+``PSTRB``, and ``PPROT`` fan out to every master port without select masking,
+keeping the master-to-slave datapath free of extra mux stages. Conformant
+slaves only sample these signals while their ``PSEL`` is asserted.
 
-Passing ``--gate-signals`` masks each broadcast signal with the slave's select
-expression, so unselected slaves see all-zero inputs. This costs one extra mux
-stage on the datapath, but reduces switching activity on quiet sub-blocks
-(power/EMI), produces cleaner debug waveforms, and defends against
-non-conformant slaves that latch inputs without checking ``PSEL``. ``PSEL``
-and ``PWRITE`` are always driven per-slave and are unaffected by this option.
+Passing ``--gate-signals`` also masks each payload signal with the slave's
+select expression, so unselected slaves see all-zero payload inputs. This
+costs one extra mux stage on the datapath, but reduces switching activity on
+quiet sub-blocks (power/EMI), produces cleaner debug waveforms, and defends
+against non-conformant slaves that latch inputs without checking ``PSEL``.
+``PSEL``, ``PENABLE``, and ``PWRITE`` are unaffected by this option.
 
 
 Slave-Side Register Slice

@@ -15,7 +15,9 @@ class AXI4LiteCpuifFlat(BaseCpuif):
 
     AW and W are accepted independently, downstream VALID/READY handshakes are
     honored, and read/write responses are returned in request order using
-    separate bounded queues. See :ref:`cpuif_axi4lite_response_ordering`.
+    separate bounded queues. Wider upstream interface addresses outside the
+    decoder's address width return DECERR rather than aliasing a low address.
+    See :ref:`cpuif_axi4lite_response_ordering`.
     """
 
     template_path = "axi4_lite_tmpl.sv"

@@ -136,10 +136,13 @@ Operational constraints
 
 Verification coverage
 ---------------------
-Focused Cocotb tests cover independently ordered ``AW``/``W`` acceptance,
-downstream request wait states, upstream response back-pressure and payload
-stability, cross-child and same-child delayed responses, local ``DECERR``,
-reset, flat ports, SystemVerilog interfaces, rolled arrays, and variable decode
-depth. Randomized smoke traffic varies write channel order and address/child
-selection. Generator tests pin the queue-depth API and the separation between
-request-issue and response-head selectors.
+Focused Cocotb tests cover independently ordered upstream and downstream
+``AW``/``W`` handshakes, simultaneous read/write progress, upstream response
+back-pressure and payload stability, cross-child and same-child delayed
+responses, ordered local ``DECERR``, and reset recovery from partial writes
+and full queues. Flat and SystemVerilog interface smoke cases exercise
+queue depths one, three, and four, including full/drain/refill and pointer
+wraparound. Wider upstream interface tests verify that high address bits
+produce ``DECERR`` rather than aliasing a low mapped address. Rolled arrays,
+variable decode depth, and randomized upstream write-channel order are also
+covered. Exporter validation rejects nonpositive queue capacities.

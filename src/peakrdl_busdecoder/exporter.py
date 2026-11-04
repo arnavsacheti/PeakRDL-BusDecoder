@@ -101,16 +101,17 @@ class BusDecoderExporter:
 
             - "cpuif": clk/reset are bundled with the CPU interface. The slave
               bus carries the protocol-defined clock/reset (PCLK/PRESETn for
-              APB, ACLK/ARESETn for AXI4-Lite) and the decoder fans them out
-              to each master interface.
+              APB, ACLK/ARESETn for AXI4-Lite). Flat master ports forward
+              clock/reset; SystemVerilog interface endpoints must be wired
+              externally because their modports treat these as inputs.
             - "design" (default): the CPU interface carries no clk/reset. The
               module exposes top-level ``clk`` and ``rst`` ports; the design
               is responsible for distributing clock/reset to downstream slaves.
         gate_signals: bool
-            Gate downstream broadcast signals with the per-slave select. For APB
-            this drives PENABLE/PADDR/PWDATA/PSTRB/PPROT to '0 on unselected
-            masters. By default, broadcast signals fan out unmodified, keeping
-            the master-to-slave datapath free of the extra gating mux.
+            Gate downstream broadcast payload signals with the per-slave select.
+            For APB this drives PADDR/PWDATA/PSTRB/PPROT to '0 on unselected
+            masters. By default, payload signals fan out unmodified. PENABLE
+            is always gated with the per-slave select.
         apb_buffer: str
             Insert a single-flop register slice on the APB slave-side I/O.
             One of: "none" (default), "in" (slave-side inputs only), "out"

@@ -154,9 +154,7 @@ class APBCpuifBase(BaseCpuif):
             fanout[self.signal("PRESETn", node, "gi")] = self.signal("PRESETn")
 
         fanout[self.signal("PSEL", node, "gi")] = sel_expr
-        fanout[self.signal("PENABLE", node, "gi")] = (
-            f"({sel_expr}) & {self.signal('PENABLE')}" if gate else self.signal("PENABLE")
-        )
+        fanout[self.signal("PENABLE", node, "gi")] = f"({sel_expr}) & {self.signal('PENABLE')}"
         fanout[self.signal("PWRITE", node, "gi")] = f"cpuif_wr_sel.{sel_path}"
 
         if self._can_truncate_addr(node, array_stack):
@@ -189,8 +187,9 @@ class APBCpuifBase(BaseCpuif):
             fanin["cpuif_wr_ack"] = "'0"
             fanin["cpuif_wr_err"] = "'0"
             if error:
-                fanin["cpuif_wr_ack"] = "'1"
-                fanin["cpuif_wr_err"] = "cpuif_wr_sel.cpuif_err"
+                # The error branch is already selected; respond only in the access phase.
+                fanin["cpuif_wr_ack"] = self.signal("PENABLE")
+                fanin["cpuif_wr_err"] = self.signal("PENABLE")
         else:
             fanin["cpuif_wr_ack"] = self.signal("PREADY", node, "i")
             fanin["cpuif_wr_err"] = self.signal("PSLVERR", node, "i")
@@ -203,8 +202,9 @@ class APBCpuifBase(BaseCpuif):
             fanin["cpuif_rd_err"] = "'0"
             fanin["cpuif_rd_data"] = "'0"
             if error:
-                fanin["cpuif_rd_ack"] = "'1"
-                fanin["cpuif_rd_err"] = "cpuif_rd_sel.cpuif_err"
+                # The error branch is already selected; respond only in the access phase.
+                fanin["cpuif_rd_ack"] = self.signal("PENABLE")
+                fanin["cpuif_rd_err"] = self.signal("PENABLE")
         else:
             fanin["cpuif_rd_ack"] = self.signal("PREADY", node, "i")
             fanin["cpuif_rd_err"] = self.signal("PSLVERR", node, "i")

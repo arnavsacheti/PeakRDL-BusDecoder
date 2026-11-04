@@ -150,8 +150,9 @@ class Exporter(ExporterSubcommandPlugin):
             choices=("cpuif", "design"),
             default="design",
             help="""Select where the bus decoder gets its clock and reset.
-            'cpuif' bundles clk/reset with the CPU interface (slave carries
-            PCLK/PRESETn or ACLK/ARESETn, fanned out to each master).
+            'cpuif' takes PCLK/PRESETn or ACLK/ARESETn from the slave CPU
+            interface. Flat master ports forward clock/reset; SystemVerilog
+            interface endpoints require external clock/reset connections.
             'design' (default) drops clk/reset from the CPU interface and
             exposes top-level 'clk'/'rst' ports — the design distributes
             clock/reset to downstream slaves itself.
@@ -173,10 +174,10 @@ class Exporter(ExporterSubcommandPlugin):
             "--gate-signals",
             action="store_true",
             default=False,
-            help="""Gate downstream broadcast signals with the per-slave select.
-            For APB this drives PENABLE/PADDR/PWDATA/PSTRB/PPROT to '0 on
-            unselected masters (APB protocol-correct). When omitted, broadcast
-            signals fan out unmodified.
+            help="""Gate downstream broadcast payload signals with the per-slave select.
+            For APB this drives PADDR/PWDATA/PSTRB/PPROT to '0 on unselected
+            masters. When omitted, payload signals fan out without select masking.
+            PENABLE is always gated with the per-slave select.
             """,
         )
 
