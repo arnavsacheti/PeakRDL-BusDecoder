@@ -35,7 +35,9 @@ Protocol state:
     APB3 and APB4:
         Share the cpuif.apb implementation. PWRITE qualifies the common
         address; the upstream manager holds the transfer through wait states.
-        Optional input/output slices retain the buffered payload and response.
+        Optional transaction-aware buffering retains the SETUP payload and/or
+        completed response. Ownership state retires the child exactly once,
+        even while a registered response awaits upstream acceptance.
 
     AXI4-Lite:
         AW and W have independent one-entry holding registers. Paired writes

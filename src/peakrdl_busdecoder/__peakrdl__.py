@@ -129,11 +129,12 @@ class Exporter(ExporterSubcommandPlugin):
             "--apb-buffer",
             choices=("none", "in", "out", "both"),
             default="none",
-            help="""Insert a single-flop register slice on the APB slave-side
-            I/O. 'in' buffers slave-side inputs (PSEL/PENABLE/PWRITE/PADDR/
-            PWDATA/PSTRB/PPROT), 'out' buffers slave-side outputs (PRDATA/
-            PREADY/PSLVERR), 'both' buffers both, 'none' (default) disables.
-            Only applies to APB cpuifs; requires --clk-src=design.
+            help="""Select transaction-aware APB buffering. 'in' captures the
+            request at upstream SETUP and issues one child transfer; 'out'
+            captures the child response and retires the child before upstream
+            acceptance; 'both' combines them. 'none' (default) is combinational.
+            No-wait upstream ACCESS cycles: none=1, in=2, out=2, both=3.
+            Only APB cpuifs support buffering; non-none requires --clk-src=design.
             """,
         )
 

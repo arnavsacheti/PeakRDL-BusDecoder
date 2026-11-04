@@ -23,8 +23,8 @@ For APB and AXI4-Lite, the clock/reset source is selected with ``--clk-src``:
     The CPU interface carries no clock or reset. The generated module exposes
     top-level ``clk`` and ``rst`` input ports instead, and the design is
     responsible for distributing clock and reset to downstream slaves. The
-    APB decode is combinational unless a register slice is enabled (see
-    ``--apb-buffer``). The AXI4-Lite adapter always uses this clock and reset
+    APB path is combinational unless transaction-aware buffering is enabled
+    (see ``--apb-buffer``). The AXI4-Lite adapter always uses this clock and reset
     for its request holding registers and ordered-response queues.
 
 ``cpuif``

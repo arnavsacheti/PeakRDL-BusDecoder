@@ -61,7 +61,7 @@ Key command-line options:
 * ``--parametrize``: Propagate top-level SystemRDL parameters into the generated module
 * ``--clk-src``: Select APB/AXI clock/reset (``cpuif`` or ``design``, default ``design``); AHB always uses ingress ``HCLK/HRESETn``
 * ``--gate-signals``: Gate APB broadcast signals with each slave's select (off by default)
-* ``--apb-buffer``: Insert a register slice on the APB slave-side I/O (``none``, ``in``, ``out``, ``both``)
+* ``--apb-buffer``: Select transaction-aware APB request/response buffering (``none`` (default), ``in``, ``out``, ``both``); buffered modes require ``--clk-src design``
 * ``--axi4lite-max-outstanding``: Set each AXI4-Lite ordered-response queue depth (default ``4``)
 
 

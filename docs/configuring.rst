@@ -44,10 +44,10 @@ change ports, routing boundaries, queues, or pipeline state.
 * ``--clk-src``: Select APB/AXI clock/reset (``design`` (default) adds top-level
   ``clk``/``rst`` ports; ``cpuif`` uses the CPU-interface clock/reset).
   AHB-Lite always uses ingress ``HCLK/HRESETn`` and does not add generic clock/reset ports.
-* ``--gate-signals``: Gate APB broadcast signals with each slave's select so
-  unselected slaves see all-zero inputs (off by default)
-* ``--apb-buffer``: Insert a single-flop register slice on the APB slave-side
-  I/O (``none`` (default), ``in``, ``out``, ``both``); requires
-  ``--clk-src design``
+* ``--gate-signals``: Gate APB broadcast payload signals with each slave's
+  select so unselected slaves see all-zero payload inputs (off by default)
+* ``--apb-buffer``: Select transaction-aware APB request/response buffering
+  (``none`` (default), ``in``, ``out``, ``both``); non-``none`` modes require
+  ``--clk-src design``. See :doc:`cpuif/apb` for timing and reset behavior.
 * ``--axi4lite-max-outstanding``: Set the separate AXI4-Lite read and write
   order-queue depths (default ``4``; minimum ``1``)

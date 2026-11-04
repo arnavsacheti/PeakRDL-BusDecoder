@@ -12,7 +12,11 @@ Generate a SystemVerilog bus decoder from SystemRDL that splits CPU interface si
 This branch prepares 0.8.0 and is **pending integration verification**, not a
 shipped release. It requires **Python 3.11 or newer**.
 
-- APB3 and APB4 remain supported in interface and flat-port forms.
+- APB3 and APB4 remain supported in interface and flat-port forms. Optional
+  transaction-aware request/response buffering retires each child transfer
+  exactly once; no-wait upstream ACCESS takes 1/2/2/3 cycles for
+  `none`/`in`/`out`/`both`. Buffered reset aborts pending work and requires a fresh
+  upstream SETUP. See [APB timing and reset behavior](docs/cpuif/apb.rst).
 - Ordered **AXI4-Lite** accepts AW and W independently, with separate bounded
   read/write queues, FIFO responses, backpressure, and reset recovery.
 - Single-manager **AHB-Lite** provides retained address/data-phase routing and

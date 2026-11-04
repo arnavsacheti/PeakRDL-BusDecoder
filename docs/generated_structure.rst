@@ -33,8 +33,9 @@ returned.
         D --> E["Local error response"]
         E --> A
 
-APB routes the active transfer, with optional register slices retaining its
-payload and selection. AXI4-Lite stores each accepted destination in separate
+APB routes the active transfer. Optional transaction-aware buffering retains a
+request, a completed response, or both. AXI4-Lite stores each accepted destination
+in separate
 read and write order queues; the response fanin selection comes from the
 appropriate queue head. AHB-Lite retains one shared data-phase destination and
 direction when an address phase is accepted with ``HREADY`` high. Its response
@@ -74,8 +75,8 @@ Which flags change structure?
       - Internal storage
       - Resizes the independent AXI4-Lite read and write order queues.
     * - ``--apb-buffer``
-      - Pipeline state
-      - Adds an input slice, output slice, both, or neither around the APB decoder.
+      - Transaction state
+      - Adds request retention, response retention, both, or neither around the APB decoder.
     * - ``--gate-signals``
       - APB combinational logic
       - Adds per-child masking to otherwise broadcast APB payload signals.
@@ -296,18 +297,39 @@ head-of-line response ordering.
 
 APB buffering and signal gating
 -------------------------------
-``--apb-buffer`` places optional one-entry slices around the APB routing core.
-The four settings are structural combinations of the same two slices:
+``--apb-buffer`` selects transaction-aware request and response stages around
+the APB routing core. Buffered modes track one transaction at a time and retire
+each child transfer exactly once; they are not unconditional signal-delay flops.
 
 .. mermaid::
 
     flowchart LR
-        U["Upstream APB"] --> IN["Input slice<br/>in or both"]
-        IN --> D["APB decode + fanout/fanin"]
-        D --> OUT["Output slice<br/>out or both"]
+        U["Upstream APB"] --> IN["Request capture at SETUP edge<br/>in or both"]
+        IN --> D["APB decode + one child SETUP/ACCESS"]
+        D --> OUT["Response capture at child completion<br/>out or both"]
         OUT --> U
-        U -.->|none/out bypass input slice| D
-        D -.->|none/in bypass output slice| U
+        U -.->|none/out use live request payload| D
+        D -.->|none/in combinational response| U
+
+``none`` is unchanged combinational routing. ``in`` retains the upstream SETUP
+payload, drives one downstream SETUP followed by ACCESS, and completes the child
+and upstream transfer on the same edge through the combinational response path.
+``out`` forwards upstream SETUP/ACCESS with live upstream payload, which the
+master must hold through completion. At child completion it captures the
+response, immediately removes child ``PSEL``/``PENABLE``, and holds the registered
+response until upstream ``PSEL && PENABLE && PREADY`` acceptance. ``both``
+combines these stages; no mode allows multiple outstanding transfers.
+
+For a no-wait child, upstream ACCESS lasts 1/2/2/3 cycles for
+``none``/``in``/``out``/``both``. Minimum upstream completion spacing is
+2/3/3/4 cycles, including the mandatory SETUP between back-to-back transfers.
+Each child wait adds one cycle to either measure.
+
+Buffered modes use design ``clk`` and active-high asynchronous ``rst``. Reset
+clears retained request/response state, suppresses child requests and upstream
+ready, and aborts pending work; completed downstream side effects cannot be
+undone. Upstream must restart with a fresh SETUP after reset: a held stale
+ACCESS is not replayed. The unbuffered combinational path is unchanged.
 
 ``--gate-signals`` changes the downstream APB payload path rather than its
 interface topology:

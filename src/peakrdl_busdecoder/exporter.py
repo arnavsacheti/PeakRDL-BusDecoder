@@ -113,11 +113,22 @@ class BusDecoderExporter:
             masters. By default, payload signals fan out unmodified. PENABLE
             is always gated with the per-slave select.
         apb_buffer: str
-            Insert a single-flop register slice on the APB slave-side I/O.
-            One of: "none" (default), "in" (slave-side inputs only), "out"
-            (slave-side outputs only), "both". Only applies to APB cpuifs;
-            requires ``clk_src='design'`` (uses the design clk/rst). APB
-            handshake is preserved via PREADY-stretching.
+            Select transaction-aware APB request/response buffering.
+            "none" (default) leaves the combinational path unchanged. "in"
+            captures request payload at the upstream SETUP edge and holds it
+            through one downstream SETUP/ACCESS transfer; the response remains
+            combinational and child/upstream completion share an edge. "out"
+            forwards live upstream payload, captures the child response at
+            completion, removes the child request, and retains the registered
+            response until upstream acceptance. "both" combines these stages.
+            Only one transfer may be outstanding. With no child waits, upstream
+            ACCESS takes 1/2/2/3 cycles for none/in/out/both; minimum completion
+            spacing including SETUP is 2/3/3/4 cycles. Each child wait adds one.
+            Non-"none" modes require APB and ``clk_src='design'`` and use
+            design clk and active-high asynchronous rst. Reset clears retained
+            state, suppresses child requests/upstream ready, and aborts pending
+            work without undoing completed child side effects. A fresh upstream
+            SETUP is required after reset; held stale ACCESS is not replayed.
         axi4lite_max_outstanding: int
             Maximum accepted AXI4-Lite read transactions and paired write
             transactions retained by their respective order queues. Defaults

@@ -161,7 +161,9 @@ All protocol adapters use common direction-specific decode signals:
   write decoding and `cpuif_req && cpuif_rd_en` qualifies read decoding. Both
   may be true in one cycle. There is no global single-flight or exclusive-
   direction requirement.
-- **BD-PROTO-DESTINATION-LIFETIME**: APB holds a live request through completion.
+- **BD-PROTO-DESTINATION-LIFETIME**: APB uses live request payload with `none`
+  and `out`, and retains the SETUP payload with `in` and `both`; every buffered
+  mode tracks transaction ownership through upstream completion.
   AXI4-Lite latches destination/payload on queue insertion. AHB-Lite previews a
   live address phase and retains its destination/direction only on an
   `HREADY`-high acceptance edge. An outstanding response must not be retargeted
@@ -180,7 +182,15 @@ All protocol adapters use common direction-specific decode signals:
 
 Let $P$ be the slave APB interface ($s\_apb$) and $M_t$ the master APB interface for target $t$.
 
-#### Request Phase Mapping
+#### Default Combinational Operation
+
+The request, forwarding, and response rules immediately below describe
+`apb_buffer='none'` (the default). This path is combinational and unchanged by
+the buffered-mode reset contract. The transaction-aware modes described
+afterward interpose request and/or response state; the live-interface equations
+must not be applied unconditionally to them.
+
+##### Request Phase Mapping
 - `cpuif_req = s_apb.PSEL`
 - `cpuif_wr_en = s_apb.PSEL & s_apb.PWRITE`
 - `cpuif_rd_en = s_apb.PSEL & ~s_apb.PWRITE`
@@ -189,7 +199,7 @@ Let $P$ be the slave APB interface ($s\_apb$) and $M_t$ the master APB interface
 - `cpuif_wr_data = s_apb.PWDATA`
 - APB4: `cpuif_wr_byte_en = s_apb.PSTRB`
 
-#### Master Forwarding Rules
+##### Master Forwarding Rules
 - **BD-APB-SEL-GATE**: For each target $t$:
   $$M_t.\text{PSEL} = \text{sel}_{\text{wr}}(t) \lor \text{sel}_{\text{rd}}(t)$$
 - **BD-APB-ENABLE-GATE**:
@@ -197,18 +207,67 @@ Let $P$ be the slave APB interface ($s\_apb$) and $M_t$ the master APB interface
   *(Crucial bugfix from v0.7.0b3/v0.7.1: unselected master PENABLE must be forced low to prevent spurious downstream state transitions).*
 - **BD-APB-BROADCAST**:
   $M_t.\text{PWRITE} = s\_apb.\text{PWRITE}$, $M_t.\text{PWDATA} = s\_apb.\text{PWDATA}$, $M_t.\text{PPROT} = s\_apb.\text{PPROT}$, $M_t.\text{PSTRB} = s\_apb.\text{PSTRB}$.
+- **BD-APB-PAYLOAD-GATE**: The broadcast equations above assume
+  `gate_signals=false` (the default). With `gate_signals=true`, unselected
+  children receive zero `PADDR`, `PWDATA`, `PSTRB`, and `PPROT`. `PWRITE` is
+  unaffected, and `PENABLE` remains select-gated regardless of this option.
 
-#### Response and Error Timing
+##### Response and Error Timing
 - **BD-APB-MAPPED-RESP**: When $\text{sel}(t) = 1$:
   $$s\_apb.\text{PREADY} = M_t.\text{PREADY}$$
   $$s\_apb.\text{PSLVERR} = M_t.\text{PSLVERR}$$
   $$s\_apb.\text{PRDATA} = M_t.\text{PRDATA} \quad (\text{if read})$$
+  Child `PREADY` may be high during SETUP; mapped responses are not
+  universally ACCESS-gated in the default combinational mode.
 - **BD-APB-UNMAPPED-RESP**: When $\text{err}_{\text{wr}} = 1 \lor \text{err}_{\text{rd}} = 1$:
   - Setup cycle ($s\_apb.\text{PSEL} = 1 \land s\_apb.\text{PENABLE} = 0$):
     $$s\_apb.\text{PREADY} = 0, \quad s\_apb.\text{PSLVERR} = 0$$
   - Access cycle ($s\_apb.\text{PSEL} = 1 \land s\_apb.\text{PENABLE} = 1$):
     $$s\_apb.\text{PREADY} = 1, \quad s\_apb.\text{PSLVERR} = 1$$
   - This guarantees a standard 2-cycle unmapped APB error termination without hanging the bus.
+
+
+#### Transaction-Aware Buffered Operation
+
+- **BD-APB-BUFFER-MODES**: `apb_buffer` / `--apb-buffer` accepts `none`
+  (default), `in`, `out`, and `both`. Non-`none` settings apply only to APB and
+  require `clk_src='design'`; the buffers use design `clk` and active-high
+  asynchronous `rst`. Clock distribution and payload gating are unchanged.
+- **BD-APB-BUFFER-OWNERSHIP**: Every buffered mode tracks one transaction from
+  upstream SETUP through upstream completion. No multiple outstanding
+  transactions are allowed. A selected child completes exactly once; continued
+  upstream ACCESS while a response is retained must not replay the child.
+- **BD-APB-BUFFER-IN**: `in` captures `PWRITE`, `PADDR`, `PWDATA`, and APB4
+  `PSTRB`/`PPROT` at the rising edge ending upstream SETUP
+  (`PSEL && !PENABLE`). It holds this payload, drives one downstream SETUP
+  followed by ACCESS, and preserves the combinational response path during
+  downstream ACCESS. Child and upstream completion occur on the same edge.
+- **BD-APB-BUFFER-OUT**: `out` uses live upstream payload, which the APB master
+  must hold through completion, and forwards upstream SETUP/ACCESS to the child.
+  On child completion it captures read data, error, and ready status, immediately
+  removes downstream `PSEL`/`PENABLE`, and holds the registered response until
+  upstream `PSEL && PENABLE && PREADY` acceptance.
+- **BD-APB-BUFFER-BOTH**: `both` combines the retained request and registered
+  response stages, including downstream retirement at child completion.
+- **BD-APB-BUFFER-TIMING**: For a child with no wait states:
+
+  | Mode | Upstream ACCESS cycles through completion | Minimum upstream completion spacing |
+  |---|---:|---:|
+  | `none` | 1 | 2 |
+  | `in` | 2 | 3 |
+  | `out` | 2 | 3 |
+  | `both` | 3 | 4 |
+
+  Spacing includes the mandatory SETUP between back-to-back transfers, including
+  transfers with continuously asserted upstream `PSEL`. Each child wait cycle
+  adds one cycle to both measures. Local unmapped errors pass through the same
+  buffering stages around the ACCESS-phase error response; the default
+  two-cycle error timing above is not a buffered-mode latency claim.
+- **BD-APB-BUFFER-RESET**: Reset clears retained request and response state,
+  suppresses downstream requests and upstream ready, and aborts a pending
+  transfer. Downstream side effects already completed cannot be undone.
+  Upstream must restart with a fresh SETUP after reset; stale ACCESS held across
+  reset must not be replayed. These requirements apply only to buffered modes.
 
 ---
 

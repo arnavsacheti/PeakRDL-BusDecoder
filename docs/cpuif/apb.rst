@@ -90,19 +90,65 @@ against non-conformant slaves that latch inputs without checking ``PSEL``.
 ``PSEL``, ``PENABLE``, and ``PWRITE`` are unaffected by this option.
 
 
-Slave-Side Register Slice
--------------------------
+Transaction-Aware Buffering
+---------------------------
 
-``--apb-buffer`` inserts a single-flop register slice on the APB slave-side
-I/O:
+``--apb-buffer`` selects request and response buffering around the APB decoder.
+It is not an unconditional delay of the interface signals:
 
-* ``none`` (default): no buffering
-* ``in``: registers the slave-side inputs
-  (``PSEL``/``PENABLE``/``PWRITE``/``PADDR``/``PWDATA``/``PSTRB``/``PPROT``)
-* ``out``: registers the slave-side outputs (``PRDATA``/``PREADY``/``PSLVERR``)
-* ``both``: registers both directions
+* ``none`` (default): the existing combinational request and response paths,
+  without transaction state or added latency.
+* ``in``: captures the request payload at the rising clock edge ending upstream
+  SETUP (``PSEL && !PENABLE``), then holds it while issuing one downstream
+  SETUP followed by ACCESS. The retained payload is ``PWRITE``, ``PADDR``,
+  ``PWDATA``, and, for APB4, ``PSTRB`` and ``PPROT``. The response remains
+  combinational during downstream ACCESS, so the child and upstream transfer
+  complete on the same edge.
+* ``out``: uses the live upstream payload, which the APB master must hold
+  through completion, and forwards upstream SETUP/ACCESS to the selected child.
+  At child completion it captures ``PRDATA``, ``PSLVERR``, and ready status,
+  immediately removes downstream ``PSEL``/``PENABLE``, and holds the registered
+  response until upstream ``PSEL && PENABLE && PREADY`` acceptance.
+* ``both``: combines the retained request and registered response stages.
 
-The APB handshake is preserved through ``PREADY``-stretching: each buffered
-direction adds one cycle to the access phase, which the protocol allows. The
-buffer flops use the design clock and reset, so this option requires
-``--clk-src design`` (the default). Non-APB CPU interfaces reject the option.
+Every buffered mode tracks ownership of one transaction. A selected child
+completes exactly once; retaining an upstream ACCESS while a registered response
+is pending does not replay the child transfer. There are no multiple outstanding
+transfers.
+
+For a child with no wait states, timing measured at the upstream interface is:
+
+.. list-table::
+    :header-rows: 1
+
+    * - Mode
+      - ACCESS cycles through completion
+      - Minimum cycles between completions
+    * - ``none``
+      - 1
+      - 2
+    * - ``in``
+      - 2
+      - 3
+    * - ``out``
+      - 2
+      - 3
+    * - ``both``
+      - 3
+      - 4
+
+Completion spacing includes the mandatory upstream SETUP cycle between
+back-to-back transfers, even when ``PSEL`` stays high. Each child wait cycle
+adds one cycle to both counts. Unmapped requests use the same buffering stages
+around the local ACCESS-phase error response.
+
+Buffered modes require ``--clk-src design`` and use the design ``clk`` and
+active-high asynchronous ``rst``. Reset clears retained request/response state,
+suppresses downstream requests and upstream ready, and aborts a pending
+transfer. It cannot undo downstream side effects that already completed.
+After reset, the upstream master must restart with a fresh SETUP; a stale
+ACCESS held across reset is not replayed. These reset rules apply to buffered
+modes, not to the unchanged combinational ``none`` path.
+
+Non-APB CPU interfaces reject non-``none`` buffering. Buffering does not change
+the clock-distribution or ``--gate-signals`` contracts described above.
