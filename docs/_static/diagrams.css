@@ -1,0 +1,8 @@
+/* Generated diagrams are drawn on white; keep them legible in dark mode. */
+img.diagram {
+    background: #ffffff;
+    border-radius: 6px;
+    padding: 6px;
+    max-width: 100%;
+    height: auto;
+}

@@ -1,0 +1,21 @@
+// Planned AHB-Lite adapter (feature/ahb-lite-isolated, unreleased).
+// Each address phase overlaps the previous transfer's data phase.
+// A: write to child 0; B: read from child 1 with one wait state; C: read from child 0.
+{
+  signal: [
+    { name: "HCLK",             wave: "p......" },
+    ["Upstream",
+      { name: "HTRANS",         wave: "===.=..", data: ["NONSEQ", "NONSEQ", "NONSEQ", "IDLE"] },
+      { name: "HADDR",          wave: "===.x..", data: ["A", "B", "C"] },
+      { name: "HWRITE",         wave: "10..x.." },
+      { name: "HWDATA",         wave: "x=x....", data: ["data A"] },
+      { name: "HREADYOUT",      wave: "1.01..." },
+      { name: "HRDATA",         wave: "x..==x.", data: ["B", "C"] }
+    ],
+    {},
+    { name: "data-phase owner", wave: "x==.=x.", data: ["child 0 (A)", "child 1 (B)", "child 0 (C)"] }
+  ],
+  head: { text: "Planned AHB-Lite: pipelined address and data phases (illustrative)" },
+  foot: { text: "Responses follow the retained data-phase owner, not the live address." },
+  config: { hscale: 2 }
+}

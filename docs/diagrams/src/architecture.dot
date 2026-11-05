@@ -1,0 +1,57 @@
+// Shared decoder architecture: export flow and generated RTL structure.
+// Conventions used by every architecture figure:
+//   solid blue = request path, dashed green = response path,
+//   red = locally generated error, grey = export-time (Python) processing.
+digraph architecture {
+    graph [rankdir=LR, bgcolor="white", fontname="Helvetica", fontsize=12, nodesep=0.35, ranksep=0.45, pad=0.25, labeljust="l",
+           newrank=true];
+    node  [fontname="Helvetica", fontsize=11, shape=box, style="rounded,filled", fillcolor="#f9fafb", color="#6b7280"];
+    edge  [fontname="Helvetica", fontsize=10, color="#6b7280"];
+
+    subgraph cluster_export {
+        label="Export time (Python)"; fontcolor="#374151"; style="rounded,dashed"; color="#9ca3af";
+        rdl      [label="SystemRDL\nsource"];
+        elab     [label="systemrdl-compiler\nelaborated model"];
+        targets  [label="Decode targets\nmax_decode_depth, unroll\naddresses relative to\nexported addrmap"];
+        names    [label="Unique target names\n(ports, constants)"];
+        rdl -> elab -> targets -> names;
+    }
+
+    subgraph cluster_rtl {
+        label="Generated SystemVerilog module (combinational routing)"; fontcolor="#1f2937";
+        style="rounded"; color="#9ca3af";
+
+        upstream [label="Upstream\nmanager", shape=box, style="rounded", fillcolor="white"];
+        adapter  [label="CPU interface adapter\nAPB3 / APB4 / AXI4-Lite\n→ cpuif_req, rd/wr_en,\naddress, write data", fillcolor="#eff6ff", color="#1d4ed8"];
+        decode   [label="Read and write decoders\nper-direction selects\nregister: readable / writable\nblock: both directions\nno match → cpuif_err", fillcolor="#eff6ff", color="#1d4ed8"];
+        fanout   [ordering=out, label="Fanout per child\nselect gates request\nchild-local address\n= A − element base", fillcolor="#eff6ff", color="#1d4ed8"];
+        fanin    [label="Response fanin\nmux chosen by\nactive selects", fillcolor="#ecfdf5", color="#15803d"];
+        localerr [label="Local error\nresponder", fillcolor="#fef2f2", color="#b91c1c"];
+
+        subgraph cluster_children {
+            label="Child interfaces (one per target or array element)"; fontcolor="#374151"; style="rounded,dotted"; color="#9ca3af";
+            c0 [label="child 0", style="rounded", fillcolor="white"];
+            c1 [label="child 1", style="rounded", fillcolor="white"];
+            cn [label="child N", style="rounded", fillcolor="white"];
+        }
+
+        upstream -> adapter [color="#1d4ed8", penwidth=1.6];
+        adapter  -> decode  [color="#1d4ed8", penwidth=1.6];
+        decode   -> fanout  [color="#1d4ed8", penwidth=1.6, label="selects"];
+        fanout   -> c0 [color="#1d4ed8"];
+        fanout   -> c1 [color="#1d4ed8"];
+        fanout   -> cn [color="#1d4ed8"];
+
+        c0 -> fanin [color="#15803d", style=dashed];
+        c1 -> fanin [color="#15803d", style=dashed];
+        cn -> fanin [color="#15803d", style=dashed];
+        decode -> fanin [color="#6b7280", style=dotted, label="selects", constraint=false];
+        decode -> localerr [color="#b91c1c", label="cpuif_err"];
+        localerr -> fanin [color="#b91c1c", style=dashed];
+        fanin -> adapter [color="#15803d", style=dashed, penwidth=1.6, constraint=false, xlabel="ack / err / data"];
+        adapter -> upstream [color="#15803d", style=dashed, penwidth=1.6, constraint=false];
+    }
+
+    targets -> decode [style=dotted, color="#9ca3af", label="address ranges"];
+    names -> fanout [style=dotted, color="#9ca3af", label="port names"];
+}

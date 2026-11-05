@@ -1,0 +1,27 @@
+// APB4 through the decoder (released behavior).
+// Transfer 1: read of uart[1] at 0x20; the child inserts one wait state.
+// Transfer 2: write to 0x08, an unmapped hole: local error in the access phase.
+{
+  signal: [
+    { name: "PCLK",              wave: "p......" },
+    ["Upstream (s_apb)",
+      { name: "PSEL",            wave: "1....0." },
+      { name: "PENABLE",         wave: "01.010." },
+      { name: "PWRITE",          wave: "0..1.x." },
+      { name: "PADDR",           wave: "=..=.x.", data: ["0x20", "0x08"] },
+      { name: "PREADY",          wave: "x01010." },
+      { name: "PSLVERR",         wave: "x0..10." },
+      { name: "PRDATA",          wave: "x.=x...", data: ["child data"] }
+    ],
+    {},
+    ["Child uart[1] (m_apb)",
+      { name: "PSEL",            wave: "1..0..." },
+      { name: "PENABLE",         wave: "01.0..." },
+      { name: "PADDR",           wave: "=..x...", data: ["0x0"] },
+      { name: "PREADY",          wave: "x01x..." }
+    ]
+  ],
+  head: { text: "APB4: mapped read with a child wait state, then an unmapped write", tick: 0 },
+  foot: { text: "Selected child responses pass through; a miss errors in the access phase." },
+  config: { hscale: 2 }
+}
