@@ -16,6 +16,9 @@ Ordered AXI4-Lite
 -----------------
 Proposed in `PR #83 <https://github.com/arnavsacheti/PeakRDL-BusDecoder/pull/83>`_.
 
+The adapter requires a clock/reset: omitting ``--clk-src`` selects ``design``;
+explicit ``cpuif`` is also supported, while ``off`` is rejected.
+
 The adapter accepts ``AW`` and ``W`` independently, keeps separate read and write
 order queues, and allows several transactions per direction to be outstanding.
 Each accepted transaction records its destination (or a local-error marker) when
@@ -58,6 +61,10 @@ AHB-Lite
 --------
 Implemented on the ``feature/ahb-lite-isolated`` branch; not yet proposed for
 merge.
+
+The adapter always uses ingress ``HCLK/HRESETn``. ``--clk-src design`` and
+``--clk-src cpuif`` are accepted but ignored; explicit ``off`` is rejected.
+No accepted setting adds generic ``clk``/``rst`` or child clock/reset outputs.
 
 AHB-Lite overlaps the address phase of one transfer with the data phase of the
 previous one. The decoder therefore separates live address-phase selection from

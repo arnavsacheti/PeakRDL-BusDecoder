@@ -13,12 +13,28 @@ Bundled interface definitions:
   adapter.
 
 The generated adapters support SystemVerilog interface and flat-port forms.
+`--clk-src` accepts `off`, `cpuif`, and `design`. Omitting the option (or using
+Python `clk_src=None`) selects `off` for APB with `--apb-buffer none`, preserving
+the 0.7.x clockless decoder module ports: no `clk`/`rst`, no standalone
+`PCLK`/`PRESETn`, and no clock/reset forwarding. Buffered APB and AXI4-Lite
+default to `design`, which adds explicit `clk`/`rst` inputs. Opting into `cpuif`
+uses ingress protocol clock/reset; flat variants expose those inputs and
+pass-through clock/reset outputs for every child. The bundled SystemVerilog
+interface definitions retain clock/reset members in every mode; those members
+are inputs on both modports and must be connected externally. `off` does not
+remove the clock/reset required by the surrounding APB manager and children.
+
+APB buffering requires `design`, selected automatically when the clock-source
+option is omitted. Explicit `off` or `cpuif` with buffering is rejected: omit
+`--clk-src`, select `design`, or disable buffering with `--apb-buffer none`.
+AXI4-Lite rejects `off`: omit the option or select `design` or `cpuif` and wire
+the selected source.
+
 Connect AHB-Lite ingress and children externally to the same `HCLK`/`HRESETn`
-domain; its adapter always uses the ingress clock/reset, independent of
-`--clk-src`. APB and AXI4-Lite select design `clk`/`rst` or ingress protocol
-clock/reset with that option. Their flat `cpuif`-clocked variants provide child
-clock/reset outputs; SystemVerilog interface clock/reset members are inputs and
-must be connected externally.
+domain. Its adapter always uses ingress clock/reset: `design` and `cpuif` are
+accepted but ignored, while explicit `off` is rejected. Omit `--clk-src` or
+choose either accepted setting; none adds generic `clk`/`rst` ports or child
+clock/reset outputs.
 
 These reference files are free to use for any purpose and are not covered by
 this project's LGPLv3 license.

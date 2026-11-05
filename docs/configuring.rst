@@ -41,13 +41,31 @@ change ports, routing boundaries, queues, or pipeline state.
 * ``--max-decode-depth``: Control how far the decoder descends into hierarchy
 * ``--parametrize``: Propagate top-level SystemRDL parameters into the
   generated module (see :doc:`parameters`)
-* ``--clk-src``: Select APB/AXI clock/reset (``design`` (default) adds top-level
-  ``clk``/``rst`` ports; ``cpuif`` uses the CPU-interface clock/reset).
-  AHB-Lite always uses ingress ``HCLK/HRESETn`` and does not add generic clock/reset ports.
+* ``--clk-src``: Select ``off``, ``cpuif``, or ``design``. If omitted,
+  unbuffered APB (``--apb-buffer none``) uses ``off``; buffered APB and AXI4-Lite
+  use ``design``. ``off`` preserves the clockless 0.7.x APB decoder ports,
+  ``design`` adds top-level ``clk``/``rst``, and ``cpuif`` uses protocol
+  clock/reset. AHB-Lite always uses ingress ``HCLK/HRESETn``; ``design`` and
+  ``cpuif`` are ignored for that protocol, while explicit ``off`` is rejected.
 * ``--gate-signals``: Gate APB broadcast payload signals with each slave's
   select so unselected slaves see all-zero payload inputs (off by default)
 * ``--apb-buffer``: Select transaction-aware APB request/response buffering
-  (``none`` (default), ``in``, ``out``, ``both``); non-``none`` modes require
-  ``--clk-src design``. See :doc:`cpuif/apb` for timing and reset behavior.
+  (``none`` (default), ``in``, ``out``, ``both``). Non-``none`` modes require
+  ``design``, selected automatically if ``--clk-src`` is omitted. Explicit
+  ``off`` or ``cpuif`` with buffering is rejected: omit ``--clk-src``, select
+  ``--clk-src design``, or disable buffering with ``--apb-buffer none``.
+  See :doc:`cpuif/apb` for timing and reset behavior.
 * ``--axi4lite-max-outstanding``: Set the separate AXI4-Lite read and write
   order-queue depths (default ``4``; minimum ``1``)
+
+AXI4-Lite rejects explicit ``--clk-src off`` because its holding registers and
+ordered-response queues require a clock/reset. Omit the option or select
+``design`` or ``cpuif`` and wire the selected clock/reset. AHB-Lite also rejects
+``off``: omit the option or select ``design`` or ``cpuif``; all accepted settings
+still use ingress ``HCLK/HRESETn``.
+
+The Python exporter uses the equivalent ``clk_src`` keyword. Omitting it or
+passing ``clk_src=None`` selects the same protocol-dependent defaults; the
+explicit values are ``"off"``, ``"cpuif"``, and ``"design"``. ``None`` is not a
+command-line choice. See :doc:`cpuif/introduction` for the clock/reset wiring
+contract and :doc:`migrating` for changes from 0.7.x.

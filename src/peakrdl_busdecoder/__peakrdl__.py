@@ -134,7 +134,8 @@ class Exporter(ExporterSubcommandPlugin):
             captures the child response and retires the child before upstream
             acceptance; 'both' combines them. 'none' (default) is combinational.
             No-wait upstream ACCESS cycles: none=1, in=2, out=2, both=3.
-            Only APB cpuifs support buffering; non-none requires --clk-src=design.
+            Only APB cpuifs support buffering; non-none defaults to and requires
+            --clk-src=design.
             """,
         )
 
@@ -150,16 +151,17 @@ class Exporter(ExporterSubcommandPlugin):
 
         arg_group.add_argument(
             "--clk-src",
-            choices=("cpuif", "design"),
-            default="design",
+            choices=("off", "cpuif", "design"),
+            default=None,
             help="""Select where the bus decoder gets its clock and reset.
+            'off' omits clock/reset ports and is the default for unbuffered APB.
             'cpuif' takes PCLK/PRESETn or ACLK/ARESETn from the slave CPU
             interface. Flat master ports forward clock/reset; SystemVerilog
             interface endpoints require external clock/reset connections.
-            'design' (default) drops clk/reset from the CPU interface and
-            exposes top-level 'clk'/'rst' ports — the design distributes
-            clock/reset to downstream slaves itself. AHB-Lite always uses
-            HCLK/HRESETn on its ingress instead of this option.
+            'design' exposes top-level 'clk'/'rst' ports and is the default for
+            buffered APB and AXI4-Lite. The design distributes clock/reset to
+            downstream slaves itself. Stateful configurations reject 'off'.
+            AHB-Lite always uses ingress HCLK/HRESETn and rejects 'off'.
             """,
         )
 

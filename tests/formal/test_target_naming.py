@@ -139,6 +139,9 @@ def _wrapper_source(
     Like the cocotb interface wrappers, all interface-array references here use
     constant indices. The DUT itself still exports rolled arrays and must use
     its intermediate fanin signals to select responses at runtime.
+    The harness keeps its test clock/reset in every case, but only AXI4-Lite's
+    default design-clocked DUT connects generic clk/rst ports. APB defaults to
+    clockless decoding; its interface clocks remain driven for bus timing.
     """
     count = 2 if rolled else 1
     endpoints = len(targets) * count
@@ -211,7 +214,7 @@ def _wrapper_source(
     output logic counts_ok
 );
     import target_naming_pkg::*;"""]
-    connections: list[str] = [".clk(clk)", ".rst(rst)"]
+    connections: list[str] = [] if apb else [".clk(clk)", ".rst(rst)"]
 
     if interface:
         lines += [

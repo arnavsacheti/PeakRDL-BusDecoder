@@ -17,34 +17,65 @@ cannot be inferred and will default to 32 bits.
 
 Clock and Reset
 ^^^^^^^^^^^^^^^
-For APB and AXI4-Lite, the clock/reset source is selected with ``--clk-src``:
+For APB and AXI4-Lite, ``--clk-src`` accepts ``off``, ``cpuif``, or ``design``.
+Omitting it (or omitting the Python ``clk_src`` keyword or passing ``None``)
+selects a default based on the protocol and APB buffering:
 
-``design`` (default)
-    The CPU interface carries no clock or reset. The generated module exposes
-    top-level ``clk`` and ``rst`` input ports instead, and the design is
-    responsible for distributing clock and reset to downstream slaves. The
-    APB path is combinational unless transaction-aware buffering is enabled
-    (see ``--apb-buffer``). The AXI4-Lite adapter always uses this clock and reset
-    for its request holding registers and ordered-response queues.
+.. list-table::
+    :header-rows: 1
+
+    * - Configuration
+      - Clock/reset when unspecified
+    * - APB3/APB4 with ``--apb-buffer none`` (the default)
+      - ``off``
+    * - APB3/APB4 with ``--apb-buffer in``, ``out``, or ``both``
+      - ``design``
+    * - AXI4-Lite
+      - ``design``
+    * - AHB-Lite
+      - Always ingress ``HCLK/HRESETn``
+
+``off``
+    Only unbuffered APB supports this mode among the built-in adapters. The
+    generated decoder has no ``clk``/``rst`` ports, no standalone
+    ``PCLK``/``PRESETn`` ports, and no clock/reset forwarding or sequential
+    state. This preserves the 0.7.x APB decoder port shape. It does not remove
+    the clock/reset needed by the surrounding APB manager and children.
+
+``design``
+    The generated module exposes top-level ``clk`` and active-high asynchronous
+    ``rst`` input ports. Flat CPU-interface ports omit protocol clock/reset.
+    The surrounding design distributes the same clock/reset domain to the
+    decoder and downstream slaves. APB remains combinational unless buffering
+    is enabled; AXI4-Lite always uses this source for its holding registers and
+    ordered-response queues.
 
 ``cpuif``
-    Clock and reset are bundled with the CPU interface bus. The slave
-    interface carries the protocol-defined clock and reset (``PCLK``/``PRESETn``
-    for APB, ``ACLK``/``ARESETn`` for AXI4-Lite). Flat-port variants fan these
-    signals out to every master port. In SystemVerilog-interface variants,
-    clock/reset members of downstream manager modports are inputs and must be
-    connected to the same domain by the surrounding design.
+    The upstream interface supplies protocol-defined clock/reset:
+    ``PCLK``/``PRESETn`` for APB, ``ACLK``/``ARESETn`` for AXI4-Lite. Separate
+    ``clk``/``rst`` ports are omitted. Flat-port variants expose upstream
+    clock/reset inputs and pass-through outputs to every master port.
+    SystemVerilog-interface clock/reset members are inputs on both modports,
+    so connect every interface instance externally to the same domain.
 
-The SystemVerilog interface definitions linked from the protocol pages declare
-``PCLK``/``PRESETn`` (``ACLK``/``ARESETn``) members. The subordinate member is
-used as the decoder's sequential clock/reset only when ``--clk-src cpuif`` is
-selected.
+The bundled SystemVerilog interface definitions retain their clock/reset
+members in every mode. With ``off``, the APB decoder does not use or forward
+them; with ``design``, decoder state uses the separate ``clk``/``rst`` ports.
+Only ``cpuif`` selects an upstream APB/AXI interface member as the decoder's
+clock/reset source.
 
-AHB-Lite always uses ingress ``HCLK`` and active-low asynchronous ``HRESETn``;
-``--clk-src`` does not change that protocol's ports. Flat AHB ports include
-``s_ahb_HCLK`` and ``s_ahb_HRESETn``. Interface instances receive the same
-clock/reset externally on both ingress and children; the router does not
-distribute clocks or resets through child output ports. See :doc:`ahblite`.
+Buffered APB requires ``design``: explicit ``off`` or ``cpuif`` is rejected.
+Omit ``--clk-src`` to select ``design`` automatically, select it explicitly, or
+use ``--apb-buffer none`` to disable buffering. AXI4-Lite rejects explicit
+``off``; omit the option or select ``design`` or ``cpuif``.
+
+AHB-Lite always uses ingress ``HCLK`` and active-low asynchronous ``HRESETn``.
+It ignores ``design`` and ``cpuif`` and rejects explicit ``off``; omit the
+option or choose either accepted setting. No accepted setting adds generic
+``clk``/``rst`` ports. Flat AHB ports include ``s_ahb_HCLK`` and
+``s_ahb_HRESETn``. Interface instances receive the same clock/reset externally
+on both ingress and children; the router does not distribute clocks or resets
+through child output ports. See :doc:`ahblite`.
 
 
 Addressing
