@@ -26,6 +26,10 @@ shipped release. It requires **Python 3.11 or newer**.
 - Single-manager **AHB-Lite** provides retained address/data-phase routing and
   two-cycle local ERROR responses in interface and flat-port forms. Decoded
   apertures must be at least 1 KiB and aligned/sized in 1 KiB units.
+- Project-wide generator defaults in `[busdecoder]` in `peakrdl.toml`, with
+  explicit CLI overrides and `--no-gate-signals`/`--no-unroll`/`--no-parametrize`
+  to disable project-enabled options. Existing custom CPU-interface aliases
+  remain supported. See [configuration](docs/configuring.rst).
 
 This is not full AXI4: IDs, bursts, exclusives, and cross-ID reordering are not
 implemented. Read and write routing share one SystemRDL layout; standalone

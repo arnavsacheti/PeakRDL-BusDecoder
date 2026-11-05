@@ -43,6 +43,41 @@ if TYPE_CHECKING:
     pass
 
 
+def resolve_clk_src(cpuif_cls: type[BaseCpuif], clk_src: str | None, apb_buffer: str = "none") -> str:
+    """Resolve and validate the shared CLI/API protocol, clock, and buffer settings."""
+    if clk_src is not None and clk_src not in ("off", "cpuif", "design"):
+        raise ValueError(f"--clk-src must be 'off', 'cpuif' or 'design', got {clk_src!r}")
+    if apb_buffer not in ("none", "in", "out", "both"):
+        raise ValueError(f"--apb-buffer must be one of 'none', 'in', 'out', 'both', got {apb_buffer!r}")
+
+    if clk_src is None:
+        clk_src = "off" if issubclass(cpuif_cls, APBCpuifBase) and apb_buffer == "none" else "design"
+    elif clk_src == "off":
+        if issubclass(cpuif_cls, AHBLiteCpuifFlat):
+            raise ValueError(
+                "--clk-src off is not supported by AHB-Lite; it always requires "
+                "ingress HCLK/HRESETn. Omit --clk-src or select cpuif."
+            )
+        if issubclass(cpuif_cls, AXI4LiteCpuifFlat):
+            raise ValueError(
+                "--clk-src off is not supported by AXI4-Lite ordered queues; "
+                "use --clk-src design (the default) or --clk-src cpuif."
+            )
+
+    if apb_buffer != "none":
+        if clk_src != "design":
+            raise ValueError(
+                "--apb-buffer requires --clk-src design (the buffer flops use clk/rst); "
+                "omit --clk-src to select design automatically, or set --apb-buffer none"
+            )
+        if not cpuif_cls.supports_apb_buffer:
+            raise ValueError(
+                f"--apb-buffer {apb_buffer!r} is not supported by {cpuif_cls.__name__}; "
+                "only APB cpuifs honor this option; choose an APB --cpuif or use --apb-buffer none."
+            )
+    return clk_src
+
+
 class BusDecoderExporter:
     cpuif: BaseCpuif
     ds: DesignState
@@ -158,23 +193,12 @@ class BusDecoderExporter:
             top_node = node
 
         cpuif_cls: type[BaseCpuif] = kwargs.pop("cpuif_cls", None) or APB4Cpuif
-        if kwargs.get("clk_src") is None:
-            kwargs["clk_src"] = (
-                "off"
-                if issubclass(cpuif_cls, APBCpuifBase) and kwargs.get("apb_buffer", "none") == "none"
-                else "design"
+        try:
+            kwargs["clk_src"] = resolve_clk_src(
+                cpuif_cls, kwargs.get("clk_src"), kwargs.get("apb_buffer", "none")
             )
-        elif kwargs["clk_src"] == "off":
-            if issubclass(cpuif_cls, AHBLiteCpuifFlat):
-                top_node.env.msg.fatal(
-                    "--clk-src off is not supported by AHB-Lite; it always requires "
-                    "ingress HCLK/HRESETn. Omit --clk-src or select cpuif."
-                )
-            if issubclass(cpuif_cls, AXI4LiteCpuifFlat):
-                top_node.env.msg.fatal(
-                    "--clk-src off is not supported by AXI4-Lite ordered queues; "
-                    "use --clk-src design (the default) or --clk-src cpuif."
-                )
+        except ValueError as exc:
+            top_node.env.msg.fatal(str(exc))
         self.ds = DesignState(top_node, cast(DesignStateKwargs, kwargs))
 
         # Check for stray kwargs

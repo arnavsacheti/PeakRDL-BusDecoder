@@ -59,13 +59,20 @@ Key command-line options:
 * ``--module-name``: Override the generated module name
 * ``--package-name``: Override the generated package name
 * ``--addr-width``: Override the slave address width
-* ``--unroll``: Unroll arrayed children into discrete interfaces
+* ``--data-width``: Override TOML ``data_width`` or inferred data width; a power of two of at least 8 and no smaller than any internal register ``accesswidth``
+* ``--debug``: Include a full Python traceback for export failures (TOML type/domain validation remains concise)
+* ``--unroll`` / ``--no-unroll``: Enable/disable unrolling arrayed children into discrete interfaces
 * ``--max-decode-depth``: Control how far the decoder descends into hierarchy
-* ``--parametrize``: Propagate top-level SystemRDL parameters into the generated module
-* ``--clk-src``: Select ``off``, ``cpuif``, or ``design``. Omitted: unbuffered APB uses ``off``; buffered APB and AXI4-Lite use ``design``. AHB always uses ingress ``HCLK/HRESETn`` and rejects ``off``.
-* ``--gate-signals``: Gate APB broadcast signals with each slave's select (off by default)
-* ``--apb-buffer``: Select transaction-aware APB request/response buffering (``none`` (default), ``in``, ``out``, ``both``); buffered modes require ``design``, selected automatically if ``--clk-src`` is omitted
+* ``--parametrize`` / ``--no-parametrize``: Enable/disable propagation of top-level SystemRDL parameters into the generated module
+* ``--clk-src``: Select ``off``, ``cpuif``, or ``design``. Unspecified in CLI and TOML: unbuffered APB uses ``off``; buffered APB and AXI4-Lite use ``design``. AHB always uses ingress ``HCLK/HRESETn`` and rejects ``off``.
+* ``--gate-signals`` / ``--no-gate-signals``: Enable/disable gating APB broadcast signals with each slave's select (built-in default: disabled)
+* ``--apb-buffer``: Select transaction-aware APB request/response buffering (``none`` (built-in default), ``in``, ``out``, ``both``); buffered modes require ``design``, selected automatically if neither CLI nor TOML selects ``clk_src``
 * ``--axi4lite-max-outstanding``: Set each AXI4-Lite ordered-response queue depth (default ``4``)
+
+Project-wide defaults can be set under ``[busdecoder]`` in ``peakrdl.toml``.
+Explicit CLI options take precedence over TOML, then built-in defaults apply.
+See :doc:`configuring` for supported keys, discovery, and validation; per-design
+module/package names and address widths remain CLI overrides.
 
 
 Looking for VHDL?

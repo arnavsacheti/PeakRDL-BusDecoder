@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import functools
+import sys
 import traceback
-from typing import TYPE_CHECKING, Any
+from argparse import BooleanOptionalAction
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from peakrdl.config import schema
 from peakrdl.plugins.entry_points import get_entry_points
@@ -10,17 +12,49 @@ from peakrdl.plugins.exporter import ExporterSubcommandPlugin
 from systemrdl import RDLCompileError
 
 from .cpuif import BaseCpuif, ahblite, apb, axi4lite
-from .exporter import BusDecoderExporter
+from .exporter import BusDecoderExporter, resolve_clk_src
 from .udps import ALL_UDPS
 
 if TYPE_CHECKING:
     import argparse
 
+    from peakrdl.config.loader import AppConfig
     from systemrdl.node import AddrmapNode
+
+_OptionValue = TypeVar("_OptionValue")
+
+
+class _IntegerAtLeast(schema.Integer):
+    def __init__(self, minimum: int) -> None:
+        self.minimum = minimum
+
+    def extract(self, data: object, path: str, err_ctx: str) -> int:
+        # Python's bool is an int subclass, but TOML booleans are not integers.
+        if isinstance(data, bool):
+            raise schema.SchemaException(f"{err_ctx}: Expected int. Got bool")
+        value = super().extract(data, path, err_ctx)
+        if value < self.minimum:
+            raise schema.SchemaException(
+                f"{err_ctx}: Expected an integer greater than or equal to {self.minimum}. Got {value}"
+            )
+        return value
+
+
+class _DataWidth(_IntegerAtLeast):
+    def __init__(self) -> None:
+        super().__init__(8)
+
+    def extract(self, data: object, path: str, err_ctx: str) -> int:
+        value = super().extract(data, path, err_ctx)
+        if value & (value - 1):
+            raise schema.SchemaException(
+                f"{err_ctx}: Expected a power of two of at least 8 bits. Got {value}"
+            )
+        return value
 
 
 @functools.lru_cache
-def get_cpuifs(config: list[tuple[str, Any]]) -> dict[str, type[BaseCpuif]]:
+def get_cpuifs(config: tuple[tuple[str, Any], ...]) -> dict[str, type[BaseCpuif]]:
     # All built-in CPUIFs
     cpuifs: dict[str, type[BaseCpuif]] = {
         # "passthrough": passthrough.PassthroughCpuif,
@@ -70,10 +104,28 @@ class Exporter(ExporterSubcommandPlugin):
 
     cfg_schema = {  # noqa: RUF012
         "cpuifs": {"*": schema.PythonObjectImport()},
+        "cpuif": schema.String(),
+        "data_width": _DataWidth(),
+        "clk_src": schema.Choice(["off", "cpuif", "design"]),
+        "apb_buffer": schema.Choice(["none", "in", "out", "both"]),
+        "gate_signals": schema.Boolean(),
+        "max_decode_depth": _IntegerAtLeast(0),
+        "unroll": schema.Boolean(),
+        "axi4lite_max_outstanding": _IntegerAtLeast(1),
+        "parametrize": schema.Boolean(),
     }
 
+    def _load_cfg(self, cfg: AppConfig) -> None:
+        super()._load_cfg(cfg)
+        self._cfg_path = cfg.path
+        # CPU-interface choices depend on imports from this same configuration.
+        cfg.get_namespace(
+            self.name,
+            schema.normalize({"cpuif": schema.Choice(list(self.get_cpuifs()))}),
+        )
+
     def get_cpuifs(self) -> dict[str, type[BaseCpuif]]:
-        return get_cpuifs(map(tuple, self.cfg["cpuifs"].items()))
+        return get_cpuifs(tuple(self.cfg["cpuifs"].items()))
 
     def add_exporter_arguments(self, arg_group: argparse._ActionsContainer) -> None:
         cpuifs = self.get_cpuifs()
@@ -81,7 +133,7 @@ class Exporter(ExporterSubcommandPlugin):
         arg_group.add_argument(
             "--cpuif",
             choices=cpuifs.keys(),
-            default="apb4",
+            default=None,
             help="Select the CPU interface protocol to use [apb4]",
         )
 
@@ -127,8 +179,8 @@ class Exporter(ExporterSubcommandPlugin):
 
         arg_group.add_argument(
             "--unroll",
-            action="store_true",
-            default=False,
+            action=BooleanOptionalAction,
+            default=None,
             help="""Unroll arrayed addressable nodes into separate instances in
             the CPU interface. By default, arrayed nodes are kept as arrays.
             """,
@@ -136,8 +188,8 @@ class Exporter(ExporterSubcommandPlugin):
 
         arg_group.add_argument(
             "--parametrize",
-            action="store_true",
-            default=False,
+            action=BooleanOptionalAction,
+            default=None,
             help="""Extract root-level RDL parameters that control array
             dimensions and expose them as SystemVerilog module parameters.
             By default, all array dimensions use their elaborated static values.
@@ -147,7 +199,7 @@ class Exporter(ExporterSubcommandPlugin):
         arg_group.add_argument(
             "--apb-buffer",
             choices=("none", "in", "out", "both"),
-            default="none",
+            default=None,
             help="""Select transaction-aware APB buffering. 'in' captures the
             request at upstream SETUP and issues one child transfer; 'out'
             captures the child response and retires the child before upstream
@@ -161,7 +213,7 @@ class Exporter(ExporterSubcommandPlugin):
         arg_group.add_argument(
             "--axi4lite-max-outstanding",
             type=int,
-            default=4,
+            default=None,
             help="""Maximum number of accepted AXI4-Lite reads and paired
             writes retained by each ordered response queue. Default is 4.
             Only applies to AXI4-Lite CPU interfaces.
@@ -187,7 +239,7 @@ class Exporter(ExporterSubcommandPlugin):
         arg_group.add_argument(
             "--max-decode-depth",
             type=int,
-            default=1,
+            default=None,
             help="""Maximum depth for address decoder to descend into nested
             addressable components. Value of 0 decodes all levels (infinite depth).
             Value of 1 decodes only top-level children. Value of 2 decodes top-level
@@ -197,37 +249,63 @@ class Exporter(ExporterSubcommandPlugin):
 
         arg_group.add_argument(
             "--gate-signals",
-            action="store_true",
-            default=False,
+            action=BooleanOptionalAction,
+            default=None,
             help="""Gate downstream broadcast payload signals with the per-slave select.
             For APB this drives PADDR/PWDATA/PSTRB/PPROT to '0 on unselected
-            masters. When omitted, payload signals fan out without select masking.
+            masters. By default, payload signals fan out without select masking.
             PENABLE is always gated with the per-slave select.
             """,
         )
 
+    def _get_option(self, options: argparse.Namespace, key: str, default: _OptionValue) -> _OptionValue:
+        value = getattr(options, key)
+        if value is None:
+            value = self.cfg[key]
+        return default if value is None else cast(_OptionValue, value)
+
+    def _config_context(self, options: argparse.Namespace, *keys: str) -> str:
+        sources = [
+            f"busdecoder.{key}={self.cfg[key]!r}"
+            for key in keys
+            if getattr(options, key) is None and self.cfg[key] is not None
+        ]
+        return f"{self._cfg_path}: {', '.join(sources)}: " if sources else ""
+
     def do_export(self, top_node: AddrmapNode, options: argparse.Namespace) -> None:
         cpuifs = self.get_cpuifs()
-
-        x = BusDecoderExporter()
+        cpuif_cls = cpuifs[self._get_option(options, "cpuif", "apb4")]
+        apb_buffer = self._get_option(options, "apb_buffer", "none")
+        clk_src = options.clk_src if options.clk_src is not None else self.cfg["clk_src"]
+        data_width = options.data_width if options.data_width is not None else self.cfg["data_width"]
         try:
+            try:
+                clk_src = resolve_clk_src(cpuif_cls, clk_src, apb_buffer)
+            except ValueError as exc:
+                context = self._config_context(options, "cpuif", "clk_src", "apb_buffer")
+                top_node.env.msg.fatal(f"{context}{exc}")
+
+            x = BusDecoderExporter()
             x.export(
                 top_node,
                 options.output,
-                cpuif_cls=cpuifs[options.cpuif],
+                cpuif_cls=cpuif_cls,
                 module_name=options.module_name,
                 package_name=options.package_name,
                 address_width=options.addr_width,
-                data_width=options.data_width,
-                cpuif_unroll=options.unroll,
-                parametrize=options.parametrize,
-                max_decode_depth=options.max_decode_depth,
-                clk_src=options.clk_src,
-                gate_signals=options.gate_signals,
-                apb_buffer=options.apb_buffer,
-                axi4lite_max_outstanding=options.axi4lite_max_outstanding,
+                data_width=data_width,
+                cpuif_unroll=self._get_option(options, "unroll", False),
+                parametrize=self._get_option(options, "parametrize", False),
+                max_decode_depth=self._get_option(options, "max_decode_depth", 1),
+                clk_src=clk_src,
+                gate_signals=self._get_option(options, "gate_signals", False),
+                apb_buffer=apb_buffer,
+                axi4lite_max_outstanding=self._get_option(options, "axi4lite_max_outstanding", 4),
             )
         except RDLCompileError:
+            context = self._config_context(options, "data_width")
+            if context:
+                print(f"{context}effective project setting for this export.", file=sys.stderr)
             if options.debug:
                 traceback.print_exc()
             raise
