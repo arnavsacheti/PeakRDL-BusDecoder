@@ -1,4 +1,4 @@
-// Planned AHB-Lite adapter (feature/ahb-lite-isolated, unreleased).
+// AHB-Lite single-manager adapter, available in 0.8.0.
 // An unmapped transfer receives the required two-cycle ERROR response.
 {
   signal: [
@@ -12,7 +12,7 @@
     {},
     { name: "downstream HSEL",   wave: "0.10.." }
   ],
-  head: { text: "Planned AHB-Lite: local two-cycle ERROR (illustrative)" },
+  head: { text: "AHB-Lite: local two-cycle ERROR (illustrative)" },
   foot: { text: "No child is selected for the hole; recovery waits for HREADY high." },
   config: { hscale: 2 }
 }

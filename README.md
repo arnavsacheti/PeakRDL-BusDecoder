@@ -7,10 +7,9 @@
 # PeakRDL-BusDecoder
 Generate a SystemVerilog bus decoder from SystemRDL that splits CPU interface signals to multiple sub-address spaces. This tool is designed for creating hierarchical register address maps by decoding bus transactions and routing them to the appropriate child address maps.
 
-## 0.8.0 candidate — not yet released
+## 0.8.0
 
-This branch prepares 0.8.0 and is **pending integration verification**, not a
-shipped release. It requires **Python 3.11 or newer**.
+Version 0.8.0 requires **Python 3.11 or newer**.
 
 - APB3 and APB4 remain supported in interface and flat-port forms. With default
   `--apb-buffer none`, omitting `--clk-src` preserves the 0.7.x clockless decoder

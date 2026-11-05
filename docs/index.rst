@@ -11,9 +11,8 @@ bus-routing layer that decodes addresses and forwards requests to child blocks.
 
 .. note::
 
-    This documentation describes the **0.8.0 candidate**, pending integration
-    verification and not yet shipped. Python **3.11 or newer** is required.
-    The candidate adds ordered AXI4-Lite and single-manager AHB-Lite routing;
+    This documentation describes **0.8.0**. Python **3.11 or newer** is required.
+    This release adds ordered AXI4-Lite and single-manager AHB-Lite routing;
     it does not implement full AXI4 or separate custom read/write layouts.
 
     Upgrading an existing design? See :doc:`migrating` for preserved APB defaults,
@@ -116,4 +115,3 @@ Links
     cpuif/ahblite
     cpuif/internal_protocol
     cpuif/customizing
-    cpuif/upcoming

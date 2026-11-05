@@ -1,4 +1,4 @@
-// Planned ordered AXI4-Lite adapter (PR #83, unreleased).
+// Ordered AXI4-Lite adapter, available in 0.8.0.
 // AW and W are accepted independently and paired in acceptance order:
 // pair 1 arrives W-first, pair 2 arrives AW-first.
 {
@@ -16,7 +16,7 @@
     { name: "write enqueued", wave: "x...=x..=x", data: ["A1+D1", "A2+D2"], node: "....e...f." }
   ],
   edge: ["b~>e", "a~>e", "c~>f", "d~>f"],
-  head: { text: "Planned AXI4-Lite: independent AW and W acceptance (illustrative)" },
+  head: { text: "AXI4-Lite: independent AW and W acceptance (illustrative)" },
   foot: { text: "A write is enqueued once both halves of the oldest AW/W pair are accepted." },
   config: { hscale: 2 }
 }

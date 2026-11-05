@@ -3,11 +3,10 @@
 AXI4-Lite Ordered Response Design
 =================================
 
-Status and terminology
-----------------------
-This design is implemented in the 0.8.0 candidate, which is pending integrated
-verification and has not shipped. The generated
-module exposes an AXI4-Lite **Subordinate** interface (``s_axil``) to the
+Release and terminology
+-----------------------
+This design is available in 0.8.0. The generated module exposes an AXI4-Lite
+**Subordinate** interface (``s_axil``) to the
 upstream Manager and one AXI4-Lite **Manager** interface (``m_axil_*``) per
 downstream Subordinate. Source identifiers retain the older ``slave`` and
 ``master`` names.
@@ -48,6 +47,19 @@ Response sequence
 -----------------
 Only the child named by the queue head receives response ``READY``. A faster
 later child holds its response until older work completes.
+
+.. figure:: ../diagrams/svg/axi4lite_response_order.svg
+    :class: diagram
+    :alt: Reads A then B are accepted. Child B asserts RVALID first but sees
+        RREADY low. Child A responds later; its response is presented upstream
+        and held while upstream RREADY is low. After A's handshake, child B
+        receives RREADY and B's response follows.
+
+    Same-direction ordering: child B's earlier response waits behind A, and the
+    presented response stays stable under upstream back-pressure.
+
+The timing diagram is illustrative; exact latencies depend on the implementation
+and the children.
 
 .. mermaid::
 
@@ -92,6 +104,20 @@ Response payload RAM is not required. A non-head child is back-pressured and,
 as required by AXI, retains its response ``VALID`` and payload. The response
 fanin mux selects the queue-head child; the upstream ``READY`` is propagated
 only to that child. Local errors synthesize a head response with ``DECERR``.
+
+The figure uses the same conventions as :doc:`../architecture`: blue paths carry
+requests, dashed green paths carry responses, red marks locally generated
+errors, and orange marks state retained per transaction.
+
+.. figure:: ../diagrams/svg/axi4lite_ordered.svg
+    :class: diagram
+    :alt: Write path: AW and W hold registers feed a pairing stage that decodes
+        once and enqueues into the write order queue. The queue issues requests
+        to children; the B mux passes BREADY only to the child at the queue head
+        and answers local errors when they reach the head. The read path has its
+        own AR decode, read order queue and R mux, ordered independently of writes.
+
+    Ordered AXI4-Lite structure: independent read and write queues.
 
 .. mermaid::
 
@@ -147,5 +173,5 @@ wraparound. Wider upstream interface tests verify that high address bits
 produce ``DECERR`` rather than aliasing a low mapped address. Rolled arrays,
 variable decode depth, and randomized upstream write-channel order are also
 covered by the test cases. Exporter validation rejects nonpositive queue
-capacities. This coverage inventory is not a receipt that the integrated
-0.8.0 candidate has passed those tests.
+capacities. This inventory describes finite RTL simulation coverage, not a formal
+proof or a verification receipt for a particular release artifact.

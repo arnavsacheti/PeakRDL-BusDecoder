@@ -28,6 +28,6 @@ Deleting a source and running `build.py` removes its SVG.
 - Blue solid: request path. Green dashed: response path. Red: locally generated
   error. Orange: per-transaction retained state. Grey: export-time processing.
 - Light fills with a darker border of the same hue; white figure background.
-- Figures describing unreleased behavior say "Planned" in their title or live on
-  `cpuif/upcoming.rst`. Move them when the feature ships.
+- Interface figures live with the released interface or ordering contract they
+  illustrate; captions must preserve the protocol's scope and timing caveats.
 - Timing diagrams are illustrative; state exact contracts in the page text.

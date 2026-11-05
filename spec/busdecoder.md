@@ -1,13 +1,13 @@
-# PeakRDL-BusDecoder — Draft 0.8.0 Specification
+# PeakRDL-BusDecoder — 0.8.0 Specification
 
 This specification defines the behavior, interface contracts, protocol invariants, and address-decoding mathematics of the **PeakRDL-BusDecoder** generator.
 
 Every normative statement is assigned a unique identifier `BD-*`. Downstream audits and verification harnesses reference these identifiers directly.
 
-Status: **0.8.0 candidate, pending integration verification; not shipped.**
+Status: **released 0.8.0 contract.**
 This is the current routing contract, not an unbounded formal proof. Python
 3.11 or newer is required. Historical audits retain pre-cutover evidence;
-this draft supersedes their old coupled-AXI and global-single-flight models.
+this specification supersedes their old coupled-AXI and global-single-flight models.
 
 ---
 

@@ -1,4 +1,4 @@
-// Planned AHB-Lite adapter (feature/ahb-lite-isolated, unreleased).
+// AHB-Lite single-manager adapter, available in 0.8.0.
 // Address-phase selection is combinational; data-phase response selection is
 // registered. Conventions match architecture.dot (orange = retained state).
 digraph ahblite_datapath {

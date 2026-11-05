@@ -4,9 +4,9 @@ This specification formalizes the subset of the Accellera SystemRDL 2.0 Standard
 
 All clauses cited refer to the *Accellera SystemRDL 2.0 Standard* (January 2018). Text is paraphrased to preserve Accellera copyright while capturing exact semantics.
 
-Status: reference semantics for the **0.8.0 candidate draft**, pending integrated
-verification. This mathematical model is not a claim of an unbounded proof of
-the generated RTL. Protocol-specific routing contracts are in `busdecoder.md`.
+Status: reference semantics for **released 0.8.0**. This mathematical model is
+not a claim of an unbounded proof of the generated RTL. Protocol-specific
+routing contracts are in `busdecoder.md`.
 
 ---
 

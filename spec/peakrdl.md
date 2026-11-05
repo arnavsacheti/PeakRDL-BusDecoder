@@ -2,9 +2,9 @@
 
 This specification formalizes the object model, AST elaboration semantics, and exporter integration contract implemented by `systemrdl-compiler` (project dependency `~=1.30`) and the `peakrdl` CLI framework. It defines the interfaces through which an exporter consumes an elaborated register model.
 
-Status: **0.8.0 candidate draft**, Python 3.11 or newer, pending integration
-verification and not shipped. Protocol/state-machine requirements live in
-`busdecoder.md`; this reference does not impose global single-flight routing.
+Status: **released 0.8.0 reference**, requiring Python 3.11 or newer.
+Protocol/state-machine requirements live in `busdecoder.md`; this reference
+does not impose global single-flight routing or constitute a verification receipt.
 
 ---
 

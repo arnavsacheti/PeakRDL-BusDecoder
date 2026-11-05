@@ -7,8 +7,7 @@ Implements the bus decoder using an
 `AMBA AXI4-Lite <https://developer.arm.com/documentation/ihi0022/e/AMBA-AXI4-Lite-Interface-Specification>`_
 CPU interface.
 
-This stateful ordering implementation is part of the 0.8.0 candidate, pending
-integration verification and not yet shipped.
+The stateful ordering implementation is available in 0.8.0.
 
 The AXI4-Lite CPU interface comes in two i/o port flavors:
 
@@ -82,6 +81,22 @@ option in this release.
 AXI4-Lite standard data widths are 32 and 64 bits. Other generator-inferred
 widths are implementation extensions, not a claim of AXI4-Lite compliance;
 both endpoints must explicitly support the extension.
+
+
+Write request acceptance
+------------------------
+The timing example below shows both arrival orders for ``AW`` and ``W``.
+Each accepted pair records its destination (or a local-error marker), so a
+later address never redirects an older response. Timing diagrams are
+illustrative; exact latencies depend on the implementation and the children.
+
+.. figure:: ../diagrams/svg/axi4lite_write_acceptance.svg
+    :class: diagram
+    :alt: Write data D1 is accepted before its address A1; the pair is enqueued
+        once A1 arrives. Address A2 is accepted before its data D2; that pair
+        is enqueued once D2 arrives.
+
+    ``AW`` and ``W`` may arrive in either order or on different cycles.
 
 
 Outstanding depth
