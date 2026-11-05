@@ -55,6 +55,10 @@ The decode boundary is controlled by ``max_decode_depth``:
 This allows you to choose whether the bus decoder routes to large blocks (e.g.,
 child addrmaps) or to smaller sub-blocks.
 
+Addressable leaves shallower than a positive depth limit remain routed targets;
+the limit never requires a leaf to occur at exactly depth ``N``. See
+:doc:`migrating` for the shallow-leaf change from 0.7.x.
+
 Port collection, target naming, select generation, and fanout/fanin use the same
 decode-boundary decision. A container whose addressable children are all external
 remains an early boundary, preserving the existing treatment of opaque blocks.

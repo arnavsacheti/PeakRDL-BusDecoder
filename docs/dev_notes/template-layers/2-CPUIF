@@ -55,14 +55,21 @@ Protocol state:
         child errors and wait states pass through unchanged.
 
 Clock/reset:
+    clk_src accepts off, cpuif, and design. The exporter resolves omitted/None
+    to off for APB with apb_buffer=none, preserving the 0.7.x clockless decoder
+    ports (no clk/rst, standalone PCLK/PRESETn, or clock/reset forwarding).
+    Buffered APB and AXI4-Lite resolve omitted/None to design.
+
     APB and AXI4-Lite select explicit clk/rst with --clk-src design or ingress
     protocol clock/reset with --clk-src cpuif. Flat cpuif-clocked variants
-    expose child clock/reset outputs; SV interface clock/reset members are
-    inputs and must be connected externally to the selected common domain.
-    APB buffering requires the design clock/reset.
+    expose ingress clock/reset inputs and child clock/reset outputs; SV
+    interface members remain inputs and are connected externally to the same
+    domain. APB buffering requires design, selected automatically if omitted;
+    explicit off/cpuif with buffering is rejected. AXI4-Lite rejects off.
 
-    AHB-Lite always uses ingress HCLK/HRESETn, regardless of --clk-src, without
-    separate clk/rst ports or child clock/reset outputs. The integration wires
+    AHB-Lite always uses ingress HCLK/HRESETn, without separate clk/rst ports
+    or child clock/reset outputs. design/cpuif are accepted but ignored; off
+    is rejected. Omit the option or select design/cpuif and wire ingress plus
     every child externally to that same domain.
 
 Implementation:

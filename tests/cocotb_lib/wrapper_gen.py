@@ -4,6 +4,11 @@ Verilator does not support SV interface ports on the top-level module.  This
 module generates a thin wrapper with flat ports that instantiates the
 interface objects and the DUT internally, allowing cocotb+Verilator simulation
 of interface-based bus decoder modules.
+
+By default APB wrappers omit generic DUT clock/reset ports, matching unbuffered
+APB's ``clk_src="off"`` default; AXI4-Lite wrappers retain them for its
+``clk_src="design"`` default. Bus-interface clock/reset signals remain available
+independently for testbench and peripheral timing.
 """
 
 from __future__ import annotations
@@ -131,7 +136,7 @@ def generate_verilator_intf_wrapper(
     global_addr_width: int,
     global_data_width: int,
     output_dir: Path,
-    include_top_clk_rst: bool = True,
+    include_top_clk_rst: bool | None = None,
 ) -> Path:
     """Generate a Verilator wrapper for an interface-based bus decoder module.
 
@@ -152,8 +157,11 @@ def generate_verilator_intf_wrapper(
         Directory to write the wrapper file.
     include_top_clk_rst:
         Wire top-level ``clk``/``rst`` wrapper inputs through to the DUT.
-        Matches the exporter's default ``clk_src="design"`` mode, where the
-        module has these ports; pass False for ``clk_src="cpuif"`` DUTs.
+        None follows unbuffered protocol defaults: False for APB3/APB4
+        (``clk_src="off"``), True for AXI4-Lite (``clk_src="design"``).
+        Pass True for explicitly design-clocked or default buffered APB DUTs;
+        pass False for explicitly ``clk_src="cpuif"`` or ``"off"`` DUTs.
+        This does not remove bus-interface clocks used by the testbench.
 
     Returns
     -------
@@ -161,6 +169,8 @@ def generate_verilator_intf_wrapper(
         Path to the generated wrapper ``.sv`` file.
     """
     proto = _PROTOCOLS[protocol]
+    if include_top_clk_rst is None:
+        include_top_clk_rst = protocol == "axi4lite"
     intf_type = proto["intf_type"]
     slave_name = proto["slave_name"]
     master_prefix = proto["master_prefix"]

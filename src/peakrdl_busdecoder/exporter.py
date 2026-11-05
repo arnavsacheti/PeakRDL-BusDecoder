@@ -9,7 +9,10 @@ from systemrdl.walker import RDLSteerableWalker
 from typing_extensions import Unpack
 
 from .cpuif import BaseCpuif
+from .cpuif.ahblite import AHBLiteCpuifFlat
 from .cpuif.apb import APB4Cpuif
+from .cpuif.apb.apb_cpuif import APBCpuifBase
+from .cpuif.axi4lite import AXI4LiteCpuifFlat
 from .decode_logic_gen import DecodeLogicFlavor, DecodeLogicGenerator
 from .design_state import DesignState, DesignStateKwargs
 from .identifier_filter import kw_filter as kwf
@@ -29,7 +32,7 @@ class ExporterKwargs(TypedDict, total=False):
     parametrize: bool
     reuse_hwif_typedefs: bool
     max_decode_depth: int
-    clk_src: str
+    clk_src: str | None
     gate_signals: bool
     apb_buffer: str
     axi4lite_max_outstanding: int
@@ -96,17 +99,24 @@ class BusDecoderExporter:
             components. A value of 0 decodes all levels (infinite depth). A value
             of 1 decodes only top-level children. A value of 2 decodes top-level
             and one level deeper, etc. By default, the decoder descends 1 level deep.
-        clk_src: str
-            Selects where the bus decoder gets its clock and reset.
+        clk_src: str | None
+            Selects where the bus decoder gets its clock and reset. None
+            (default) resolves to "off" for unbuffered APB and "design" for
+            buffered APB and AXI4-Lite.
 
+            - "off": no clock/reset ports or logic. Only unbuffered APB
+              supports this mode, preserving the 0.7.x APB port shape.
             - "cpuif": clk/reset are bundled with the CPU interface. The slave
               bus carries the protocol-defined clock/reset (PCLK/PRESETn for
               APB, ACLK/ARESETn for AXI4-Lite). Flat master ports forward
               clock/reset; SystemVerilog interface endpoints must be wired
               externally because their modports treat these as inputs.
-            - "design" (default): the CPU interface carries no clk/reset. The
-              module exposes top-level ``clk`` and ``rst`` ports; the design
-              is responsible for distributing clock/reset to downstream slaves.
+            - "design": the CPU interface carries no clk/reset. The module
+              exposes top-level ``clk`` and ``rst`` ports; the design is
+              responsible for distributing clock/reset to downstream slaves.
+
+            AHB-Lite always uses ingress HCLK/HRESETn, ignores "design" and
+            "cpuif", and rejects "off".
         gate_signals: bool
             Gate downstream broadcast payload signals with the per-slave select.
             For APB this drives PADDR/PWDATA/PSTRB/PPROT to '0 on unselected
@@ -124,8 +134,9 @@ class BusDecoderExporter:
             Only one transfer may be outstanding. With no child waits, upstream
             ACCESS takes 1/2/2/3 cycles for none/in/out/both; minimum completion
             spacing including SETUP is 2/3/3/4 cycles. Each child wait adds one.
-            Non-"none" modes require APB and ``clk_src='design'`` and use
-            design clk and active-high asynchronous rst. Reset clears retained
+            Non-"none" modes require APB and ``clk_src='design'`` (selected
+            automatically when clk_src is None) and use design clk and
+            active-high asynchronous rst. Reset clears retained
             state, suppresses child requests/upstream ready, and aborts pending
             work without undoing completed child side effects. A fresh upstream
             SETUP is required after reset; held stale ACCESS is not replayed.
@@ -141,6 +152,23 @@ class BusDecoderExporter:
             top_node = node
 
         cpuif_cls: type[BaseCpuif] = kwargs.pop("cpuif_cls", None) or APB4Cpuif
+        if kwargs.get("clk_src") is None:
+            kwargs["clk_src"] = (
+                "off"
+                if issubclass(cpuif_cls, APBCpuifBase) and kwargs.get("apb_buffer", "none") == "none"
+                else "design"
+            )
+        elif kwargs["clk_src"] == "off":
+            if issubclass(cpuif_cls, AHBLiteCpuifFlat):
+                top_node.env.msg.fatal(
+                    "--clk-src off is not supported by AHB-Lite; it always requires "
+                    "ingress HCLK/HRESETn. Omit --clk-src or select cpuif."
+                )
+            if issubclass(cpuif_cls, AXI4LiteCpuifFlat):
+                top_node.env.msg.fatal(
+                    "--clk-src off is not supported by AXI4-Lite ordered queues; "
+                    "use --clk-src design (the default) or --clk-src cpuif."
+                )
         self.ds = DesignState(top_node, cast(DesignStateKwargs, kwargs))
 
         # Check for stray kwargs

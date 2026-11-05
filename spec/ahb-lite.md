@@ -48,8 +48,12 @@ AHB-ASSUMPTIONS: manager and children obey AHB-Lite timing, legal HSIZE/data-bus
    The AHB pipeline does not impose a global CPUIF single-flight rule or
    serialize independent AXI4-Lite queues. Both directions use one exported
    layout; standalone custom read/write layouts are not implemented.
-4. AHB always uses canonical ingress HCLK/HRESETn, independently of `--clk-src`
-   and RDL reset metadata. Interface endpoints connect their same-domain
+4. AHB always uses canonical ingress HCLK/HRESETn, independently of RDL reset
+   metadata. Omitted `--clk-src`, explicit `design`, and explicit `cpuif` all
+   preserve this wiring; `design`/`cpuif` are ignored and explicit `off` is
+   rejected because data-phase state requires a clock/reset. Omit the option
+   or select either accepted value. No setting adds generic clk/rst or child
+   clock/reset outputs. Interface endpoints connect their same-domain
    clock/reset externally; flat ingress exposes them directly.
 
 ## Proof boundary

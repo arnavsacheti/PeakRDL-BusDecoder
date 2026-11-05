@@ -8,6 +8,7 @@ checks are not an unbounded formal proof.
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 import shutil
 import subprocess
 
@@ -16,6 +17,7 @@ from systemrdl import RDLCompileError
 from systemrdl.node import AddrmapNode
 
 from peakrdl_busdecoder import BusDecoderExporter
+from peakrdl_busdecoder.exporter import ExporterKwargs
 from peakrdl_busdecoder.cpuif import BaseCpuif
 from peakrdl_busdecoder.cpuif.apb.apb_cpuif import (
     APB3Cpuif,
@@ -224,6 +226,51 @@ endmodule
     return "\n".join(lines)
 
 
+def _assert_apb_port_contract(content: str, *, apb4: bool, interface: bool, clk_src: str) -> None:
+    """Pair executable checks with the complete legacy unbuffered APB ABI."""
+    header = re.search(r"\bmodule\s+top_t\s*\((.*?)\);", content, flags=re.DOTALL)
+    assert header is not None, "Expected the scalar two-child decoder module"
+    actual = [" ".join(port.split()) for port in header.group(1).split(",")]
+    expected = ["input logic clk", "input logic rst"] if clk_src == "design" else []
+    if interface:
+        kind = "apb4_intf" if apb4 else "apb3_intf"
+        expected += [
+            f"{kind}.slave s_apb",
+            f"{kind}.master m_apb_a",
+            f"{kind}.master m_apb_b",
+        ]
+    else:
+        signals = [
+            ("PSEL", "", True),
+            ("PENABLE", "", True),
+            ("PWRITE", "", True),
+            ("PADDR", None, True),
+        ]
+        if apb4:
+            signals.append(("PPROT", "[2:0] ", True))
+        signals.append(("PWDATA", "[31:0] ", True))
+        if apb4:
+            signals.append(("PSTRB", "[3:0] ", True))
+        signals += [
+            ("PRDATA", "[31:0] ", False),
+            ("PREADY", "", False),
+            ("PSLVERR", "", False),
+        ]
+        for prefix, upstream in (("s_apb_", True), ("m_apb_a_", False), ("m_apb_b_", False)):
+            if clk_src == "cpuif":
+                direction = "input" if upstream else "output"
+                expected += [f"{direction} logic {prefix}PCLK", f"{direction} logic {prefix}PRESETn"]
+            for signal, width, request in signals:
+                direction = "input" if request == upstream else "output"
+                bits = ("[12:0] " if upstream else "[7:0] ") if width is None else width
+                expected.append(f"{direction} logic {bits}{prefix}{signal}")
+    assert actual == expected
+    if clk_src == "off":
+        assert re.search(r"\b(?:clk|rst)\b|PCLK|PRESETn", content) is None, (
+            "Clockless APB must not contain clock/reset ports or references"
+        )
+
+
 def _run(command: list[str], *, cwd: Path, timeout: int = 240) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(command, cwd=cwd, capture_output=True, text=True, timeout=timeout)
     assert result.returncode == 0, f"Command failed: {' '.join(command)}\n{result.stdout}\n{result.stderr}"
@@ -239,21 +286,30 @@ def _simulate(
     cpuif_cls: type[BaseCpuif],
     apb_buffer: str,
     gate_signals: bool,
-    clk_src: str = "design",
+    clk_src: str | None = None,
+    omit_clk_src: bool = False,
 ) -> None:
     verilator = shutil.which("verilator")
     assert verilator is not None, "These behavioral APB regressions require Verilator"
-    BusDecoderExporter().export(
-        top,
-        str(tmp_path),
-        cpuif_cls=cpuif_cls,
-        apb_buffer=apb_buffer,
-        gate_signals=gate_signals,
-        clk_src=clk_src,
-        address_width=13,
+    options: ExporterKwargs = {
+        "cpuif_cls": cpuif_cls,
+        "apb_buffer": apb_buffer,
+        "gate_signals": gate_signals,
+        "address_width": 13,
+    }
+    if not omit_clk_src:
+        options["clk_src"] = clk_src
+    BusDecoderExporter().export(top, str(tmp_path), **options)
+    source = None if omit_clk_src else clk_src
+    effective_clk_src = source or ("off" if apb_buffer == "none" else "design")
+    _assert_apb_port_contract(
+        (tmp_path / "top_t.sv").read_text(),
+        apb4=apb4,
+        interface=interface,
+        clk_src=effective_clk_src,
     )
     wrapper = tmp_path / "apb_buffer_wrapper.sv"
-    wrapper.write_text(_wrapper(apb4=apb4, interface=interface, clk_src=clk_src))
+    wrapper.write_text(_wrapper(apb4=apb4, interface=interface, clk_src=effective_clk_src))
     sources = [tmp_path / "top_t_pkg.sv"]
     if interface:
         sources.append(_REPO / "hdl-src" / ("apb4_intf.sv" if apb4 else "apb3_intf.sv"))
@@ -299,6 +355,10 @@ def _simulate(
 @pytest.mark.parametrize("apb4,interface,cpuif_cls", _EXPORTS)
 @pytest.mark.parametrize("apb_buffer", ["none", "in", "out", "both"])
 @pytest.mark.parametrize("gate_signals", [False, True], ids=["ungated", "gated"])
+@pytest.mark.parametrize(
+    "clk_src,omit_clk_src",
+    [pytest.param(None, True, id="default"), pytest.param("design", False, id="design")],
+)
 def test_apb_clocked_transfers(
     simple_top: AddrmapNode,
     tmp_path: Path,
@@ -307,6 +367,8 @@ def test_apb_clocked_transfers(
     cpuif_cls: type[BaseCpuif],
     apb_buffer: str,
     gate_signals: bool,
+    clk_src: str | None,
+    omit_clk_src: bool,
 ) -> None:
     _simulate(
         simple_top,
@@ -316,40 +378,37 @@ def test_apb_clocked_transfers(
         cpuif_cls=cpuif_cls,
         apb_buffer=apb_buffer,
         gate_signals=gate_signals,
+        clk_src=clk_src,
+        omit_clk_src=omit_clk_src,
     )
 
 
-@pytest.mark.simulation
-@pytest.mark.verilator
+
 @pytest.mark.parametrize("apb4,interface,cpuif_cls", _EXPORTS)
-def test_unbuffered_cpuif_clock(
+@pytest.mark.parametrize("apb_buffer", ["in", "out", "both"])
+@pytest.mark.parametrize("clk_src", ["off", "cpuif"])
+def test_buffer_requires_clk_src_design(
     simple_top: AddrmapNode,
     tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
     apb4: bool,
     interface: bool,
     cpuif_cls: type[BaseCpuif],
+    apb_buffer: str,
+    clk_src: str,
 ) -> None:
-    _simulate(
-        simple_top,
-        tmp_path,
-        apb4=apb4,
-        interface=interface,
-        cpuif_cls=cpuif_cls,
-        apb_buffer="none",
-        gate_signals=True,
-        clk_src="cpuif",
-    )
-
-
-def test_buffer_requires_clk_src_design(simple_top: AddrmapNode, tmp_path: Path) -> None:
-    with pytest.raises(RDLCompileError, match="requires clk_src='design'"):
+    with pytest.raises(RDLCompileError, match="--apb-buffer requires --clk-src design"):
         BusDecoderExporter().export(
             simple_top,
             str(tmp_path),
-            cpuif_cls=APB4CpuifFlat,
-            apb_buffer="in",
-            clk_src="cpuif",
+            cpuif_cls=cpuif_cls,
+            apb_buffer=apb_buffer,
+            clk_src=clk_src,
         )
+    captured = capsys.readouterr()
+    message = captured.out + captured.err
+    assert "omit --clk-src" in message
+    assert "--apb-buffer none" in message
 
 
 def test_buffer_rejected_on_non_apb_cpuif(simple_top: AddrmapNode, tmp_path: Path) -> None:

@@ -24,7 +24,7 @@ from tests.cocotb_lib.wrapper_gen import generate_verilator_intf_wrapper
 @pytest.mark.verilator
 @pytest.mark.parametrize(("rdl_file", "top_name"), RDL_CASES, ids=[case[1] for case in RDL_CASES])
 def test_apb3_intf_smoke(tmp_path: Path, rdl_file: str, top_name: str) -> None:
-    """Compile each APB3 interface design variant and execute the cocotb smoke test."""
+    """Exercise default clockless APB3 exports through an interface wrapper."""
     repo_root = Path(__file__).resolve().parents[4]
     rdl_path = repo_root / "tests" / "cocotb_lib" / "rdl" / rdl_file
     build_root = tmp_path / top_name
@@ -39,6 +39,8 @@ def test_apb3_intf_smoke(tmp_path: Path, rdl_file: str, top_name: str) -> None:
     )
 
     # Generate Verilator wrapper (Verilator can't have SV interface ports at top level)
+    # Leave both clock-source choices unset to exercise the APB off defaults.
+    # The wrapper still exposes bus clocks for cocotb/peripheral timing.
     children = [
         {
             "inst_name": m["inst_name"],
