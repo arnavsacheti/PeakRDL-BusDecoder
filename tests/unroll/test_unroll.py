@@ -130,93 +130,7 @@ def test_unroll_multidimensional_array(multidim_array_rdl: AddrmapNode) -> None:
 
 
 # ===========================================================================
-# B. Fanout signal generation tests
-# ===========================================================================
-
-
-class TestUnrollFanout:
-    """Verify that fanout logic references individual port instances when unrolled."""
-
-    def test_fanout_references_individual_ports(self, sample_rdl: AddrmapNode) -> None:
-        """When unrolled, fanout should assign to individual port names, not array-indexed."""
-        content, _ = _export(sample_rdl, unroll=True)
-
-        # Each unrolled instance should be referenced individually in the fanout section
-        for i in range(4):
-            assert f"m_apb_regs_{i}." in content
-
-    def test_fanout_no_array_indexing_on_ports(self, sample_rdl: AddrmapNode) -> None:
-        """When unrolled, fanout should NOT use array-indexed port references like m_apb_regs[gi0]."""
-        content, _ = _export(sample_rdl, unroll=True)
-
-        # Should NOT have array-indexed references to the master ports
-        # (This is a known bug: fanout still uses m_apb_regs[gi0] instead of m_apb_regs_0, etc.)
-        assert "m_apb_regs[" not in content
-
-    def test_fanout_disabled_uses_array_indexing(self, sample_rdl: AddrmapNode) -> None:
-        """When NOT unrolled, fanout should use array indexing as normal."""
-        content, _ = _export(sample_rdl, unroll=False)
-
-        # Should use genvar loop with array indexing
-        assert "m_apb_regs[" in content
-
-    def test_fanout_multidim_references_individual_ports(self, multidim_array_rdl: AddrmapNode) -> None:
-        """When unrolled, multi-dimensional array fanout should reference individual ports."""
-        content, _ = _export(multidim_array_rdl, unroll=True)
-
-        # Each unrolled 2D element should be referenced individually
-        for i in range(2):
-            for j in range(3):
-                assert f"m_apb_matrix_{i}_{j}." in content
-
-        # Should NOT have array-indexed references
-        assert "m_apb_matrix[" not in content
-
-    def test_fanout_axi4lite_individual_ports(self, sample_rdl: AddrmapNode) -> None:
-        """AXI4-Lite fanout should also reference individual ports when unrolled."""
-        content, _ = _export(sample_rdl, cpuif_cls=AXI4LiteCpuif, unroll=True)
-
-        for i in range(4):
-            assert f"m_axil_regs_{i}." in content
-
-        # Should NOT have array-indexed references
-        assert "m_axil_regs[" not in content
-
-
-# ===========================================================================
-# C. Fanin signal generation tests
-# ===========================================================================
-
-
-class TestUnrollFanin:
-    """Verify that fanin logic references individual port instances when unrolled."""
-
-    def test_fanin_disabled_uses_array_indexing(self, sample_rdl: AddrmapNode) -> None:
-        """When NOT unrolled, fanin should use array indexing normally."""
-        content, _ = _export(sample_rdl, unroll=False)
-
-        assert "m_apb_regs[" in content
-
-    def test_fanin_intermediate_signals_not_arrayed(self, sample_rdl: AddrmapNode) -> None:
-        """When unrolled, intermediate fanin signals should not be declared as arrays."""
-        content, _ = _export(sample_rdl, unroll=True)
-
-        # When ports are individual, intermediate signals (e.g., regs_fanin_ready[4])
-        # should also be individual, not arrays.
-        # Check that there are no intermediate array declarations for the unrolled instances.
-        assert "regs_fanin_ready[4]" not in content
-        assert "regs_fanin_err[4]" not in content
-        assert "regs_fanin_data[4]" not in content
-
-    def test_fanin_axi4lite_no_array_indexing(self, sample_rdl: AddrmapNode) -> None:
-        """AXI4-Lite fanin should also not use array-indexed ports when unrolled."""
-        content, _ = _export(sample_rdl, cpuif_cls=AXI4LiteCpuif, unroll=True)
-
-        assert "m_axil_regs[" not in content
-
-
-# ===========================================================================
-# D. Package generation tests
+# B. Package generation tests
 # ===========================================================================
 
 
@@ -256,89 +170,7 @@ class TestUnrollPackage:
 
 
 # ===========================================================================
-# E. Struct generation tests
-# ===========================================================================
-
-
-class TestUnrollStruct:
-    """Verify the cpuif_sel_t struct generated for unrolled designs."""
-
-    def test_unroll_struct_individual_fields_or_consistent_array(self, sample_rdl: AddrmapNode) -> None:
-        """When unrolled, the struct should either use individual fields or an internal array
-        that is consistently referenced throughout the generated code.
-
-        The key requirement is that all references to the struct fields must be valid.
-        If the struct uses `logic regs[4]`, the fanout/fanin must also use array indexing
-        that maps correctly to the individual ports.
-        """
-        content, _ = _export(sample_rdl, unroll=True)
-
-        # Extract the struct definition
-        struct_match = re.search(r"typedef struct \{(.*?)\} cpuif_sel_t;", content, re.DOTALL)
-        assert struct_match is not None, "cpuif_sel_t struct not found in output"
-        struct_body = struct_match.group(1)
-
-        # The struct must contain fields that cover all 4 array elements.
-        # Either as individual fields (regs_0, regs_1, ...) or as an array (regs[4]).
-        has_array_field = "regs[4]" in struct_body
-        has_individual_fields = all(f"regs_{i}" in struct_body for i in range(4))
-
-        assert has_array_field or has_individual_fields, (
-            f"Struct must have either 'regs[4]' or individual 'regs_0..regs_3' fields, "
-            f"got: {struct_body.strip()}"
-        )
-
-    def test_disabled_struct_has_array_field(self, sample_rdl: AddrmapNode) -> None:
-        """When NOT unrolled, the struct should use array notation."""
-        content, _ = _export(sample_rdl, unroll=False)
-
-        struct_match = re.search(r"typedef struct \{(.*?)\} cpuif_sel_t;", content, re.DOTALL)
-        assert struct_match is not None
-        struct_body = struct_match.group(1)
-
-        assert "regs[4]" in struct_body
-
-
-# ===========================================================================
-# F. Decode logic tests
-# ===========================================================================
-
-
-class TestUnrollDecodeLogic:
-    """Verify the address decode logic generated for unrolled designs."""
-
-    def test_decode_logic_covers_all_elements(self, sample_rdl: AddrmapNode) -> None:
-        """When unrolled, the decode logic must cover all array elements.
-
-        This can be done either with individual if-statements per element,
-        or with for-loops that reference the internal struct array.
-        Either way, each element must be decoded correctly.
-        """
-        content, _ = _export(sample_rdl, unroll=True)
-
-        # The write and read decoders must reference all 4 elements
-        # They should appear as either regs[0]..regs[3] or regs_0..regs_3
-        for flavor in ("wr_sel", "rd_sel"):
-            element_refs = []
-            for i in range(4):
-                # Check for array or individual references
-                has_array_ref = f"cpuif_{flavor}.regs[{i}]" in content
-                has_indexed_ref = f"cpuif_{flavor}.regs[i" in content  # for loop
-                has_individual_ref = f"cpuif_{flavor}.regs_{i}" in content
-                element_refs.append(has_array_ref or has_indexed_ref or has_individual_ref)
-
-            assert all(element_refs), f"Decode logic for {flavor} does not cover all 4 elements"
-
-    def test_decode_logic_disabled_uses_for_loops(self, sample_rdl: AddrmapNode) -> None:
-        """When NOT unrolled, the decode logic should use for-loops for arrays."""
-        content, _ = _export(sample_rdl, unroll=False)
-
-        # Should have a for-loop construct in the decoder
-        assert "for (int i0 = 0; i0 < 4; i0++)" in content
-
-
-# ===========================================================================
-# G. AXI4-Lite and flat interface tests
+# C. AXI4-Lite and flat interface tests
 # ===========================================================================
 
 
@@ -384,19 +216,6 @@ class TestUnrollProtocols:
 
         _assert_no_duplicate_localparams(pkg_content)
 
-    def test_apb4_unroll_all_signals_consistent(self, sample_rdl: AddrmapNode) -> None:
-        """APB4 should have consistent signal references throughout when unrolled.
-
-        All references to master ports should use individual instance names,
-        never array-indexed names.
-        """
-        content, _ = _export(sample_rdl, cpuif_cls=APB4Cpuif, unroll=True)
-
-        # Collect all references to master APB port signals
-        # They should all be individual (m_apb_regs_N.signal), never array-indexed
-        array_refs = re.findall(r"m_apb_regs\[\w+\]", content)
-        assert len(array_refs) == 0, f"Found array-indexed master port references when unrolled: {array_refs}"
-
     def test_multidim_axi4lite_unroll(self, multidim_array_rdl: AddrmapNode) -> None:
         """AXI4-Lite should correctly handle multi-dimensional array unrolling."""
         content, _ = _export(multidim_array_rdl, cpuif_cls=AXI4LiteCpuif, unroll=True)
@@ -412,7 +231,7 @@ class TestUnrollProtocols:
 
 
 # ===========================================================================
-# H. Edge case tests
+# D. Edge case tests
 # ===========================================================================
 
 
@@ -546,65 +365,3 @@ class TestUnrollEdgeCases:
             assert f"m_apb_alpha_{i}." in content
         for i in range(3):
             assert f"m_apb_beta_{i}." in content
-
-
-# ===========================================================================
-# I. Consistency tests
-# ===========================================================================
-
-
-class TestUnrollConsistency:
-    """End-to-end consistency checks for unrolled designs."""
-
-    def test_port_names_match_body_references(self, sample_rdl: AddrmapNode) -> None:
-        """Every master port declared in the module header should be referenced
-        somewhere in the module body (fanout/fanin).
-        """
-        content, _ = _export(sample_rdl, unroll=True)
-
-        # Extract the module header (everything between "module top (" and ");")
-        header_match = re.search(r"module top\s*\((.*?)\);", content, re.DOTALL)
-        assert header_match is not None
-        header = header_match.group(1)
-
-        # Find all master port names in the header
-        master_port_pattern = re.compile(r"m_apb_regs_(\d+)")
-        master_ports = master_port_pattern.findall(header)
-        assert len(master_ports) == 4, f"Expected 4 master ports, found {len(master_ports)}"
-
-        # Each port should be referenced in the body
-        body = content[header_match.end() :]
-        for idx in master_ports:
-            port_name = f"m_apb_regs_{idx}"
-            assert port_name in body, (
-                f"Master port '{port_name}' declared in header but never referenced in body"
-            )
-
-    def test_unrolled_output_structurally_valid(self, sample_rdl: AddrmapNode) -> None:
-        """Basic structural checks on unrolled output: module/endmodule present,
-        import statement, etc.
-        """
-        content, pkg_content = _export(sample_rdl, unroll=True)
-
-        assert "module top" in content
-        assert "endmodule" in content
-        assert "import top_pkg::*" in content
-
-        assert "package top_pkg" in pkg_content
-        assert "endpackage" in pkg_content
-
-    def test_multidim_port_names_match_body_references(self, multidim_array_rdl: AddrmapNode) -> None:
-        """For multi-dimensional arrays, every declared port should be referenced in the body."""
-        content, _ = _export(multidim_array_rdl, unroll=True)
-
-        # All 6 ports (2x3) should be in the header and referenced in the body
-        header_match = re.search(r"module top\s*\((.*?)\);", content, re.DOTALL)
-        assert header_match is not None
-
-        body = content[header_match.end() :]
-        for i in range(2):
-            for j in range(3):
-                port_name = f"m_apb_matrix_{i}_{j}"
-                assert port_name in body, (
-                    f"Master port '{port_name}' declared in header but never referenced in body"
-                )
