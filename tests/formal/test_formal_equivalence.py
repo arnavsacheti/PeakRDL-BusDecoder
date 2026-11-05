@@ -235,6 +235,7 @@ def _cpp_testbench(module_name: str, model: FormalBusDecoderModel) -> str:
     selections = ", ".join(signal(target, "PSEL") for target in model.targets)
     enables = ", ".join(signal(target, "PENABLE") for target in model.targets)
     addresses = ", ".join(signal(target, "PADDR") for target in model.targets)
+    strobes = ", ".join(signal(target, "PSTRB") for target in model.targets)
     return f"""
 #include <cstdint>
 #include <iostream>
@@ -291,7 +292,7 @@ int main(int argc, char** argv) {{
             dut.s_apb_PADDR = address;
             dut.s_apb_PWRITE = direction;
             dut.s_apb_PWDATA = 0x13579BDFu ^ address;
-            dut.s_apb_PSTRB = 0xFu;
+            dut.s_apb_PSTRB = direction ? 0xFu : 0u;
             dut.s_apb_PPROT = 0;
             for (const Phase& phase : phases) {{
                 dut.s_apb_PSEL = phase.selected;
@@ -311,6 +312,7 @@ int main(int argc, char** argv) {{
                     const std::uint32_t selected[] = {{{selections}}};
                     const std::uint32_t enabled[] = {{{enables}}};
                     const std::uint32_t local_address[] = {{{addresses}}};
+                    const std::uint32_t strobes[] = {{{strobes}}};
                     const int selected_child = phase.selected ? oracle.child : -1;
                     for (unsigned child = 0; child < kChildCount; ++child) {{
                         const bool hit = static_cast<int>(child) == selected_child;
@@ -318,6 +320,10 @@ int main(int argc, char** argv) {{
                                      address, direction, phase.name, profile, child)
                             || !matches("child PENABLE", enabled[child], hit && phase.enabled,
                                         address, direction, phase.name, profile, child)) return 1;
+                        // PSTRB broadcasts directly, including while unselected;
+                        // legal reads drive zero rather than relying on RTL gating.
+                        if (!matches("child PSTRB", strobes[child], direction ? 0xFu : 0u,
+                                     address, direction, phase.name, profile, child)) return 1;
                         // Unselected addresses are unspecified; selected addresses
                         // must be local offsets, including non-power-of-two spans.
                         if (hit && !matches("child PADDR", local_address[child], oracle.local_address,

@@ -13,6 +13,11 @@ decoder asserts ``PREADY`` and ``PSLVERR`` together only when ``PSEL`` and
 ``PENABLE`` are high; both remain low during setup and while unselected.
 Mapped transfers pass through the selected endpoint's response signals.
 
+Back-to-back transfers may keep ``PSEL`` high, but each transfer requires a
+SETUP phase with ``PENABLE`` low between ACCESS phases. These are individual
+APB transfers, not bursts; the decoder is combinational and does not buffer
+transfers or add clock/reset logic.
+
 .. figure:: ../diagrams/svg/apb4_timing.svg
     :class: diagram
     :alt: APB4 timing. A read of 0x20 selects child uart[1] with local address
@@ -65,6 +70,10 @@ APB4
 Implements the bus decoder using an
 `AMBA 4 APB <https://developer.arm.com/documentation/ihi0024/d/?lang=en>`_
 CPU interface.
+
+APB4 managers must drive ``PSTRB`` to zero for reads. For writes, ``PSTRB``
+directly broadcasts the manager's byte strobes to the downstream interfaces;
+the decoder does not sanitize or gate the strobes.
 
 The APB4 CPU interface comes in two i/o port flavors:
 

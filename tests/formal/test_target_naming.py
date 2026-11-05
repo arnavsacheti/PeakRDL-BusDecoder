@@ -157,7 +157,7 @@ def _wrapper_source(
         }
         if protocol == "apb4":
             signals += ["PPROT", "PSTRB"]
-            slave_drive.update(PPROT="3'b101", PSTRB="4'b1010")
+            slave_drive.update(PPROT="3'b101", PSTRB="write ? 4'b1010 : 4'b0000")
         clock, reset = "PCLK", "PRESETn"
     else:
         signals = [
