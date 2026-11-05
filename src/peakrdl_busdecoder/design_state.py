@@ -51,8 +51,6 @@ class DesignState:
         self.max_decode_depth: int = kwargs.pop("max_decode_depth", 1)
         # The exporter resolves the protocol-dependent default before this point.
         self.clk_src: str = kwargs.pop("clk_src", "design")
-        if self.clk_src not in ("off", "cpuif", "design"):
-            msg.fatal(f"clk_src must be 'off', 'cpuif' or 'design', got {self.clk_src!r}")
         self.gate_signals: bool = kwargs.pop("gate_signals", False)
 
         self.axi4lite_max_outstanding: int = kwargs.pop("axi4lite_max_outstanding", 4)
@@ -63,13 +61,6 @@ class DesignState:
             )
 
         self.apb_buffer: str = kwargs.pop("apb_buffer", "none")
-        if self.apb_buffer not in ("none", "in", "out", "both"):
-            msg.fatal(f"apb_buffer must be one of 'none', 'in', 'out', 'both', got {self.apb_buffer!r}")
-        if self.apb_buffer != "none" and self.clk_src != "design":
-            msg.fatal(
-                "--apb-buffer requires --clk-src design (the buffer flops use clk/rst); "
-                "omit --clk-src to select design automatically, or set --apb-buffer none"
-            )
 
         # ------------------------
         # Info about the design

@@ -53,12 +53,6 @@ class BaseCpuif:
         self.unroll = exp.ds.cpuif_unroll
         self.clk_src = exp.ds.clk_src
 
-        if exp.ds.apb_buffer != "none" and not self.supports_apb_buffer:
-            exp.ds.top_node.env.msg.fatal(
-                f"apb_buffer={exp.ds.apb_buffer!r} is not supported by "
-                f"{type(self).__name__}; only APB cpuifs honor this option."
-            )
-
         interface_cls: type[Interface]
         if self.use_sv_interface:
             assert self.sv_interface_cls is not None, (

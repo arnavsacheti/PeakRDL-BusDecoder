@@ -14,6 +14,28 @@ install the CLI or invoke the exporter API. The 0.7.4 package allowed Python
 3.10; upgrade those environments before installing the candidate.
 
 
+Project-wide defaults in peakrdl.toml
+----------------------------------------
+The candidate supports project-wide generator settings in ``peakrdl.toml``
+under ``[busdecoder]``: ``cpuif``, ``clk_src``, ``apb_buffer``,
+``gate_signals``, ``max_decode_depth``, ``unroll``,
+``axi4lite_max_outstanding``, and ``parametrize``. Existing
+``[busdecoder.cpuifs]`` custom-interface imports remain supported, and their
+aliases can also be selected by the new ``cpuif`` setting.
+
+Explicit command-line options override TOML values, which override built-in
+defaults. Use ``--no-gate-signals``, ``--no-unroll``, or ``--no-parametrize``
+to disable an option enabled by the project; the existing positive forms
+remain available. Clock/buffer conflicts are checked on the effective settings
+after those overrides.
+
+Existing command behavior is unchanged when no configuration supplies these
+settings. Per-design module/package names and address-width overrides remain
+CLI options; there is no project ``data_width`` setting. PeakRDL does not read
+these settings from ``pyproject.toml``. See :doc:`configuring` for discovery,
+the complete key reference, and validation diagnostics.
+
+
 APB defaults preserve the clockless decoder ports
 -------------------------------------------------
 For APB3/APB4, the default ``--apb-buffer none`` keeps the combinational routing
@@ -23,9 +45,9 @@ decoder module port shape: **no** ``clk``/``rst`` inputs, **no** standalone
 unbuffered APB users do not need to add clock/reset connections to the decoder.
 Explicit ``--clk-src off`` selects the same shape.
 
-The explicit choices are ``off``, ``cpuif``, and ``design``. Omission on the
-command line and omission of the Python ``clk_src`` keyword or ``clk_src=None``
-select these defaults:
+The explicit choices are ``off``, ``cpuif``, and ``design``. When neither the
+command line nor TOML selects ``clk_src``, or when the Python ``clk_src``
+keyword is omitted or ``None``, these defaults apply:
 
 .. list-table:: Clock/reset defaults
     :header-rows: 1
