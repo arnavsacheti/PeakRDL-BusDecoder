@@ -254,6 +254,7 @@ async def test_apb4_address_decoding(dut) -> None:
         slave.PSEL.value = 0
         slave.PENABLE.value = 0
         slave.PWRITE.value = 0
+        slave.PSTRB.value = 0
         set_value(entry["inputs"]["PREADY"], index, 0)
         if slave.PCLK is not None:
             await RisingEdge(slave.PCLK)
@@ -273,6 +274,7 @@ async def test_apb4_address_decoding(dut) -> None:
         # ------------------------------------------------------------------
         slave.PADDR.value = address
         slave.PWRITE.value = 0
+        slave.PSTRB.value = 0
         slave.PSEL.value = 1
         slave.PENABLE.value = 0
 
@@ -291,6 +293,9 @@ async def test_apb4_address_decoding(dut) -> None:
             )
             assert get_int(entry["outputs"]["PADDR"], index) == master_address, (
                 f"{master_name} must receive read address"
+            )
+            assert get_int(entry["outputs"]["PSTRB"], index) == 0, (
+                f"{master_name} must receive zero strobes in read setup"
             )
         assert int(slave.PREADY.value) == 0, "Setup must not acknowledge a stalled or denied read"
         assert int(slave.PSLVERR.value) == 0, "Setup must not signal a local read error"
@@ -321,6 +326,9 @@ async def test_apb4_address_decoding(dut) -> None:
             assert get_int(entry["outputs"]["PSEL"], index) == 1, f"{master_name} must keep PSEL asserted"
             assert get_int(entry["outputs"]["PENABLE"], index) == 1, (
                 f"{master_name} must assert PENABLE in access"
+            )
+            assert get_int(entry["outputs"]["PSTRB"], index) == 0, (
+                f"{master_name} must keep strobes zero in read access"
             )
 
         for other_name, other_idx in all_index_pairs(masters):

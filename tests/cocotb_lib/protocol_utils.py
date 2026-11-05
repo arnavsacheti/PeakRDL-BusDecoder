@@ -81,11 +81,13 @@ async def start_clock(clk_handle, period_ns: int = 2) -> None:
 
 
 async def apb_setup(slave, addr: int, write: bool, data: int, *, strobe_mask: int | None = None) -> None:
-    """APB setup phase helper."""
+    """Drive SETUP; APB4 read strobes are zero and write masks default to full."""
     if hasattr(slave, "PPROT"):
         slave.PPROT.value = 0
     if hasattr(slave, "PSTRB"):
-        if strobe_mask is None:
+        if not write:
+            strobe_mask = 0
+        elif strobe_mask is None:
             strobe_mask = (1 << len(slave.PSTRB)) - 1
         slave.PSTRB.value = strobe_mask
     slave.PADDR.value = addr

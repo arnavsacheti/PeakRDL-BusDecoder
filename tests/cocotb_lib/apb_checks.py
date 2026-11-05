@@ -65,6 +65,11 @@ async def check_invalid_address_response(
                 assert get_int(outputs["PWRITE"], index) == int(slave.PWRITE.value), (
                     f"{phase}: selected peripheral must receive PWRITE"
                 )
+                if "PSTRB" in outputs:
+                    expected_strobes = int(slave.PSTRB.value) if int(slave.PWRITE.value) else 0
+                    assert get_int(outputs["PSTRB"], index) == expected_strobes, (
+                        f"{phase}: selected peripheral must receive write strobes or zero for reads"
+                    )
             else:
                 assert get_int(outputs["PENABLE"], index) == 0, (
                     f"{phase}: unselected peripheral {master_name}{index} must hold PENABLE low"
