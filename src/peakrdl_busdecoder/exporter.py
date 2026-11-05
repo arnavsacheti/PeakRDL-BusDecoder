@@ -25,6 +25,7 @@ class ExporterKwargs(TypedDict, total=False):
     module_name: str
     package_name: str
     address_width: int
+    data_width: int
     cpuif_unroll: bool
     parametrize: bool
     reuse_hwif_typedefs: bool
@@ -88,6 +89,11 @@ class BusDecoderExporter:
         address_width: int
             Override the CPU interface's address width. By default, address width
             is sized to the contents of the busdecoder.
+        data_width: int
+            Override the CPU interface's data width with a power of two of at
+            least 8 bits, no smaller than the widest internal register accesswidth.
+            By default, the width is inferred from internal register accesswidths,
+            or falls back to 32 bits with a warning when none are available.
         cpuif_unroll: bool
             Unroll arrayed addressable nodes into separate instances in the CPU
             interface. By default, arrayed nodes are kept as arrays.
@@ -165,16 +171,26 @@ class BusDecoderExporter:
         }
 
         # Write out design
-        os.makedirs(output_dir, exist_ok=True)
-        package_file_path = os.path.join(output_dir, self.ds.package_name + ".sv")
-        template = self.jj_env.get_template("package_tmpl.sv")
-        stream = template.stream(context)
-        stream.dump(package_file_path)
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+            package_file_path = os.path.join(output_dir, self.ds.package_name + ".sv")
+            template = self.jj_env.get_template("package_tmpl.sv")
+            stream = template.stream(context)
+            stream.dump(package_file_path)
 
-        module_file_path = os.path.join(output_dir, self.ds.module_name + ".sv")
-        template = self.jj_env.get_template("module_tmpl.sv")
-        stream = template.stream(context)
-        stream.dump(module_file_path)
+            module_file_path = os.path.join(output_dir, self.ds.module_name + ".sv")
+            template = self.jj_env.get_template("module_tmpl.sv")
+            stream = template.stream(context)
+            stream.dump(module_file_path)
+        except OSError as exc:
+            path = exc.filename or output_dir
+            if isinstance(exc, (FileExistsError, NotADirectoryError, IsADirectoryError)):
+                remedy = "Choose a directory with -o; remove or rename any conflicting file or directory."
+            else:
+                remedy = "Choose a writable directory with -o or fix its permissions."
+            self.ds.top_node.env.msg.fatal(
+                f"Cannot write output path {os.fspath(path)!r} (-o): {exc.strerror}. {remedy}"
+            )
 
     def walk(self, listener_cls: type[BusDecoderListener], **kwargs: dict[str, Any]) -> str:
         # Port-referencing listeners walk unrolled when cpuif_unroll is set, so

@@ -115,8 +115,8 @@ is written. The normal opaque-block boundary rules still apply: a block whose
 addressable children are all external remains a downstream target even when a
 deeper decode depth is requested.
 
-The data width is common to all endpoints and is inferred using the usual
-:doc:`bus-width rules <introduction>`. Supported widths are 32, 64, 128, 256,
+The data width is common to all endpoints and is selected or inferred using the
+usual :doc:`bus-width rules <introduction>`. Supported widths are 32, 64, 128, 256,
 512, and 1024 bits. Narrower or wider buses are rejected; 1024 bits is the
 largest transfer represented by the three-bit ``HSIZE`` field. The router does
 not adapt a downstream bus of a different width.

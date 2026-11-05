@@ -55,8 +55,8 @@ class BaseCpuif:
 
         if exp.ds.apb_buffer != "none" and not self.supports_apb_buffer:
             exp.ds.top_node.env.msg.fatal(
-                f"apb_buffer={exp.ds.apb_buffer!r} is not supported by "
-                f"{type(self).__name__}; only APB cpuifs honor this option."
+                f"--apb-buffer {exp.ds.apb_buffer!r} is not supported by "
+                f"{type(self).__name__}; choose an APB --cpuif or use --apb-buffer none."
             )
 
         interface_cls: type[Interface]
@@ -84,6 +84,11 @@ class BaseCpuif:
     @property
     def data_width_bytes(self) -> int:
         return self.data_width // 8
+
+    @property
+    def fixed_reset(self) -> tuple[str, bool] | None:
+        """Fixed reset port and active-low flag, or None for custom reset handling."""
+        return None
 
     def addr_width_param(self, node: AddressableNode) -> str:
         """Name of the package localparam holding this master's address width."""

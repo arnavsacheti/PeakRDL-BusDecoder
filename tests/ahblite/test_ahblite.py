@@ -459,7 +459,7 @@ def test_ahblite_interface_width_contract_is_enforced(
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30, check=False,
     )
     assert result.returncode != 0, "Mismatched interface widths unexpectedly ran successfully"
-    assert "incompatible address/data widths" in result.stdout
+    assert f"Interface {signal} width mismatch" in result.stdout
     assert ("s_ahb" if endpoint == "upstream" else "m_ahb_") in result.stdout
 
 
