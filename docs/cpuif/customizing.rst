@@ -7,8 +7,8 @@ Use your own existing SystemVerilog interface definition
 This exporter comes pre-bundled with its own SystemVerilog interface declarations.
 What if you already have your own SystemVerilog interface declaration that you prefer?
 
-Not a problem! As long as your interface definition is similar enough, it is easy
-to customize and existing CPUIF definition.
+As long as your interface has the same protocol signals and behavior, customize
+the existing adapter's interface helper rather than replacing its routed ports.
 
 
 As an example, let's use the SystemVerilog interface definition for
@@ -19,7 +19,7 @@ the following style and naming conventions:
 * Defines modports named ``master`` and ``slave``
 * Interface signals are all upper-case: ``AWREADY``, ``AWVALID``, etc...
 
-Lets assume your preferred SV interface definition uses a slightly different naming convention:
+Let's assume your preferred SV interface definition uses a slightly different naming convention:
 
 * SystemVerilog interface type name is ``axi4_lite_interface``
 * Modports are capitalized and use suffixes ``Master_mp`` and ``Slave_mp``
@@ -30,25 +30,50 @@ Rather than rewriting a new CPU interface definition, you can extend and adjust 
 .. code-block:: python
 
     from peakrdl_busdecoder.cpuif.axi4lite import AXI4LiteCpuif
+    from peakrdl_busdecoder.cpuif.axi4lite.axi4_lite_interface import (
+        AXI4LiteSVInterface,
+    )
 
-    class My_AXI4Lite(AXI4LiteCpuif):
-        @property
-        def port_declaration(self) -> str:
-            # Override the port declaration text to use the alternate interface name and modport style
-            return "axi4_lite_interface.Slave_mp s_axil"
+    class MyAXI4LiteInterface(AXI4LiteSVInterface):
+        slave_modport_name = "Slave_mp"
+        master_modport_name = "Master_mp"
 
-        def signal(self, name: str, node=None, indexer=None) -> str:
-            # Override the signal names to be lowercase instead
-            return "s_axil." + name.lower()
+        def get_interface_type(self) -> str:
+            return "axi4_lite_interface"
+
+        def signal(self, signal: str, node=None, indexer=None) -> str:
+            # Preserve endpoint selection and all array indices.
+            return super().signal(signal.lower(), node, indexer)
+
+    class MyAXI4Lite(AXI4LiteCpuif):
+        sv_interface_cls = MyAXI4LiteInterface
+
+The inherited port-declaration helper emits the new interface type and modports
+for the upstream endpoint **and every downstream endpoint**. Passing the signal,
+node, and indexer through the inherited signal helper also preserves routing
+for rolled arrays, array ancestors, and unrolled endpoints. The signal-name
+mapping applies to clock/reset members as well as request and response members.
+Do not replace ``port_declaration`` with a single upstream port or return an
+upstream-only name from ``signal``: that discards the child declarations or
+misroutes their references.
+
+``AXI4LiteCpuif`` already selects the SystemVerilog interface form through
+``use_sv_interface = True``. ``BaseCpuif`` chooses ``sv_interface_cls`` for this
+form and ``flat_interface_cls`` for discrete ports; the adapter's protocol
+implementation remains unchanged. Downstream identities come from the shared
+``DesignState.get_target_name(node)`` allocation, so custom signal spelling
+does not need to reproduce collision handling or construct target names.
 
 Then use your custom CPUIF during export:
 
 .. code-block:: python
 
+   from peakrdl_busdecoder import BusDecoderExporter
+
    exporter = BusDecoderExporter()
    exporter.export(
       root, "path/to/output_dir",
-      cpuif_cls=My_AXI4Lite
+      cpuif_cls=MyAXI4Lite
    )
 
 
@@ -61,9 +86,13 @@ you can define your own.
 
 1. Create a SystemVerilog CPUIF implementation template file.
 
-    This contains the SystemVerilog implementation of the bus protocol. The logic
-    in this shall implement a translation between your custom protocol and the
-    :ref:`cpuif_protocol`.
+    This contains the SystemVerilog implementation of the bus protocol and
+    connects it to the shared request/decode signals described in
+    :ref:`cpuif_protocol`. The adapter must implement the protocol's acceptance,
+    retained destination/direction, and response timing; the shared decoder
+    does not retain those on its behalf. For example, AHB-Lite accepts its next
+    destination and direction only with ``HREADY`` high and selects responses
+    from that retained data phase rather than the live address.
 
     Reminder that this template will be preprocessed using
     `Jinja <https://jinja.palletsprojects.com>`_, so you can use
@@ -73,7 +102,14 @@ you can define your own.
 2. Create a Python class that defines your CPUIF
 
     Extend your class from :class:`peakrdl_busdecoder.cpuif.BaseCpuif`.
-    Define the port declaration string, and provide a reference to your template file.
+    Set ``template_path`` and ``flat_interface_cls``; provide ``sv_interface_cls``
+    and select ``use_sv_interface = True`` for a SystemVerilog interface
+    variant. Reuse the existing ``Interface``, ``FlatInterface``, and
+    ``SVInterface`` helpers in ``peakrdl_busdecoder.cpuif.interface`` to declare
+    and reference every endpoint. Keep target names on the shared
+    ``DesignState.get_target_name(node)`` path rather than allocating adapter-local
+    names. Read/write decode qualification is part of the adapter; there is no
+    standalone option for separate custom read and write address layouts.
 
 3. Use your new CPUIF definition when exporting.
 4. If you think the CPUIF protocol is something others might find useful, let me
@@ -104,7 +140,7 @@ that should be loaded, and made available as a command-line option in PeakRDL.
 
 
 *   ``my_package``: The name of your installable Python module
-*   ``peakrdl-busdecoder.cpuif``: This is the namespace that PeakRDL-BusDecoder will
+*   ``peakrdl_busdecoder.cpuif``: This is the namespace that PeakRDL-BusDecoder will
     search. Any cpuif plugins you create must be enclosed in this namespace in
     order to be discovered.
 *   ``my_package.my_module:MyCPUIF``: This is the import path that

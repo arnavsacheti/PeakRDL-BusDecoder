@@ -7,7 +7,7 @@ from tempfile import TemporaryDirectory
 from systemrdl.node import AddrmapNode
 
 from peakrdl_busdecoder import BusDecoderExporter
-from peakrdl_busdecoder.cpuif.apb4 import APB4Cpuif
+from peakrdl_busdecoder.cpuif.apb.apb_cpuif import APB4Cpuif
 
 
 def test_instance_array_questa_compatibility(compile_rdl: Callable[..., AddrmapNode]) -> None:

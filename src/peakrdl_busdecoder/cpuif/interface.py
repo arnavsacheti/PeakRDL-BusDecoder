@@ -1,12 +1,9 @@
 """Interface abstraction for handling flat and non-flat signal declarations."""
 
-import re
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 from systemrdl.node import AddressableNode
-
-from ..utils import get_indexed_path
 
 if TYPE_CHECKING:
     from .base_cpuif import BaseCpuif
@@ -80,14 +77,16 @@ class SVInterface(Interface):
             target_name = self.cpuif.exp.ds.get_target_name(child)
             base = f"{self.get_interface_type()}.{self.master_modport_name} {master_prefix}{target_name}"
 
-            # When unrolled, current_idx is set - append it to the name
-            if child.current_idx is not None:
-                base = f"{base}_{'_'.join(map(str, child.current_idx))}"
+            indices = self.cpuif.exp.ds.unrolled_indices(child)
+            if indices:
+                base = f"{base}_{'_'.join(map(str, indices))}"
 
-            # Only add array dimensions if this should be treated as an array
-            if self.cpuif.check_is_array(child):
-                assert child.array_dimensions is not None
-                base = f"{base} {''.join(f'[{dim}]' for dim in child.array_dimensions)}"
+            # Size the interface array by *all* open dimensions (rolled array
+            # ancestors' + the node's own), so a boundary under array ancestors
+            # gets one interface per element.
+            dims = self.cpuif.master_array_dims(child)
+            if dims:
+                base = f"{base} {''.join(f'[{dim}]' for dim in dims)}"
 
             master_ports.append(base)
 
@@ -113,12 +112,11 @@ class SVInterface(Interface):
         # Master signal
         master_prefix = self.get_master_prefix()
         target_name = self.cpuif.exp.ds.get_target_name(node)
-        if node.current_idx is not None:
-            target_name += f"_{'_'.join(map(str, node.current_idx))}"
-            return f"{master_prefix}{target_name}.{signal}"
-        indexed_path = get_indexed_path(node.parent, node, indexer, skip_kw_filter=True)
-        indexes = "".join(re.findall(r"\[.*?\]", indexed_path))
-        return f"{master_prefix}{target_name}{indexes}.{signal}"
+        indices = self.cpuif.exp.ds.unrolled_indices(node)
+        if indices:
+            target_name += f"_{'_'.join(map(str, indices))}"
+        brackets = self.cpuif.open_dim_index(node, indexer) if self.cpuif.is_master_array(node) else ""
+        return f"{master_prefix}{target_name}{brackets}.{signal}"
 
     @abstractmethod
     def get_interface_type(self) -> str:
@@ -170,24 +168,23 @@ class FlatInterface(Interface):
         target_name = self.cpuif.exp.ds.get_target_name(node)
         base = f"{master_prefix}{target_name}"
 
-        if not self.cpuif.check_is_array(node):
+        if not self.cpuif.is_master_array(node):
             # Not an array or an unrolled element
-            if node.current_idx is not None:
-                # This is a specific instance of an unrolled array
-                return f"{base}_{signal}_{'_'.join(map(str, node.current_idx))}"
+            indices = self.cpuif.exp.ds.unrolled_indices(node)
+            if indices:
+                return f"{base}_{signal}_{'_'.join(map(str, indices))}"
             return f"{base}_{signal}"
 
-        # Is an array
+        # Is an array (possibly by virtue of rolled array ancestors)
         if indexer is not None:
             if isinstance(indexer, str):
-                indexed_path = get_indexed_path(node.parent, node, indexer, skip_kw_filter=True)
-                pattern = r"\[.*?\]"
-                indexes = re.findall(pattern, indexed_path)
-
-                return f"{base}_{signal}{''.join(indexes)}"
+                brackets = self.cpuif.open_dim_index(node, indexer)
+                return f"{base}_{signal}{brackets}"
 
             return f"{base}_{signal}[{indexer}]"
-        return f"{base}_{signal}[N_{target_name.upper()}S]"
+        # Declarations are sized by every open ancestor and target dimension.
+        dims = self.cpuif.master_array_dims(node)
+        return f"{base}_{signal}" + "".join(f"[{dim}]" for dim in dims)
 
     @abstractmethod
     def _get_slave_port_declarations(self, slave_prefix: str) -> list[str]:

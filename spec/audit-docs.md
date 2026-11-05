@@ -8,6 +8,15 @@ Every finding is assigned an ID (`DOC-FINDING-*`), categorized as **Compliant**,
 
 The findings below retain the original audit evidence, not current source line numbers. The field-buffering restriction has been removed from `docs/limitations.rst` and the exporter; downstream blocks own field atomicity. The decoder's default-miss implementation now covers array stride gaps, preserving the documented unmapped-error contract rather than documenting the deadlock as supported behavior. Local submap addressing and direction-specific register routing are covered by the follow-up implementation and RTL conformance sweeps. Depth-policy and Avalon support observations remain separate, unresolved items; this patch does not add Avalon support.
 
+For the 0.8.0 candidate, `spec/busdecoder.md` is the current draft and
+integration verification is pending. The old coupled-write/no-DECERR and
+global-single-flight statements below are historical audit evidence, not the
+current contract: AXI4-Lite accepts AW/W independently, uses separate ordered
+read/write queues, and queues local DECERR; AHB-Lite has its own retained
+address/data pipeline and two-cycle local errors. The candidate also preserves
+shallow addressable leaves through the shared boundary helper. Avalon remains
+an unimplemented adapter; its bundled interface is not a registered protocol.
+
 ---
 
 ## 1. Compliance Matrix

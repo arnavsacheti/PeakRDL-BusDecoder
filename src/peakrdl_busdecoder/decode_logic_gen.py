@@ -41,8 +41,8 @@ class DecodeLogicGenerator(BusDecoderListener):
 
     def cpuif_addr_predicate(self, node: AddressableNode, total_size: bool = True) -> list[str]:
         # Generate address bounds
-        addr_width = self._ds.addr_width
-        rel_addr = node.raw_absolute_address - self._ds.top_node.raw_absolute_address
+        addr_width = self._ds.addr_width + 1
+        rel_addr = self._ds.node_base_address(node)
         l_bound = SVInt(
             rel_addr,
             addr_width,
@@ -60,22 +60,24 @@ class DecodeLogicGenerator(BusDecoderListener):
         l_bound_comp = [str(l_bound)]
         u_bound_comp = [str(u_bound)]
         for i, stride in enumerate(array_stack):
-            l_bound_comp.append(f"(i{i}*{SVInt(stride, addr_width)})")
-            u_bound_comp.append(f"(i{i}*{SVInt(stride, addr_width)})")
+            l_bound_comp.append(f"({addr_width}'(i{i})*{SVInt(stride, addr_width)})")
+            u_bound_comp.append(f"({addr_width}'(i{i})*{SVInt(stride, addr_width)})")
 
+        # The exclusive upper bound can equal 2**addr_width. Extend the input,
+        # bounds, and array arithmetic so that endpoint cannot wrap to zero.
+        address = f"{{1'b0, {self._flavor.cpuif_address}}}"
         if len(l_bound_comp) == 1:
-            lower_expr = f"{self._flavor.cpuif_address} >= {l_bound_comp[0]}"
-            upper_expr = f"{self._flavor.cpuif_address} < {u_bound_comp[0]}"
+            lower_expr = f"{address} >= {l_bound_comp[0]}"
+            upper_expr = f"{address} < {u_bound_comp[0]}"
         else:
-            lower_expr = f"{self._flavor.cpuif_address} >= {self._ds.addr_width}'({'+'.join(l_bound_comp)})"
-            upper_expr = f"{self._flavor.cpuif_address} < {self._ds.addr_width}'({'+'.join(u_bound_comp)})"
+            lower_expr = f"{address} >= {addr_width}'({'+'.join(l_bound_comp)})"
+            upper_expr = f"{address} < {addr_width}'({'+'.join(u_bound_comp)})"
 
         predicates: list[str] = []
-        # Avoid generating a redundant >= 0 comparison, which triggers Verilator warnings.
+        # Avoid redundant comparisons against the complete input address range.
         if not (l_bound.value == 0 and len(l_bound_comp) == 1):
             predicates.append(lower_expr)
-        # Avoid generating a redundant full-width < max comparison, which triggers Verilator warnings.
-        if not (u_bound.value == (1 << addr_width) and len(u_bound_comp) == 1):
+        if not (u_bound.value == (1 << self._ds.addr_width) and len(u_bound_comp) == 1):
             predicates.append(upper_expr)
 
         if not predicates:
@@ -112,12 +114,12 @@ class DecodeLogicGenerator(BusDecoderListener):
         if node.array_dimensions:
             # arrayed component with new if-body
             self._cond_stack.append(condition)
-            ds_len = len(self._decode_stack)
-            for i, dim in enumerate(node.array_dimensions, ds_len - 1):
+            base = self.loop_base_index(node)
+            for i, dim in enumerate(node.array_dimensions, base):
                 fb = ForLoopBody(
                     "int",
                     f"i{i}",
-                    self._ds.resolve_loop_bound(node, i - (ds_len - 1), dim),
+                    self._ds.resolve_loop_bound(node, i - base, dim),
                 )
                 self._decode_stack.append(fb)
 
@@ -132,11 +134,13 @@ class DecodeLogicGenerator(BusDecoderListener):
 
     def exit_AddressableComponent(self, node: AddressableNode) -> None:
         if not node.array_dimensions:
+            # Scalar exits must unwind the same depth bookkeeping as arrays.
             super().exit_AddressableComponent(node)
             return
 
         ifb = self._decode_stack.pop()
-        if not ifb and isinstance(ifb, IfBody):
+        if not ifb:
+            assert isinstance(ifb, IfBody), "Decode stack should only contain IfBody's in practice"
             conditions: list[str] = []
             conditions.extend(self.cpuif_addr_predicate(node, total_size=False))
             conditions.extend(self._access_predicate(node))

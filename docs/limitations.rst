@@ -32,6 +32,22 @@ CPU Interface Reset Location
 ----------------------------
 Only ``cpuif_reset`` signals instantiated at the top-level addrmap (or above)
 are honored. Nested ``cpuif_reset`` signals are ignored.
+AHB-Lite instead uses its canonical ingress ``HRESETn`` regardless of RDL
+``cpuif_reset`` metadata.
+
+
+Protocol Scope
+--------------
+AXI4-Lite is a single-beat, no-ID protocol. Full AXI4 IDs, bursts, exclusive
+accesses, and cross-ID response reordering are not implemented. Reads and
+writes share one exported SystemRDL layout; standalone custom directional
+layouts are not implemented.
+
+AHB-Lite supports one manager and a shared address/data pipeline, not
+multi-manager arbitration, SPLIT/RETRY, AHB5 extensions, or width conversion.
+Every decoded target element must have a base and size aligned to 1 KiB,
+a size of at least 1 KiB, and 1 KiB-aligned array strides. Unsupported layouts
+are diagnosed, not silently widened. See :doc:`cpuif/ahblite`.
 
 
 Unsupported Properties

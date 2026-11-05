@@ -7,7 +7,7 @@ from peakrdl.config import schema
 from peakrdl.plugins.entry_points import get_entry_points
 from peakrdl.plugins.exporter import ExporterSubcommandPlugin
 
-from .cpuif import BaseCpuif, apb3, apb4, axi4lite
+from .cpuif import BaseCpuif, ahblite, apb, axi4lite
 from .exporter import BusDecoderExporter
 from .udps import ALL_UDPS
 
@@ -22,12 +22,14 @@ def get_cpuifs(config: list[tuple[str, Any]]) -> dict[str, type[BaseCpuif]]:
     # All built-in CPUIFs
     cpuifs: dict[str, type[BaseCpuif]] = {
         # "passthrough": passthrough.PassthroughCpuif,
-        "apb3": apb3.APB3Cpuif,
-        "apb3-flat": apb3.APB3CpuifFlat,
-        "apb4": apb4.APB4Cpuif,
-        "apb4-flat": apb4.APB4CpuifFlat,
+        "apb3": apb.APB3Cpuif,
+        "apb3-flat": apb.APB3CpuifFlat,
+        "apb4": apb.APB4Cpuif,
+        "apb4-flat": apb.APB4CpuifFlat,
         "axi4-lite": axi4lite.AXI4LiteCpuif,
         "axi4-lite-flat": axi4lite.AXI4LiteCpuifFlat,
+        "ahb-lite": ahblite.AHBLiteCpuif,
+        "ahb-lite-flat": ahblite.AHBLiteCpuifFlat,
     }
 
     # Load any cpuifs specified via entry points
@@ -78,7 +80,7 @@ class Exporter(ExporterSubcommandPlugin):
             "--cpuif",
             choices=cpuifs.keys(),
             default="apb4",
-            help="Select the CPU interface protocol to use [apb3]",
+            help="Select the CPU interface protocol to use [apb4]",
         )
 
         arg_group.add_argument(
@@ -124,6 +126,44 @@ class Exporter(ExporterSubcommandPlugin):
         )
 
         arg_group.add_argument(
+            "--apb-buffer",
+            choices=("none", "in", "out", "both"),
+            default="none",
+            help="""Select transaction-aware APB buffering. 'in' captures the
+            request at upstream SETUP and issues one child transfer; 'out'
+            captures the child response and retires the child before upstream
+            acceptance; 'both' combines them. 'none' (default) is combinational.
+            No-wait upstream ACCESS cycles: none=1, in=2, out=2, both=3.
+            Only APB cpuifs support buffering; non-none requires --clk-src=design.
+            """,
+        )
+
+        arg_group.add_argument(
+            "--axi4lite-max-outstanding",
+            type=int,
+            default=4,
+            help="""Maximum number of accepted AXI4-Lite reads and paired
+            writes retained by each ordered response queue. Default is 4.
+            Only applies to AXI4-Lite CPU interfaces.
+            """,
+        )
+
+        arg_group.add_argument(
+            "--clk-src",
+            choices=("cpuif", "design"),
+            default="design",
+            help="""Select where the bus decoder gets its clock and reset.
+            'cpuif' takes PCLK/PRESETn or ACLK/ARESETn from the slave CPU
+            interface. Flat master ports forward clock/reset; SystemVerilog
+            interface endpoints require external clock/reset connections.
+            'design' (default) drops clk/reset from the CPU interface and
+            exposes top-level 'clk'/'rst' ports — the design distributes
+            clock/reset to downstream slaves itself. AHB-Lite always uses
+            HCLK/HRESETn on its ingress instead of this option.
+            """,
+        )
+
+        arg_group.add_argument(
             "--max-decode-depth",
             type=int,
             default=1,
@@ -131,6 +171,17 @@ class Exporter(ExporterSubcommandPlugin):
             addressable components. Value of 0 decodes all levels (infinite depth).
             Value of 1 decodes only top-level children. Value of 2 decodes top-level
             and one level deeper, etc. Default is 1.
+            """,
+        )
+
+        arg_group.add_argument(
+            "--gate-signals",
+            action="store_true",
+            default=False,
+            help="""Gate downstream broadcast payload signals with the per-slave select.
+            For APB this drives PADDR/PWDATA/PSTRB/PPROT to '0 on unselected
+            masters. When omitted, payload signals fan out without select masking.
+            PENABLE is always gated with the per-slave select.
             """,
         )
 
@@ -148,4 +199,8 @@ class Exporter(ExporterSubcommandPlugin):
             cpuif_unroll=options.unroll,
             parametrize=options.parametrize,
             max_decode_depth=options.max_decode_depth,
+            clk_src=options.clk_src,
+            gate_signals=options.gate_signals,
+            apb_buffer=options.apb_buffer,
+            axi4lite_max_outstanding=options.axi4lite_max_outstanding,
         )

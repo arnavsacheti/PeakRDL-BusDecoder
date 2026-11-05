@@ -1,9 +1,10 @@
 Bus Decoder Architecture
 ========================
 
-The generated RTL is a pure bus-routing layer. It accepts a single CPU interface
-on the slave side and fans transactions out to a set of child interfaces on the
-master side. No register storage or field logic is generated.
+The generated RTL is a bus-routing layer. It accepts a single CPU interface on
+the slave side and fans transactions out to a set of child interfaces on the
+master side. No user register or field logic is generated, though a protocol
+adapter may include handshake buffers and ordering state.
 
 Although you do not need to know the inner workings to use the exporter, the
 sections below explain the structure of the generated module and how it maps to
@@ -20,13 +21,23 @@ SystemRDL hierarchy.
     Export flow and generated module structure. Blue paths carry requests, dashed
     green paths carry responses, and red paths are locally generated errors.
 
+For side-by-side diagrams of the structures emitted by command-line options,
+see :ref:`generated_decoder_structure`.
+
 
 CPU Interface Adapter
 ---------------------
-Each supported CPU interface protocol (APB3, APB4, AXI4-Lite) provides a small
-adapter that translates the external bus protocol into internal request/response
-signals. These internal signals are then used by the address decoder and fanout
-logic.
+Each supported CPU interface protocol (APB3, APB4, AXI4-Lite, AHB-Lite) provides
+an adapter around the common read/write address decoders. APB holds a current
+request through completion. AXI4-Lite retains accepted destinations and
+payloads in independent read/write queues; both directions may decode in the
+same cycle. AHB-Lite retains the accepted address-phase destination and
+direction for the following data phase, independently of the live next address.
+
+There is no global single-flight restriction. Queueing, acceptance, response
+ordering, backpressure, and reset belong to the protocol adapter, not to the
+combinational address-decode layer. Both directions use the same exported
+SystemRDL layout; standalone custom read/write layouts are not implemented.
 
 If you write a custom CPU interface, it must implement the internal signals
 described in :ref:`cpuif_protocol`.
@@ -99,19 +110,29 @@ If flattened paths still collide with each other or with a reserved name,
 ``__2``, ``__3``, and so on are appended until the name is unique. These names
 are allocated in sorted relative-path order, independently of traversal order.
 Array indices are not part of this base identifier.
+Generated package names are reserved too: a target named ``MIN`` receives a
+suffix rather than colliding with ``<MODULE>_MIN_ADDR_WIDTH``.
 
-The same resolved identifier is used for APB3, APB4, and AXI4-Lite interface and
-flat master ports, their fanout and fanin references, interface-array
-intermediate signals, ``<MODULE>_<TARGET>_ADDR_WIDTH`` package constants, and
-``N_<TARGET>S`` array-count localparams. The internal select structures retain
-their hierarchical member paths; they are not flattened to match the ports.
+The same resolved identifier is used for every built-in protocol's interface
+and flat master ports, their fanout and fanin references, interface-array
+intermediate signals, and ``<MODULE>_<TARGET>_ADDR_WIDTH`` package constants.
+APB/AXI array-count localparams also use this identifier. Rolled ports include
+all ancestor and target dimensions in outer-to-inner order. The internal select
+structures retain hierarchical member paths; they are not flattened to match
+the ports.
 
 
 Fanin and Error Handling
 ------------------------
-Read and write responses are muxed back from the selected child to the slave
-interface. If no child is selected for a transaction, the decoder generates an
-error response on the slave interface.
+Read and write responses are muxed back from the retained selected child to the
+slave interface. If no child is selected for a transaction, the decoder
+generates an error response on the slave interface. Stateful protocols may
+retain several selections and choose the response source from an order queue.
 
-The exact error signaling depends on the chosen CPU interface protocol (e.g.,
-``PSLVERR`` for APB, ``RRESP/BRESP`` for AXI4-Lite).
+APB terminates local misses in the access phase with ``PSLVERR``. AXI4-Lite
+queues local ``DECERR`` responses in normal per-direction order and passes
+child ``RRESP/BRESP`` unchanged. AHB-Lite returns a local two-cycle ERROR
+(``HREADYOUT/HRESP`` = ``0/1`` then ``1/1``) and muxes child responses only
+from the retained data-phase destination. Idle requests leave selects and
+decode errors zero. See the individual CPU-interface pages for timing,
+reset, and integration assumptions.

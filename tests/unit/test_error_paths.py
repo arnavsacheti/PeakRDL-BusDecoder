@@ -13,8 +13,7 @@ from systemrdl import RDLCompileError
 from systemrdl.node import AddrmapNode
 
 from peakrdl_busdecoder import BusDecoderExporter
-from peakrdl_busdecoder.cpuif.apb3 import APB3Cpuif
-from peakrdl_busdecoder.cpuif.apb4 import APB4Cpuif
+from peakrdl_busdecoder.cpuif.apb.apb_cpuif import APB3Cpuif, APB4Cpuif
 from peakrdl_busdecoder.design_state import DesignState
 
 # ---------------------------------------------------------------------------

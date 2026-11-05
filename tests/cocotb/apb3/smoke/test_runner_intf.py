@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from peakrdl_busdecoder.cpuif.apb3.apb3_cpuif import APB3Cpuif
+from peakrdl_busdecoder.cpuif.apb.apb_cpuif import APB3Cpuif
 
 try:  # pragma: no cover - optional dependency shim
     from cocotb.runner import get_runner
@@ -35,6 +35,7 @@ def test_apb3_intf_smoke(tmp_path: Path, rdl_file: str, top_name: str) -> None:
         build_root,
         cpuif_cls=APB3Cpuif,
         control_signal="PSEL",
+        exporter_kwargs={"gate_signals": True},
     )
 
     # Generate Verilator wrapper (Verilator can't have SV interface ports at top level)

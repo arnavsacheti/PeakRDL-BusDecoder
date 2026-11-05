@@ -58,19 +58,13 @@ apt-get install verilator # Verilator
 
 #### Integration tests (no simulator required)
 
-These tests validate code generation without requiring an HDL simulator:
+These tests validate cross-generator routing and public interface structure
+without requiring an HDL simulator:
 
 ```bash
-pytest tests/cocotb/testbenches/test_integration.py -v
+PYTHONPATH=src uv run pytest tests/integration -v
 ```
 
-#### Example code generation
-
-Run examples to see generated code for different configurations:
-
-```bash
-python tests/cocotb/examples.py
-```
 
 #### Simulation layout
 
@@ -82,18 +76,34 @@ compiles the appropriate SystemRDL design, adds the interface wrapper from
 
 #### Full simulation tests (requires simulator)
 
-To execute the smoke tests for every supported interface:
+To execute the APB3, APB4, and AXI4-Lite cocotb smoke runners:
 
 ```bash
-pytest tests/cocotb/*/smoke/test_runner.py -v
+PYTHONPATH=src uv run pytest tests/cocotb/*/smoke/test_runner.py -v
 ```
 
 To target a single interface, point pytest at that runner module:
 
 ```bash
-pytest tests/cocotb/apb3/smoke/test_runner.py -v
-pytest tests/cocotb/apb4/smoke/test_runner.py -v
-pytest tests/cocotb/axi4lite/smoke/test_runner.py -v
+PYTHONPATH=src uv run pytest tests/cocotb/apb3/smoke/test_runner.py -v
+PYTHONPATH=src uv run pytest tests/cocotb/apb4/smoke/test_runner.py -v
+PYTHONPATH=src uv run pytest tests/cocotb/axi4lite/smoke/test_runner.py -v
 ```
 
-For more information about cocotb tests, see [`tests/cocotb/README.md`](cocotb/README.md).
+### AHB-Lite and full regression
+
+AHB-Lite uses an independent C++ cycle scoreboard driven against generated RTL
+compiled by Verilator, rather than a cocotb smoke runner. It covers flat and SV
+interface ports, rolled/unrolled and ancestor arrays, local submap addresses,
+32/64-bit data, direction permissions, stalls, two-cycle errors, and reset.
+Interface-width contract cases enable Verilator assertions and require a real
+mismatched interface to fail.
+
+```bash
+PYTHONPATH=src uv run pytest tests/ahblite/test_ahblite.py -v
+PYTHONPATH=src uv run pytest tests -q
+```
+
+The complete suite also includes the finite generated-RTL conformance and naming
+regressions in `tests/formal`. These commands are verification instructions, not
+a verification receipt for the 0.8.0 candidate.

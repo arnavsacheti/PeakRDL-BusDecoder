@@ -12,8 +12,7 @@ from pathlib import Path
 import pytest
 
 from peakrdl_busdecoder import BusDecoderExporter
-from peakrdl_busdecoder.cpuif.apb3 import APB3Cpuif, APB3CpuifFlat
-from peakrdl_busdecoder.cpuif.apb4 import APB4Cpuif, APB4CpuifFlat
+from peakrdl_busdecoder.cpuif.apb.apb_cpuif import APB3Cpuif, APB3CpuifFlat, APB4Cpuif, APB4CpuifFlat
 
 try:
     from cocotb.runner import get_runner
@@ -89,6 +88,8 @@ def _wrapper(protocol: str, interface: bool) -> str:
             for child, target in enumerate(CHILDREN)
             for name, _width, _request in signals
         ]
+    # The 0.8.0 default clock source is "design", so the decoder exposes clk/rst.
+    connections = [".clk(clk)", ".rst(~resetn)", *connections]
     lines += ["    apb_back_to_back dut (", "        " + ",\n        ".join(connections), "    );"]
     for child in range(2):
         model_signals = [name for name, _width, _request in signals if name != "PPROT"]

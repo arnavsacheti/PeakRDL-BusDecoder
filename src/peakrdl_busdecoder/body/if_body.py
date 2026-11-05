@@ -1,7 +1,6 @@
 from textwrap import indent
 from types import EllipsisType
-
-from typing_extensions import Self
+from typing import Self
 
 from .body import Body, SupportsStr
 
@@ -34,7 +33,7 @@ class IfBody(Body):
         if isinstance(other, Body):
             if self._has_else:
                 raise RuntimeError("Only one 'else' branch is allowed.")
-            if self._has_else or (self._branches and self._branches[-1][0] is None):
+            if self._branches and self._branches[-1][0] is None:
                 raise RuntimeError("Cannot add branches after an 'else' branch.")
             self._branches.append((None, other))
             self._has_else = True

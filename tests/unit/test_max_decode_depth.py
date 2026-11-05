@@ -7,8 +7,7 @@ from tempfile import TemporaryDirectory
 from systemrdl.node import AddrmapNode, RegNode
 
 from peakrdl_busdecoder import BusDecoderExporter
-from peakrdl_busdecoder.cpuif.apb3 import APB3Cpuif
-from peakrdl_busdecoder.cpuif.apb4 import APB4Cpuif
+from peakrdl_busdecoder.cpuif.apb.apb_cpuif import APB3Cpuif, APB4Cpuif
 from peakrdl_busdecoder.cpuif.axi4lite import AXI4LiteCpuif
 from peakrdl_busdecoder.design_state import DesignState
 
@@ -136,7 +135,7 @@ def test_depth_0_decodes_all_levels(compile_rdl: Callable[..., AddrmapNode]) -> 
 
     # Struct should be fully hierarchical
     assert "cpuif_sel_inner1_t" in content
-    assert "cpuif_sel_inner2_t" in content
+    assert "cpuif_sel_inner1_inner2_t" in content
 
 
 def test_depth_affects_decode_logic(compile_rdl: Callable[..., AddrmapNode]) -> None:
@@ -224,13 +223,16 @@ def test_depth_3_with_deep_hierarchy(compile_rdl: Callable[..., AddrmapNode]) ->
     content = _export_and_read(top, max_decode_depth=3)
 
     # Should have interfaces at depth 3: reg2, inner3
-    # (reg1 is at depth 2, not 3)
     assert "m_apb_reg2" in content
     assert "m_apb_inner3" in content
-    # Should NOT have interfaces at other depths
+    # reg1 is a leaf at depth 2, shallower than the boundary. It is still part
+    # of the address map, so it must keep its interface (previously it was
+    # silently dropped, leaving its addresses unreachable).
+    assert "m_apb_reg1" in content
+    # Should NOT have interfaces for non-leaf blocks above the boundary, nor
+    # for anything below it
     assert "m_apb_inner1" not in content
     assert "m_apb_inner2" not in content
-    assert "m_apb_reg1" not in content
     assert "m_apb_reg3" not in content
 
 
@@ -892,7 +894,7 @@ class TestStructGeneration:
 
         # Should have nested struct types at each level
         assert "cpuif_sel_outer_t" in content
-        assert "cpuif_sel_sub_t" in content
+        assert "cpuif_sel_outer_sub_t" in content
         # Leaf registers should have interfaces
         assert "m_apb_deep_reg" in content
         assert "m_apb_mid_reg" in content
@@ -1290,6 +1292,56 @@ class TestComplexHierarchies:
         assert "m_apb_simple_blk" not in content
         # Deeper nodes should NOT be exposed
         assert "m_apb_deep_reg" not in content
+
+    def test_depth_0_multi_branch_hierarchy(
+        self, compile_rdl: Callable[..., AddrmapNode]
+    ) -> None:
+        """depth=0 on a multi-branch hierarchy reaches every leaf register.
+
+        Intermediate addrmaps also contain registers so one sibling's exit
+        cannot unbalance traversal and hide another sibling's descendants.
+        """
+        rdl_source = """
+        addrmap leaf_a_t {
+            reg { field { sw=rw; hw=r; } data[31:0]; } leaf_ra @ 0x0;
+        };
+        addrmap leaf_b_t {
+            reg { field { sw=rw; hw=r; } data[31:0]; } leaf_rb @ 0x0;
+        };
+
+        addrmap mid_a_t {
+            reg { field { sw=rw; hw=r; } data[31:0]; } mid_ra @ 0x0;
+            leaf_a_t leaf_aa @ 0x10;
+            leaf_b_t leaf_ab @ 0x20;
+        };
+        addrmap leaf_c_t {
+            reg { field { sw=rw; hw=r; } data[31:0]; } leaf_rc @ 0x0;
+        };
+        addrmap mid_b_t {
+            reg { field { sw=rw; hw=r; } data[31:0]; } mid_rb @ 0x0;
+            leaf_c_t leaf_ba @ 0x10;
+        };
+
+        addrmap top {
+            mid_a_t side_a @ 0x0;
+            mid_b_t side_b @ 0x100;
+        };
+        """
+        top = compile_rdl(rdl_source, top="top")
+        content = _export_and_read(top, max_decode_depth=0)
+
+        # All leaf registers should be referenced
+        assert "m_apb_leaf_ra" in content
+        assert "m_apb_leaf_rb" in content
+        assert "m_apb_leaf_rc" in content
+        assert "m_apb_mid_ra" in content
+        assert "m_apb_mid_rb" in content
+        # No intermediate interfaces
+        assert "m_apb_side_a" not in content
+        assert "m_apb_side_b" not in content
+        assert "m_apb_leaf_aa" not in content
+        assert "m_apb_leaf_ab" not in content
+        assert "m_apb_leaf_ba" not in content
 
 
 # ===========================================================================

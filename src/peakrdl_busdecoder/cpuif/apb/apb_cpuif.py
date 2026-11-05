@@ -1,0 +1,176 @@
+from collections import deque
+from typing import ClassVar
+
+from systemrdl.node import AddressableNode
+
+from ...sv_int import SVInt
+from ...utils import get_indexed_path
+from ..base_cpuif import BaseCpuif
+from .apb_interface import APBFlatInterface, APBSVInterface
+
+# Request payload retained only when the input stage is enabled.
+_REQUEST_PAYLOAD_NAMES: tuple[str, ...] = ("PWRITE", "PADDR", "PWDATA")
+_REQUEST_PAYLOAD_OPTIONAL: dict[str, str] = {"PPROT": "has_pprot", "PSTRB": "has_pstrb"}
+_RESPONSE_NAMES: tuple[str, ...] = ("PRDATA", "PREADY", "PSLVERR")
+
+
+class APBCpuifBase(BaseCpuif):
+    """Shared APB3/APB4 cpuif. Variants differ by ``apb_interface_type`` and
+    whether ``has_pprot`` / ``has_pstrb`` are set."""
+
+    template_path = "apb_tmpl.sv"
+
+    flat_interface_cls = APBFlatInterface
+    sv_interface_cls = APBSVInterface
+    slave_name_flat = "s_apb_"
+    slave_name_sv = "s_apb"
+    master_signal_prefix = "m_apb_"
+    supports_apb_buffer = True
+
+    apb_interface_type: ClassVar[str] = ""  # set by concrete subclasses
+    has_pprot: ClassVar[bool] = False
+    has_pstrb: ClassVar[bool] = False
+
+    # ---- Transaction-aware I/O buffering ----
+
+    @property
+    def _apb_buffer(self) -> str:
+        return self.exp.ds.apb_buffer
+
+    @property
+    def buffer_in(self) -> bool:
+        return self._apb_buffer in ("in", "both")
+
+    @property
+    def buffer_out(self) -> bool:
+        return self._apb_buffer in ("out", "both")
+
+    @property
+    def has_apb_buffer(self) -> bool:
+        return self.buffer_in or self.buffer_out
+
+    @property
+    def buffered_request_names(self) -> list[str]:
+        names = list(_REQUEST_PAYLOAD_NAMES)
+        for nm, attr in _REQUEST_PAYLOAD_OPTIONAL.items():
+            if getattr(self, attr):
+                names.append(nm)
+        return names
+
+    def upstream_signal(self, signal: str) -> str:
+        """Physical upstream port, without transaction-buffer redirection."""
+        return super().signal(signal)
+
+    def signal(
+        self,
+        signal: str,
+        node: AddressableNode | None = None,
+        idx: str | int | None = None,
+    ) -> str:
+        # A buffered transfer owns the downstream phase until its single
+        # completion. Payload and response registers are mode-dependent.
+        if node is None and idx is None and self.has_apb_buffer:
+            if signal in ("PSEL", "PENABLE") or (self.buffer_in and signal in self.buffered_request_names):
+                return f"apb_req_{signal}"
+            if signal in _RESPONSE_NAMES:
+                return f"apb_rsp_{signal}"
+        return super().signal(signal, node, idx)
+
+    sv_array_fanin_wr: ClassVar[list[tuple[str, str, str]]] = [
+        ("cpuif_wr_ack", "_fanin_ready", "PREADY"),
+        ("cpuif_wr_err", "_fanin_err", "PSLVERR"),
+    ]
+    sv_array_fanin_rd: ClassVar[list[tuple[str, str, str]]] = [
+        ("cpuif_rd_ack", "_fanin_ready", "PREADY"),
+        ("cpuif_rd_err", "_fanin_err", "PSLVERR"),
+        ("cpuif_rd_data", "_fanin_data", "PRDATA"),
+    ]
+
+    def fanout(self, node: AddressableNode, array_stack: deque[int]) -> str:
+        fanout: dict[str, str] = {}
+        gate = self.exp.ds.gate_signals
+
+        addr_width = self.addr_width_param(node)
+
+        sel_path = get_indexed_path(self.exp.ds.top_node, node, "gi")
+        sel_expr = f"cpuif_wr_sel.{sel_path}|cpuif_rd_sel.{sel_path}"
+
+        if self.clk_src == "cpuif" and not self.is_interface:
+            fanout[self.signal("PCLK", node, "gi")] = self.signal("PCLK")
+            fanout[self.signal("PRESETn", node, "gi")] = self.signal("PRESETn")
+
+        fanout[self.signal("PSEL", node, "gi")] = sel_expr
+        fanout[self.signal("PENABLE", node, "gi")] = f"({sel_expr}) & {self.signal('PENABLE')}"
+        fanout[self.signal("PWRITE", node, "gi")] = f"cpuif_wr_sel.{sel_path}"
+
+        if self._can_truncate_addr(node, array_stack):
+            # Size is a power of 2 and aligned, so we can directly use the address bits as the slave address
+            addr_value = f"{self.signal('PADDR')}[{addr_width}-1:0]"
+        else:
+            addr_comp = [self.signal("PADDR"), f"{SVInt(self.node_base_address(node), self.addr_width)}"]
+            for i, stride in enumerate(array_stack):
+                addr_comp.append(f"{self.addr_width}'(gi{i}*{SVInt(stride, self.addr_width)})")
+            addr_value = f"{addr_width}'({' - '.join(addr_comp)})"
+        fanout[self.signal("PADDR", node, "gi")] = f"({sel_expr}) ? {addr_value} : '0" if gate else addr_value
+
+        if self.has_pprot:
+            fanout[self.signal("PPROT", node, "gi")] = (
+                f"({sel_expr}) ? {self.signal('PPROT')} : '0" if gate else self.signal("PPROT")
+            )
+        fanout[self.signal("PWDATA", node, "gi")] = (
+            f"({sel_expr}) ? cpuif_wr_data : '0" if gate else "cpuif_wr_data"
+        )
+        if self.has_pstrb:
+            fanout[self.signal("PSTRB", node, "gi")] = (
+                f"({sel_expr}) ? cpuif_wr_byte_en : '0" if gate else "cpuif_wr_byte_en"
+            )
+
+        return "\n".join(f"assign {lhs} = {rhs};" for lhs, rhs in fanout.items())
+
+    def _default_fanin_wr(self, node: AddressableNode | None, *, error: bool) -> str:
+        fanin: dict[str, str] = {}
+        if node is None:
+            fanin["cpuif_wr_ack"] = "'0"
+            fanin["cpuif_wr_err"] = "'0"
+            if error:
+                # The error branch is already selected; respond only in the access phase.
+                fanin["cpuif_wr_ack"] = self.signal("PENABLE")
+                fanin["cpuif_wr_err"] = self.signal("PENABLE")
+        else:
+            fanin["cpuif_wr_ack"] = self.signal("PREADY", node, "i")
+            fanin["cpuif_wr_err"] = self.signal("PSLVERR", node, "i")
+        return "\n".join(f"{lhs} = {rhs};" for lhs, rhs in fanin.items())
+
+    def _default_fanin_rd(self, node: AddressableNode | None, *, error: bool) -> str:
+        fanin: dict[str, str] = {}
+        if node is None:
+            fanin["cpuif_rd_ack"] = "'0"
+            fanin["cpuif_rd_err"] = "'0"
+            fanin["cpuif_rd_data"] = "'0"
+            if error:
+                # The error branch is already selected; respond only in the access phase.
+                fanin["cpuif_rd_ack"] = self.signal("PENABLE")
+                fanin["cpuif_rd_err"] = self.signal("PENABLE")
+        else:
+            fanin["cpuif_rd_ack"] = self.signal("PREADY", node, "i")
+            fanin["cpuif_rd_err"] = self.signal("PSLVERR", node, "i")
+            fanin["cpuif_rd_data"] = self.signal("PRDATA", node, "i")
+        return "\n".join(f"{lhs} = {rhs};" for lhs, rhs in fanin.items())
+
+
+class APB3CpuifFlat(APBCpuifBase):
+    apb_interface_type = "apb3_intf"
+
+
+class APB3Cpuif(APB3CpuifFlat):
+    use_sv_interface = True
+
+
+class APB4CpuifFlat(APBCpuifBase):
+    apb_interface_type = "apb4_intf"
+    has_pprot = True
+    has_pstrb = True
+
+
+class APB4Cpuif(APB4CpuifFlat):
+    use_sv_interface = True

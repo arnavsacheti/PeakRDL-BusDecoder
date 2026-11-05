@@ -29,10 +29,25 @@ Command-Line Options
 
 The following options are available on the ``peakrdl busdecoder`` command:
 
+See :ref:`generated_decoder_structure` for diagrams showing which options
+change ports, routing boundaries, queues, or pipeline state.
+
 * ``--cpuif``: Select the CPU interface (``apb3``, ``apb3-flat``, ``apb4``,
-  ``apb4-flat``, ``axi4-lite``, ``axi4-lite-flat``)
+  ``apb4-flat``, ``axi4-lite``, ``axi4-lite-flat``, ``ahb-lite``, ``ahb-lite-flat``)
 * ``--module-name``: Override the generated module name
 * ``--package-name``: Override the generated package name
 * ``--addr-width``: Override the slave address width
 * ``--unroll``: Unroll arrayed children into discrete interfaces
 * ``--max-decode-depth``: Control how far the decoder descends into hierarchy
+* ``--parametrize``: Propagate top-level SystemRDL parameters into the
+  generated module (see :doc:`parameters`)
+* ``--clk-src``: Select APB/AXI clock/reset (``design`` (default) adds top-level
+  ``clk``/``rst`` ports; ``cpuif`` uses the CPU-interface clock/reset).
+  AHB-Lite always uses ingress ``HCLK/HRESETn`` and does not add generic clock/reset ports.
+* ``--gate-signals``: Gate APB broadcast payload signals with each slave's
+  select so unselected slaves see all-zero payload inputs (off by default)
+* ``--apb-buffer``: Select transaction-aware APB request/response buffering
+  (``none`` (default), ``in``, ``out``, ``both``); non-``none`` modes require
+  ``--clk-src design``. See :doc:`cpuif/apb` for timing and reset behavior.
+* ``--axi4lite-max-outstanding``: Set the separate AXI4-Lite read and write
+  order-queue depths (default ``4``; minimum ``1``)

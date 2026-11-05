@@ -7,26 +7,45 @@ from .design_state import DesignState
 
 
 class BusDecoderListener(RDLListener):
+    # When True and the design is exported with cpuif_unroll, the exporter
+    # walks this listener with arrays unrolled so each element is visited as
+    # an individual (scalar) master.
+    walk_unrolled = False
+
     def __init__(self, ds: DesignState) -> None:
         self._array_stride_stack: deque[int] = deque()  # Tracks nested array strides
         self._ds = ds
         self._depth = 0
+
+    def is_rolled_array(self, node: AddressableNode) -> bool:
+        """True for an arrayed node visited rolled-up (not an unrolled element)."""
+        return bool(node.array_dimensions) and node.current_idx is None
+
+    def loop_base_index(self, node: AddressableNode) -> int:
+        """First loop-variable number for this node's own array dimensions.
+
+        Single source of truth for ``i{k}`` / ``gi{k}`` numbering. The open-dim
+        stride stack holds exactly one entry per currently-open loop dimension
+        (ancestors' dims first, then this node's dims, outermost-first), so this
+        must be called *after* the base ``enter_AddressableComponent`` pushed
+        this node's own dims. The result is the count of enclosing ancestor loop
+        dimensions -- which is also the index where this node's brackets begin
+        in ``get_indexed_path(top_node, node)``.
+        """
+        own = len(node.array_dimensions) if node.array_dimensions else 0
+        return len(self._array_stride_stack) - own
 
     def should_skip_node(self, node: AddressableNode) -> bool:
         """Stop descending when this node is a routed target."""
         return self._ds.is_decode_boundary(node, self._depth)
 
     def enter_AddressableComponent(self, node: AddressableNode) -> WalkerAction | None:
-        if node.array_dimensions:
-            assert node.array_stride is not None, "Array stride should be defined for arrayed components"
-            current_stride = node.array_stride
-            self._array_stride_stack.append(current_stride)
-
-            # Work backwards from rightmost to leftmost dimension (fastest to slowest changing)
-            # Each dimension's stride is the product of its size and the previous dimension's stride
-            for dim in node.array_dimensions[-1:0:-1]:
-                current_stride = current_stride * dim
-                self._array_stride_stack.appendleft(current_stride)
+        meta = self._ds.node_meta(node)
+        if meta.array_strides is not None and self.is_rolled_array(node):
+            # Strides are stored outermost-first; append in order so the stack
+            # stays outer-to-inner across the whole open path (see
+            # loop_base_index).
+            self._array_stride_stack.extend(meta.array_strides)
 
         self._depth += 1
 
@@ -37,7 +56,8 @@ class BusDecoderListener(RDLListener):
         return WalkerAction.Continue
 
     def exit_AddressableComponent(self, node: AddressableNode) -> None:
-        if node.array_dimensions:
+        if self.is_rolled_array(node):
+            assert node.array_dimensions is not None
             for _ in node.array_dimensions:
                 self._array_stride_stack.pop()
 
