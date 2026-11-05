@@ -41,7 +41,7 @@ data. The router returns ``HRDATA``, ``HREADYOUT``, and **one-bit** ``HRESP``
 (0 = OKAY, 1 = ERROR). Each child receives the same address/control and data
 signal set and supplies its own response signals.
 
-Unlike the combinational APB adapter, this adapter has sequential state:
+Unlike the default unbuffered APB adapter, this adapter has sequential state:
 
 * Flat ports include ``s_ahb_HCLK`` and active-low ``s_ahb_HRESETn``.
 * ``ahblite_intf`` takes ``HCLK`` and ``HRESETn`` as interface-constructor
@@ -54,8 +54,11 @@ Unlike the combinational APB adapter, this adapter has sequential state:
   local-error state. During reset, all child ``HSEL`` outputs are low and the
   subordinate returns ``HREADYOUT=1``, ``HRESP=0``, and zero read data. The
   canonical ``HRESETn`` input is used regardless of RDL ``cpuif_reset`` metadata.
-* ``--clk-src`` does not change AHB clock/reset ports or add generic
-  ``clk``/``rst`` ports.
+* ``--clk-src design`` and ``--clk-src cpuif`` are accepted but ignored:
+  neither changes the AHB clock/reset ports or adds generic ``clk``/``rst``
+  ports. Explicit ``--clk-src off`` is rejected because data-phase state
+  requires ingress ``HCLK/HRESETn``. Omit the option or select either accepted
+  setting; the ingress clock/reset wiring is always required.
 
 .. important::
 

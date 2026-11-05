@@ -32,7 +32,9 @@ class APBCpuifBase(BaseCpuif):
     has_pstrb: ClassVar[bool] = False
 
     @property
-    def fixed_reset(self) -> tuple[str, bool]:
+    def fixed_reset(self) -> tuple[str, bool] | None:
+        if self.clk_src == "off":
+            return None
         return ("rst", False) if self.clk_src == "design" else (self.signal("PRESETn"), True)
 
     # ---- Transaction-aware I/O buffering ----

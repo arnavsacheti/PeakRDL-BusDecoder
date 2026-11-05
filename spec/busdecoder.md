@@ -49,6 +49,25 @@ this draft supersedes their old coupled-AXI and global-single-flight models.
   - Plugin interfaces registered via entry points under `peakrdl_busdecoder.cpuif`.
 - **BD-CFG-DEFAULT-CPUIF**: If unspecified, the CPU interface shall default to `apb4`.
 - **BD-CFG-PYTHON**: The package requires Python 3.11 or newer.
+- **BD-CFG-CLK-SRC**: `clk_src` / `--clk-src` accepts `off`, `cpuif`, and
+  `design`. Omission or Python `None` resolves to `off` for unbuffered APB
+  (`apb_buffer='none'`), preserving the 0.7.x clockless decoder module ports:
+  no `clk`/`rst`, no standalone `PCLK`/`PRESETn`, and no clock/reset forwarding.
+  Buffered APB and AXI4-Lite default to `design`.
+  - `design` adds input `clk` and active-high asynchronous `rst`; flat APB/AXI
+    protocol ports omit clock/reset. Integration distributes the common domain
+    to decoder and children.
+  - `cpuif` selects upstream APB `PCLK/PRESETn` or AXI `ACLK/ARESETn`, omits
+    generic `clk`/`rst`, and adds pass-through child clock/reset outputs in flat
+    form. SV interface clock/reset members remain inputs on both modports and
+    must be connected externally; they remain declared even in `off`/`design`.
+  - Built-in adapters support `off` only for unbuffered APB. Buffered APB
+    rejects explicit `off` and `cpuif`: omit the clock-source option, select
+    `design`, or set `apb_buffer='none'`. AXI4-Lite rejects `off`: omit the
+    option or select `design` or `cpuif` and wire the chosen source.
+  - AHB-Lite always uses canonical ingress `HCLK/HRESETn`, ignoring `design`
+    and `cpuif` and rejecting explicit `off`. Omit the option or select either
+    accepted setting; none adds generic `clk`/`rst` or child clock/reset outputs.
 - **BD-CFG-AXIL-DEPTH**: `axi4lite_max_outstanding` / `--axi4lite-max-outstanding`
   sets the fixed capacity of each independent AXI4-Lite order queue. Default 4;
   minimum 1. Partial AW and W beats have separate one-entry holding registers.
@@ -237,8 +256,10 @@ must not be applied unconditionally to them.
 
 - **BD-APB-BUFFER-MODES**: `apb_buffer` / `--apb-buffer` accepts `none`
   (default), `in`, `out`, and `both`. Non-`none` settings apply only to APB and
-  require `clk_src='design'`; the buffers use design `clk` and active-high
-  asynchronous `rst`. Clock distribution and payload gating are unchanged.
+  require `clk_src='design'`, selected automatically if `clk_src` is omitted or
+  `None`; explicit `off` or `cpuif` with buffering is rejected. The buffers use
+  design `clk` and active-high asynchronous `rst`. Clock distribution and
+  payload gating are unchanged.
 - **BD-APB-BUFFER-OWNERSHIP**: Every buffered mode tracks one transaction from
   upstream SETUP through upstream completion. No multiple outstanding
   transactions are allowed. A selected child completes exactly once; continued
@@ -281,6 +302,10 @@ must not be applied unconditionally to them.
 
 This profile is **AXI4-Lite**, not full AXI4: it has single-beat transfers and
 no transaction IDs, bursts, exclusives, or cross-ID reordering.
+
+- **BD-AXIL-CLOCK**: The holding registers and order queues require an
+  operational clock/reset source. Omitted/`None` selects `design`; `cpuif` is
+  also supported. Explicit `off` is rejected, not a combinational fallback.
 
 - **BD-AXIL-INDEPENDENT-WRITE**: Upstream AW and W are accepted independently
   on their own VALID/READY handshakes, in either order. Each has one holding

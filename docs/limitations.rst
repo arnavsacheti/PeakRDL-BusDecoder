@@ -39,6 +39,8 @@ hierarchy level. APB and AXI4-Lite use the active-high asynchronous ``rst``
 port with ``--clk-src design`` or the active-low asynchronous ``PRESETn`` /
 ``ARESETn`` ingress signal with ``--clk-src cpuif``. AHB-Lite always uses its
 active-low asynchronous ingress ``HRESETn``.
+Unbuffered APB defaults to ``--clk-src off`` and has no reset port, so
+``cpuif_reset`` declarations do not produce reset-port mismatch warnings.
 
 A ``cpuif_reset`` declaration warns when its name, scope, explicitly declared
 polarity, or explicitly declared synchronization conflicts with that fixed

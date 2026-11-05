@@ -16,6 +16,9 @@ bus-routing layer that decodes addresses and forwards requests to child blocks.
     The candidate adds ordered AXI4-Lite and single-manager AHB-Lite routing;
     it does not implement full AXI4 or separate custom read/write layouts.
 
+    Upgrading an existing design? See :doc:`migrating` for preserved APB defaults,
+    Python import changes, and the new AXI4-Lite clock/reset requirement.
+
 This is particularly useful for:
 
 * Creating hierarchical register maps with multiple sub-components
@@ -59,9 +62,9 @@ Key command-line options:
 * ``--unroll``: Unroll arrayed children into discrete interfaces
 * ``--max-decode-depth``: Control how far the decoder descends into hierarchy
 * ``--parametrize``: Propagate top-level SystemRDL parameters into the generated module
-* ``--clk-src``: Select APB/AXI clock/reset (``cpuif`` or ``design``, default ``design``); AHB always uses ingress ``HCLK/HRESETn``
+* ``--clk-src``: Select ``off``, ``cpuif``, or ``design``. Omitted: unbuffered APB uses ``off``; buffered APB and AXI4-Lite use ``design``. AHB always uses ingress ``HCLK/HRESETn`` and rejects ``off``.
 * ``--gate-signals``: Gate APB broadcast signals with each slave's select (off by default)
-* ``--apb-buffer``: Select transaction-aware APB request/response buffering (``none`` (default), ``in``, ``out``, ``both``); buffered modes require ``--clk-src design``
+* ``--apb-buffer``: Select transaction-aware APB request/response buffering (``none`` (default), ``in``, ``out``, ``both``); buffered modes require ``design``, selected automatically if ``--clk-src`` is omitted
 * ``--axi4lite-max-outstanding``: Set each AXI4-Lite ordered-response queue depth (default ``4``)
 
 
@@ -90,6 +93,7 @@ Links
     generated_structure
     parameters
     configuring
+    migrating
     limitations
     licensing
     api

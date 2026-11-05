@@ -6,7 +6,7 @@ Every finding is assigned an ID (`DOC-FINDING-*`), categorized as **Compliant**,
 
 ## Follow-up status
 
-The findings below retain the original audit evidence, not current source line numbers. The field-buffering restriction has been removed from `docs/limitations.rst` and the exporter; downstream blocks own field atomicity. The decoder's default-miss implementation now covers array stride gaps, preserving the documented unmapped-error contract rather than documenting the deadlock as supported behavior. Local submap addressing and direction-specific register routing are covered by the follow-up implementation and RTL conformance sweeps. Depth-policy and Avalon support observations remain separate, unresolved items; this patch does not add Avalon support.
+The findings below retain the original audit evidence, not current source line numbers. The field-buffering restriction has been removed from `docs/limitations.rst` and the exporter; downstream blocks own field atomicity. The decoder's default-miss implementation now covers array stride gaps, preserving the documented unmapped-error contract rather than documenting the deadlock as supported behavior. Local submap addressing and direction-specific register routing are covered by the follow-up implementation and RTL conformance sweeps. The candidate status below supersedes the historical depth-policy finding; Avalon support remains unimplemented.
 
 For the 0.8.0 candidate, `spec/busdecoder.md` is the current draft and
 integration verification is pending. The old coupled-write/no-DECERR and

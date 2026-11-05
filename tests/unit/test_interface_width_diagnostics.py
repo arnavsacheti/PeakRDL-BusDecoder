@@ -128,6 +128,7 @@ def _simulate(
         top,
         str(tmp_path),
         cpuif_cls=_PROTOCOLS[protocol][0],
+        clk_src="design",
         address_width=16 if protocol == "ahblite" else 11,
         data_width=32,
         module_name="width_router",

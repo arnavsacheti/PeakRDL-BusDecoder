@@ -24,6 +24,20 @@ Flattened inputs/outputs
     * Class: :class:`peakrdl_busdecoder.cpuif.axi4lite.AXI4LiteCpuifFlat`
 
 
+Clock and reset
+---------------
+AXI4-Lite always requires an operational clock/reset for its holding registers
+and ordered-response queues. Omitting ``--clk-src`` (or using Python
+``clk_src=None``) selects ``design`` and adds top-level ``clk`` and active-high
+asynchronous ``rst`` inputs. ``--clk-src cpuif`` instead uses upstream
+``ACLK``/``ARESETn`` without separate ``clk``/``rst`` ports. Flat ``cpuif``
+variants expose those protocol inputs and pass-through outputs for each child;
+SystemVerilog interface instances must receive the common clock/reset
+externally. Explicit ``--clk-src off`` is rejected: omit the option or select
+``design`` or ``cpuif`` and connect that source. See :doc:`introduction` for
+wiring and :doc:`../migrating` for the change from the 0.7.4 AXI adapter.
+
+
 Protocol behavior
 -----------------
 The adapter implements stateful AXI4-Lite handshakes in the read and write
@@ -48,7 +62,10 @@ directions independently.
   downstream ``RREADY`` or ``BREADY``.
 * Child ``RRESP`` and ``BRESP`` values are propagated unchanged. Unmapped
   requests complete locally with ``DECERR`` (``2'b11``) in their normal FIFO
-  position.
+  position. A wider upstream SystemVerilog interface address with nonzero bits
+  above the configured decoder address width also returns ``DECERR``, rather
+  than aliasing a low mapped address. Flat upstream ports already have the
+  configured width.
 * Reset clears partial ``AW``/``W`` captures and both queues. All connected
   children must share the reset domain so abandoned responses cannot reappear
   as post-reset transactions.

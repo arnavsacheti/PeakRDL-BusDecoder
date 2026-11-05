@@ -87,7 +87,7 @@ class BaseCpuif:
 
     @property
     def fixed_reset(self) -> tuple[str, bool] | None:
-        """Fixed reset port and active-low flag, or None for custom reset handling."""
+        """Fixed reset port and active-low flag, or None when no fixed port is used."""
         return None
 
     def addr_width_param(self, node: AddressableNode) -> str:

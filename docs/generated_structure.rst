@@ -63,8 +63,9 @@ Which flags change structure?
         and either interface or flat ports.
     * - ``--clk-src``
       - Ports and state clocking
-      - For APB/AXI4-Lite, chooses top-level ``clk``/``rst`` or protocol
-        clock/reset members. AHB-Lite always uses ingress ``HCLK``/``HRESETn``.
+      - Selects no clock/reset ports for unbuffered APB (``off``), top-level
+        ``clk``/``rst`` (``design``), or protocol clock/reset (``cpuif``).
+        AHB-Lite always uses ingress ``HCLK``/``HRESETn`` and rejects ``off``.
     * - ``--max-decode-depth``
       - Routing topology
       - Moves the downstream interface boundary through the SystemRDL hierarchy.
@@ -122,14 +123,20 @@ Only the generated port representation changes.
 
 Clock and reset source
 ----------------------
-The decoder always has a selected clock/reset source. APB uses sequential state
-only when buffering is enabled; AXI4-Lite always uses sequential state for
-holding registers and ordered-response queues. AHB-Lite always uses sequential
-state to retain its data phase.
+Unbuffered APB needs no decoder clock/reset: omitting ``--clk-src`` selects
+``off`` when ``--apb-buffer none`` (the default). This preserves the 0.7.x
+clockless decoder port shape, without ``clk``/``rst`` or standalone
+``PCLK``/``PRESETn`` ports and without clock/reset forwarding. The surrounding
+APB manager and children still need their common clock/reset domain.
 
-For APB and AXI4-Lite, ``--clk-src design`` (the default) selects explicit
-``clk``/``rst`` ports for decoder state. The surrounding design distributes the
-same clock domain to the decoder and downstream children.
+Buffered APB and AXI4-Lite default to ``design`` when ``--clk-src`` is omitted
+(or Python ``clk_src`` is omitted or ``None``). APB buffering uses sequential
+transaction state; AXI4-Lite always uses holding registers and ordered-response
+queues. AHB-Lite always retains its data phase using ingress clock/reset.
+
+For APB and AXI4-Lite, ``--clk-src design`` selects explicit ``clk``/``rst``
+input ports. This also remains an explicit opt-in for unbuffered APB. The
+surrounding design distributes the same clock domain to decoder and children.
 
 .. mermaid::
 
@@ -142,11 +149,14 @@ same clock domain to the decoder and downstream children.
         D --> C0
         D --> C1
 
-For APB and AXI4-Lite, ``--clk-src cpuif`` instead selects clock/reset from the
-upstream protocol interface and omits separate ``clk``/``rst`` ports. Flat
-variants expose pass-through clock/reset outputs for each child. SystemVerilog
-manager modports declare clock/reset as inputs, so their interface instances
-must be connected externally to the same domain as the upstream interface.
+For unbuffered APB and AXI4-Lite, ``--clk-src cpuif`` instead selects clock/reset
+from the upstream protocol interface and omits separate ``clk``/``rst`` ports.
+Flat variants expose upstream protocol clock/reset inputs and pass-through
+outputs for each child. SystemVerilog manager modports declare clock/reset as
+inputs, so their interface instances must be connected externally to the same
+domain as the upstream interface. The interface definitions retain these
+members even in ``off`` and ``design`` modes, when the decoder does not use them
+as its clock/reset source.
 
 .. mermaid::
 
@@ -157,10 +167,11 @@ must be connected externally to the same domain as the upstream interface.
         SYS["Common interface clock source"] -.-> I0["SV child 0 interface clock/reset"]
         SYS -.-> I1["SV child 1 interface clock/reset"]
 
-AHB-Lite always takes ``HCLK`` and active-low ``HRESETn`` from its ingress,
-regardless of ``--clk-src``. Neither setting adds separate ``clk``/``rst``
-ports or flat child clock/reset outputs. Wire every child externally to that
-same domain, for both flat and SystemVerilog interface variants:
+AHB-Lite always takes ``HCLK`` and active-low ``HRESETn`` from its ingress.
+``design`` and ``cpuif`` are accepted but ignored; explicit ``off`` is rejected.
+No accepted setting adds separate ``clk``/``rst`` ports or flat child clock/reset
+outputs. Wire every child externally to that same domain, for both flat and
+SystemVerilog interface variants:
 
 .. mermaid::
 
@@ -170,9 +181,11 @@ same domain, for both flat and SystemVerilog interface variants:
         SYS --> C0["Child 0 clock/reset"]
         SYS --> C1["Child 1 clock/reset"]
 
-These are single-clock-domain adapters, not clock-domain crossings. In
-particular, neither stateful AXI4-Lite nor AHB-Lite can omit its clock/reset
-source.
+These are single-clock-domain adapters, not clock-domain crossings. AXI4-Lite
+rejects ``off``: omit the option or select ``design`` or ``cpuif``. Buffered APB
+requires ``design``: omit the option to select it automatically, select it
+explicitly, or disable buffering with ``--apb-buffer none``. AHB-Lite cannot
+omit its ingress clock/reset under any accepted setting.
 
 
 Decode depth
@@ -210,8 +223,11 @@ The generated boundary moves with the selected depth:
             X0 --> R20["m_*_reg_2"]
         end
 
-Depth zero means unlimited descent to leaf boundaries. External components and
-other enforced decode boundaries can stop descent earlier.
+Depth zero means unlimited descent to leaf boundaries. Addressable leaves
+shallower than a positive depth limit remain targets; increasing the maximum
+depth does not discard them. External components and other enforced decode
+boundaries can also stop descent earlier. See :doc:`migrating` for an example
+of the shallow-leaf behavior change from 0.7.x.
 
 Downstream port names and address-width constants use the same canonical
 target identity, allocated by ``DesignState.get_target_name(node)`` for every
@@ -348,8 +364,9 @@ interface topology:
         MASK --> G0["Selected payload or zero"]
         MASK --> G1["Selected payload or zero"]
 
-Buffering requires ``--clk-src design``. Gating is combinational and does not
-change the APB transfer phases.
+Buffering requires ``design``, selected automatically if ``--clk-src`` is
+omitted; explicit ``off`` or ``cpuif`` is rejected with buffering. Gating is
+combinational, works with unbuffered ``off``, and does not change APB phases.
 
 
 Parameterized array extent

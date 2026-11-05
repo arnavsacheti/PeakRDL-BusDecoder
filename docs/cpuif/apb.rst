@@ -3,24 +3,35 @@ AMBA APB
 
 Both APB3 and APB4 standards are supported.
 
-With the default ``--clk-src design``, the decoder uses explicit ``clk``/``rst``
-ports and does not distribute ``PCLK`` or ``PRESETn``. Flattened APB interfaces
-omit those protocol clock/reset ports. With ``--clk-src cpuif``, the upstream
-``PCLK``/``PRESETn`` instead supply the decoder clock/reset, separate
-``clk``/``rst`` ports are omitted, and flat variants expose pass-through
-clock/reset outputs for every child. SystemVerilog interface clock/reset
-members are inputs on both modports: connect every interface instance
-externally to the same selected domain under either setting.
+With the default ``--apb-buffer none``, omitting ``--clk-src`` selects ``off``.
+The unbuffered decoder preserves the clockless 0.7.x port shape: no
+``clk``/``rst`` ports, no standalone ``PCLK``/``PRESETn`` ports, and no
+clock/reset forwarding or sequential state. Explicit ``--clk-src off`` selects
+the same behavior.
 
-An unmapped address completes with an error in the first access cycle. The
-decoder asserts ``PREADY`` and ``PSLVERR`` together only when ``PSEL`` and
-``PENABLE`` are high; both remain low during setup and while unselected.
+Opting into ``--clk-src design`` adds input ``clk``/``rst`` ports; flat APB
+ports still omit ``PCLK``/``PRESETn``. With ``--clk-src cpuif``, flat variants
+instead add upstream ``s_apb_PCLK``/``s_apb_PRESETn`` inputs and pass-through
+clock/reset outputs for every child, without separate ``clk``/``rst`` ports.
+These clock-source choices do not add latency to unbuffered APB.
+
+The bundled SystemVerilog interfaces retain ``PCLK``/``PRESETn`` members.
+Those members are inputs on both modports: connect every interface instance
+externally to the same selected domain. The decoder neither uses nor forwards
+them in ``off`` mode; ``design`` uses its separate input ports instead.
+Buffered APB selects ``design`` automatically when the clock-source option is
+omitted, as described below.
+
+With ``--apb-buffer none``, an unmapped address completes with an error in the
+first access cycle. The decoder asserts ``PREADY`` and ``PSLVERR`` together only
+when ``PSEL`` and ``PENABLE`` are high; both remain low during setup and while
+unselected.
 Mapped transfers pass through the selected endpoint's response signals.
 
 Back-to-back transfers may keep ``PSEL`` high, but each transfer requires a
 SETUP phase with ``PENABLE`` low between ACCESS phases. These are individual
-APB transfers, not bursts; the decoder is combinational and does not buffer
-transfers or add clock/reset logic.
+APB transfers, not bursts. With ``--apb-buffer none``, the decoder is
+combinational and does not retain transactions; buffering is opt-in.
 
 .. figure:: ../diagrams/svg/apb4_timing.svg
     :class: diagram
@@ -75,9 +86,9 @@ Implements the bus decoder using an
 `AMBA 4 APB <https://developer.arm.com/documentation/ihi0024/d/?lang=en>`_
 CPU interface.
 
-APB4 managers must drive ``PSTRB`` to zero for reads. For writes, ``PSTRB``
-directly broadcasts the manager's byte strobes to the downstream interfaces;
-the decoder does not sanitize or gate the strobes.
+APB4 managers must drive ``PSTRB`` to zero for reads. By default, writes
+broadcast the manager's byte strobes directly to downstream interfaces;
+``--gate-signals`` optionally masks the payload of unselected children.
 
 The APB4 CPU interface comes in two i/o port flavors:
 
@@ -162,10 +173,14 @@ back-to-back transfers, even when ``PSEL`` stays high. Each child wait cycle
 adds one cycle to both counts. Unmapped requests use the same buffering stages
 around the local ACCESS-phase error response.
 
-Buffered modes require ``--clk-src design`` and use the design ``clk`` and
-active-high asynchronous ``rst``. Reset clears retained request/response state,
-suppresses downstream requests and upstream ready, and aborts a pending
-transfer. It cannot undo downstream side effects that already completed.
+Buffered modes require ``--clk-src design``. Omitting ``--clk-src`` selects it
+automatically for ``in``, ``out``, and ``both``; explicit ``off`` or ``cpuif``
+with buffering is rejected. Omit the clock-source option, select ``design``,
+or use ``--apb-buffer none`` to return to unbuffered routing. Buffered modes
+use design ``clk`` and active-high asynchronous ``rst``. Reset clears retained
+request/response state, suppresses downstream requests and upstream ready, and
+aborts a pending transfer. It cannot undo downstream side effects that already
+completed.
 After reset, the upstream master must restart with a fresh SETUP; a stale
 ACCESS held across reset is not replayed. These reset rules apply to buffered
 modes, not to the unchanged combinational ``none`` path.

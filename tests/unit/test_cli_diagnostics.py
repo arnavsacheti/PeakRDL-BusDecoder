@@ -470,6 +470,37 @@ def test_exporter_accepts_explicit_data_width_keyword(
     _assert_flat_data_width(output, "apb4-flat", ("remote", "memory"), 64)
 
 
+@pytest.mark.parametrize("cpuif", ["apb3-flat", "apb4-flat"])
+@pytest.mark.parametrize("clk_src", ["off", "design", "cpuif"])
+def test_explicit_data_width_and_clock_source_coexist(
+    tmp_path: Path, cpuif: str, clk_src: str
+) -> None:
+    result = _run_cli(
+        tmp_path, "--cpuif", cpuif, "--data-width", "64", "--clk-src", clk_src,
+        source=_EXTERNAL_RDL,
+    )
+    _assert_quiet_success(result)
+    _assert_flat_data_width(tmp_path / "out", cpuif, ("remote", "memory"), 64)
+    module = (tmp_path / "out" / "top.sv").read_text()
+    assert bool(re.search(r"\binput\s+logic\s+rst\b", module)) is (clk_src == "design")
+    assert bool(re.search(r"\binput\s+logic\s+s_apb_PRESETn\b", module)) is (clk_src == "cpuif")
+
+
+@pytest.mark.parametrize("cpuif", ["apb3", "apb3-flat", "apb4", "apb4-flat"])
+@pytest.mark.parametrize("clock_arguments", [(), ("--clk-src", "off")], ids=["default", "off"])
+@pytest.mark.parametrize("scope", ["top", "nested", "root"])
+def test_clockless_apb_reset_metadata_is_quiet(
+    tmp_path: Path, cpuif: str, clock_arguments: tuple[str, ...], scope: str
+) -> None:
+    result = _run_cli(
+        tmp_path, "--cpuif", cpuif, *clock_arguments,
+        source=_reset_rdl(name="declared_reset", properties="activelow; sync;", scope=scope),
+    )
+    _assert_quiet_success(result)
+    module = (tmp_path / "out" / "top.sv").read_text()
+    assert re.search(r"\b(?:clk|rst|declared_reset)\b|PCLK|PRESETn", module) is None, module
+
+
 @pytest.mark.parametrize("cpuif,adapter,bus_reset", _RESET_ADAPTERS)
 @pytest.mark.parametrize("clk_src", ["design", "cpuif"])
 def test_declared_reset_reports_actual_fixed_port_for_every_builtin_adapter(
@@ -503,7 +534,7 @@ def test_declared_reset_reports_actual_fixed_port_for_every_builtin_adapter(
 
 @pytest.mark.parametrize("cpuif", [entry[0] for entry in _RESET_ADAPTERS if not entry[0].startswith("ahb")])
 def test_matching_top_level_design_reset_is_quiet(tmp_path: Path, cpuif: str) -> None:
-    result = _run_cli(tmp_path, "--cpuif", cpuif, source=_reset_rdl())
+    result = _run_cli(tmp_path, "--cpuif", cpuif, "--clk-src", "design", source=_reset_rdl())
     _assert_quiet_success(result)
     module = (tmp_path / "out" / "top.sv").read_text()
     assert re.search(r"\binput\s+logic\s+rst\b", module), module
