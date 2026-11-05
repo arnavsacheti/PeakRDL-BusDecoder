@@ -20,6 +20,8 @@ if TYPE_CHECKING:
 class _ArrayDimension:
     count: int
     stride: int
+    component: AddressableNode
+    index: int
 
 
 @dataclass(frozen=True)
@@ -91,6 +93,10 @@ class AHBLiteCpuifFlat(BaseCpuif):
         return self._interface.get_port_declaration(slave_name, self.master_signal_prefix)
 
     @property
+    def fixed_reset(self) -> tuple[str, bool]:
+        return self.signal("HRESETn"), True
+
+    @property
     def target_count(self) -> int:
         # A default-only router still needs legal, nonempty SV vector bounds.
         return max(1, len(self.bindings))
@@ -112,7 +118,7 @@ class AHBLiteCpuifFlat(BaseCpuif):
                 assert component.array_stride is not None
                 for dim_index, count in enumerate(component.array_dimensions):
                     stride = component.array_stride * prod(component.array_dimensions[dim_index + 1 :])
-                    dimensions.append(_ArrayDimension(count, stride))
+                    dimensions.append(_ArrayDimension(count, stride, component, dim_index))
 
         return _Target(node, self.exp.ds.get_target_name(node), tuple(dimensions))
 
@@ -150,7 +156,8 @@ class AHBLiteCpuifFlat(BaseCpuif):
         if self.data_width not in (32, 64, 128, 256, 512, 1024):
             msg.error(
                 "AHB-Lite requires a common power-of-two data width from 32 through 1024 bits; "
-                f"the inferred width is {self.data_width} bits.",
+                f"the selected width is {self.data_width} bits. Choose --data-width "
+                "32, 64, 128, 256, 512, or 1024, no smaller than the internal register accesswidth.",
                 self.exp.ds.top_node.inst.def_src_ref,
             )
 
@@ -183,9 +190,15 @@ class AHBLiteCpuifFlat(BaseCpuif):
                     node.inst.inst_src_ref,
                 )
             if any(dim.stride % 1024 != 0 for dim in target.dimensions):
+                details = ", ".join(
+                    f"'{dim.component.get_path()}' dimension {dim.index} "
+                    f"(size {dim.count}): {dim.stride} bytes"
+                    for dim in target.dimensions
+                    if dim.stride % 1024 != 0
+                )
                 msg.error(
-                    f"AHB-Lite target '{path}' array strides, including ancestor arrays, "
-                    "must be multiples of 1 KiB.",
+                    f"AHB-Lite target '{path}' has unaligned array strides: {details}. "
+                    "Each stride must be a multiple of 1024 bytes (1 KiB); adjust the array's += stride.",
                     node.inst.inst_src_ref,
                 )
             end = base + node.size + sum((dim.count - 1) * dim.stride for dim in target.dimensions)
@@ -249,10 +262,16 @@ class AHBLiteCpuifFlat(BaseCpuif):
             checks.extend(
                 (
                     "initial begin",
-                    f"    assert ($bits({endpoint}.HADDR) == {addr_width}",
-                    f"        && $bits({endpoint}.HWDATA) == {self.data_width}",
+                    f"    assert ($bits({endpoint}.HADDR) == {addr_width})",
+                    f'        else $fatal(1, "Interface address width mismatch at %m: '
+                    f'{endpoint}.HADDR is %0d bits; expected exactly %0d bits", '
+                    f"$bits({endpoint}.HADDR), {addr_width});",
+                    f"    assert ($bits({endpoint}.HWDATA) == {self.data_width}",
                     f"        && $bits({endpoint}.HRDATA) == {self.data_width})",
-                    f'        else $fatal(1, "AHB-Lite interface {endpoint} has incompatible address/data widths");',
+                    f'        else $fatal(1, "Interface data width mismatch at %m: '
+                    f"{endpoint}.HWDATA is %0d bits and {endpoint}.HRDATA is %0d bits; "
+                    'expected exactly %0d bits each", '
+                    f"$bits({endpoint}.HWDATA), $bits({endpoint}.HRDATA), {self.data_width});",
                     "end",
                 )
             )

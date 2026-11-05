@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import functools
+import traceback
 from typing import TYPE_CHECKING, Any
 
 from peakrdl.config import schema
 from peakrdl.plugins.entry_points import get_entry_points
 from peakrdl.plugins.exporter import ExporterSubcommandPlugin
+from systemrdl import RDLCompileError
 
 from .cpuif import BaseCpuif, ahblite, apb, axi4lite
 from .exporter import BusDecoderExporter
@@ -107,6 +109,23 @@ class Exporter(ExporterSubcommandPlugin):
         )
 
         arg_group.add_argument(
+            "--data-width",
+            type=int,
+            default=None,
+            help="""Set the CPU interface data width in bits (power of two, at
+            least 8, and no smaller than any internal register accesswidth).
+            By default, infer it from internal registers, or use 32 bits with
+            a warning when the design has no internal register accesswidth.
+            """,
+        )
+
+        arg_group.add_argument(
+            "--debug",
+            action="store_true",
+            help="Show the full Python traceback when busdecoder export fails",
+        )
+
+        arg_group.add_argument(
             "--unroll",
             action="store_true",
             default=False,
@@ -191,18 +210,24 @@ class Exporter(ExporterSubcommandPlugin):
         cpuifs = self.get_cpuifs()
 
         x = BusDecoderExporter()
-        x.export(
-            top_node,
-            options.output,
-            cpuif_cls=cpuifs[options.cpuif],
-            module_name=options.module_name,
-            package_name=options.package_name,
-            address_width=options.addr_width,
-            cpuif_unroll=options.unroll,
-            parametrize=options.parametrize,
-            max_decode_depth=options.max_decode_depth,
-            clk_src=options.clk_src,
-            gate_signals=options.gate_signals,
-            apb_buffer=options.apb_buffer,
-            axi4lite_max_outstanding=options.axi4lite_max_outstanding,
-        )
+        try:
+            x.export(
+                top_node,
+                options.output,
+                cpuif_cls=cpuifs[options.cpuif],
+                module_name=options.module_name,
+                package_name=options.package_name,
+                address_width=options.addr_width,
+                data_width=options.data_width,
+                cpuif_unroll=options.unroll,
+                parametrize=options.parametrize,
+                max_decode_depth=options.max_decode_depth,
+                clk_src=options.clk_src,
+                gate_signals=options.gate_signals,
+                apb_buffer=options.apb_buffer,
+                axi4lite_max_outstanding=options.axi4lite_max_outstanding,
+            )
+        except RDLCompileError:
+            if options.debug:
+                traceback.print_exc()
+            raise

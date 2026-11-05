@@ -73,6 +73,10 @@ class AXI4LiteCpuifFlat(BaseCpuif):
     def reset_asserted(self) -> str:
         return "rst" if self.clk_src == "design" else f"!{self.signal('ARESETn')}"
 
+    @property
+    def fixed_reset(self) -> tuple[str, bool]:
+        return ("rst", False) if self.clk_src == "design" else (self.signal("ARESETn"), True)
+
     def fanout(self, node: AddressableNode, array_stack: deque[int]) -> str:
         fanout: dict[str, str] = {}
         waddr_comp = ["axil_wr_issue_addr", f"{SVInt(self.node_base_address(node), self.addr_width)}"]

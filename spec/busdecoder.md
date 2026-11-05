@@ -72,13 +72,19 @@ this draft supersedes their old coupled-AXI and global-single-flight models.
   sets the fixed capacity of each independent AXI4-Lite order queue. Default 4;
   minimum 1. Partial AW and W beats have separate one-entry holding registers.
 - **BD-CFG-DATA-WIDTH**:
-  - The CPU interface data bus width $W_{\text{data}}$ shall be inferred as the maximum `accesswidth` of any register reachable within the internal scope of the exported addrmap.
-  - If no internal register exists (e.g. only external blocks), $W_{\text{data}}$ shall default to 32 bits and emit a warning.
+  - Unless explicitly selected, the CPU interface data bus width $W_{\text{data}}$ shall be inferred as the maximum `accesswidth` of any register reachable within the internal scope of the exported addrmap.
+  - `data_width` / `--data-width` may explicitly select a power-of-two width of at least 8 bits, no smaller than the inferred internal register accesswidth.
+  - If no internal register accesswidth is available and no explicit width was selected (e.g. only external blocks), $W_{\text{data}}$ shall default to 32 bits and emit a warning that names the consequence for all decoder data ports and the `--data-width` remedy. An explicit selection shall suppress this warning.
   - All master interfaces shall have data width equal to $W_{\text{data}}$.
 - **BD-CFG-ADDR-WIDTH**:
   - The minimum address width $W_{\text{addr,min}}$ shall satisfy:
     $$W_{\text{addr,min}} = \max\left( \lceil\log_2(\text{size}(c_{\text{top}}))\rceil,\; \lceil\log_2(W_{\text{data}} / 8)\rceil + 1 \right)$$
   - The user may override $W_{\text{addr}} \ge W_{\text{addr,min}}$. If the user specifies $W_{\text{addr}} < W_{\text{addr,min}}$, export shall abort with a fatal error.
+- **BD-CFG-INTERFACE-WIDTH-CHECKS**: Non-synthesis SV-interface width assertions
+  shall terminate simulation with `$fatal(1, ...)`, naming the endpoint signals,
+  actual widths, and requirements. APB/AXI ingress addresses may exceed the
+  minimum decoder address width; AHB endpoint addresses must exactly match their
+  configured widths. Checked data widths must exactly match $W_{\text{data}}$.
 - **BD-CFG-MAX-DEPTH**:
   - `max_decode_depth = 0`: Descend without a depth cap, stopping at addressable
     leaves (including registers and external memories) or opaque early boundaries.
@@ -331,7 +337,7 @@ no transaction IDs, bursts, exclusives, or cross-ID reordering.
 - **BD-AXIL-RESET**: Reset clears partial AW/W captures and both queues and
   removes response VALID. Connected children must reset consistently so
   abandoned pre-reset responses cannot be consumed as new transactions.
-- **BD-AXIL-WIDTH**: Standard data widths are 32 and 64 bits. Other inferred
+- **BD-AXIL-WIDTH**: Standard data widths are 32 and 64 bits. Other selected
   widths are generator extensions requiring endpoint agreement, not a claim
   of AXI4-Lite compliance.
 

@@ -82,6 +82,31 @@ def test_apb_clock_sources(
     )
 
 
+@pytest.mark.parametrize("apb4,interface,cpuif_cls", _EXPORTS)
+@pytest.mark.parametrize("clk_src,omit_clk_src", _CLOCK_SOURCES)
+def test_apb_fixed_reset_follows_resolved_clock_source(
+    simple_top: AddrmapNode,
+    tmp_path: Path,
+    apb4: bool,
+    interface: bool,
+    cpuif_cls: type[BaseCpuif],
+    clk_src: str | None,
+    omit_clk_src: bool,
+) -> None:
+    options: ExporterKwargs = {"cpuif_cls": cpuif_cls}
+    if not omit_clk_src:
+        options["clk_src"] = clk_src
+    exporter = BusDecoderExporter()
+    exporter.export(simple_top, str(tmp_path), **options)
+    if clk_src in (None, "off"):
+        assert exporter.cpuif.fixed_reset is None
+    elif clk_src == "design":
+        assert exporter.cpuif.fixed_reset == ("rst", False)
+    else:
+        reset = "s_apb.PRESETn" if interface else "s_apb_PRESETn"
+        assert exporter.cpuif.fixed_reset == (reset, True)
+
+
 @pytest.mark.simulation
 @pytest.mark.verilator
 @pytest.mark.parametrize(
@@ -219,5 +244,5 @@ def test_cli_rejects_stateful_off_without_traceback(
 
 
 def test_invalid_clk_src_rejected(simple_top: AddrmapNode, tmp_path: Path) -> None:
-    with pytest.raises(RDLCompileError, match="clk_src must be 'off', 'cpuif' or 'design'"):
+    with pytest.raises(RDLCompileError, match="--clk-src must be 'off', 'cpuif' or 'design'"):
         BusDecoderExporter().export(simple_top, str(tmp_path), cpuif_cls=APB4Cpuif, clk_src="bogus")

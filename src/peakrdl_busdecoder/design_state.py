@@ -19,6 +19,7 @@ class DesignStateKwargs(TypedDict, total=False):
     module_name: str
     package_name: str
     address_width: int
+    data_width: int
     cpuif_unroll: bool
     parametrize: bool
     max_decode_depth: int
@@ -45,6 +46,12 @@ class DesignState:
         self.module_name: str = kwargs.pop("module_name", None) or kwf(self.top_node.inst_name)
         self.package_name: str = kwargs.pop("package_name", None) or f"{self.module_name}_pkg"
         user_addr_width: int | None = kwargs.pop("address_width", None)
+        user_data_width: int | None = kwargs.pop("data_width", None)
+        if user_data_width is not None and (user_data_width < 8 or user_data_width & (user_data_width - 1)):
+            msg.fatal(
+                f"--data-width must be a power of two of at least 8 bits, got {user_data_width}. "
+                "Choose 8, 16, 32, 64, ... or omit --data-width to infer it."
+            )
 
         self.cpuif_unroll: bool = kwargs.pop("cpuif_unroll", False)
         self.parametrize: bool = kwargs.pop("parametrize", False)
@@ -52,19 +59,19 @@ class DesignState:
         # The exporter resolves the protocol-dependent default before this point.
         self.clk_src: str = kwargs.pop("clk_src", "design")
         if self.clk_src not in ("off", "cpuif", "design"):
-            msg.fatal(f"clk_src must be 'off', 'cpuif' or 'design', got {self.clk_src!r}")
+            msg.fatal(f"--clk-src must be 'off', 'cpuif' or 'design', got {self.clk_src!r}")
         self.gate_signals: bool = kwargs.pop("gate_signals", False)
 
         self.axi4lite_max_outstanding: int = kwargs.pop("axi4lite_max_outstanding", 4)
         if self.axi4lite_max_outstanding < 1:
             msg.fatal(
-                "axi4lite_max_outstanding must be greater than or equal to 1, "
-                f"got {self.axi4lite_max_outstanding}"
+                "--axi4lite-max-outstanding must be greater than or equal to 1, "
+                f"got {self.axi4lite_max_outstanding}; choose a positive queue depth."
             )
 
         self.apb_buffer: str = kwargs.pop("apb_buffer", "none")
         if self.apb_buffer not in ("none", "in", "out", "both"):
-            msg.fatal(f"apb_buffer must be one of 'none', 'in', 'out', 'both', got {self.apb_buffer!r}")
+            msg.fatal(f"--apb-buffer must be one of 'none', 'in', 'out', 'both', got {self.apb_buffer!r}")
         if self.apb_buffer != "none" and self.clk_src != "design":
             msg.fatal(
                 "--apb-buffer requires --clk-src design (the buffer flops use clk/rst); "
@@ -94,12 +101,19 @@ class DesignState:
         self._target_names = self._build_target_names()
         self._struct_type_names = self._compute_struct_type_names()
 
-        if self.cpuif_data_width == 0:
-            # Scanner did not find any registers in the design being exported,
-            # so the width is not known.
-            # Assume 32-bits
+        if user_data_width is not None:
+            if user_data_width < self.cpuif_data_width:
+                msg.fatal(
+                    f"--data-width {user_data_width} is smaller than the inferred internal register "
+                    f"accesswidth of {self.cpuif_data_width} bits. Choose --data-width "
+                    f"{self.cpuif_data_width} or larger, or omit it to infer the width."
+                )
+            self.cpuif_data_width = user_data_width
+        elif self.cpuif_data_width == 0:
             msg.warning(
-                "Addrmap being exported only contains external components. Unable to infer the CPUIF bus width. Assuming 32-bits.",
+                "Unable to infer the CPU-interface data width: no internal register accesswidth "
+                "is available. Using 32 bits for all decoder data ports; set --data-width "
+                "(data_width in the exporter API) to match the connected interfaces.",
                 self.top_node.inst.def_src_ref,
             )
             self.cpuif_data_width = 32
@@ -111,7 +125,9 @@ class DesignState:
         if user_addr_width is not None:
             if user_addr_width < self.addr_width:
                 msg.fatal(
-                    f"User-specified address width shall be greater than or equal to {self.addr_width}."
+                    f"--addr-width {user_addr_width} is too small for this decoder's address width; "
+                    f"at least {self.addr_width} bits are required. Choose --addr-width "
+                    f"{self.addr_width} or larger, or omit it to infer the width."
                 )
             self.addr_width = user_addr_width
 

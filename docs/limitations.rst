@@ -8,7 +8,9 @@ Some SystemRDL features are ignored, and a few are explicitly disallowed.
 Address Alignment
 -----------------
 All address offsets and array strides must be aligned to the CPU interface data
-bus width (in bytes). Misaligned offsets/strides are rejected.
+bus width (in bytes). Misaligned offsets/strides are rejected. Diagnostics name
+the component, actual byte offset or per-dimension stride, and required byte
+alignment. Array dimension indices in diagnostics are zero-based.
 
 
 Wide Registers
@@ -26,14 +28,25 @@ External Boundary References
 ----------------------------
 Property references are not allowed to cross the internal/external boundary of
 the exported addrmap. References must point to components that are internal to
-the busdecoder being generated.
+the busdecoder being generated. Errors identify the assigned property, owning
+component, and referenced component/property. Make the target internal to the
+exported addrmap or remove the cross-boundary assignment.
 
-CPU Interface Reset Location
+CPU Interface Reset Metadata
 ----------------------------
-Only ``cpuif_reset`` signals instantiated at the top-level addrmap (or above)
-are honored. Nested ``cpuif_reset`` signals are ignored.
-AHB-Lite instead uses its canonical ingress ``HRESETn`` regardless of RDL
-``cpuif_reset`` metadata.
+Built-in adapters do not consume SystemRDL ``cpuif_reset`` declarations at any
+hierarchy level. APB and AXI4-Lite use the active-high asynchronous ``rst``
+port with ``--clk-src design`` or the active-low asynchronous ``PRESETn`` /
+``ARESETn`` ingress signal with ``--clk-src cpuif``. AHB-Lite always uses its
+active-low asynchronous ingress ``HRESETn``.
+Unbuffered APB defaults to ``--clk-src off`` and has no reset port, so
+``cpuif_reset`` declarations do not produce reset-port mismatch warnings.
+
+A ``cpuif_reset`` declaration warns when its name, scope, explicitly declared
+polarity, or explicitly declared synchronization conflicts with that fixed
+port. A matching top-level declaration is silent; it still does not configure
+the adapter. Wire the generated port with the required polarity instead.
+Custom adapters may implement their own reset handling.
 
 
 Protocol Scope
