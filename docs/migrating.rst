@@ -17,7 +17,7 @@ install the CLI or invoke the exporter API. The 0.7.4 package allowed Python
 Project-wide defaults in peakrdl.toml
 ----------------------------------------
 The candidate supports project-wide generator settings in ``peakrdl.toml``
-under ``[busdecoder]``: ``cpuif``, ``clk_src``, ``apb_buffer``,
+under ``[busdecoder]``: ``cpuif``, ``data_width``, ``clk_src``, ``apb_buffer``,
 ``gate_signals``, ``max_decode_depth``, ``unroll``,
 ``axi4lite_max_outstanding``, and ``parametrize``. Existing
 ``[busdecoder.cpuifs]`` custom-interface imports remain supported, and their
@@ -30,10 +30,40 @@ remain available. Clock/buffer conflicts are checked on the effective settings
 after those overrides.
 
 Existing command behavior is unchanged when no configuration supplies these
-settings. Per-design module/package names and address-width overrides remain
-CLI options; there is no project ``data_width`` setting. PeakRDL does not read
-these settings from ``pyproject.toml``. See :doc:`configuring` for discovery,
-the complete key reference, and validation diagnostics.
+settings. Per-design ``module_name``, ``package_name``, and ``addr_width`` are
+not project keys; module/package names and address-width overrides remain CLI
+options. PeakRDL does not read these settings from ``pyproject.toml``. See
+:doc:`configuring` for discovery, the complete key reference, and validation
+diagnostics.
+
+
+Data width and export diagnostics
+---------------------------------
+Use TOML ``data_width`` or CLI ``--data-width`` to select a common data width
+in bits for all decoder interfaces. ``--data-width`` overrides the project
+value. The value must be an integer power of two of at least 8, and no smaller
+than the widest internal register ``accesswidth``. Boolean values are not
+integers for TOML validation. The decoder does not convert interface widths.
+
+When neither CLI nor TOML supplies a width, it is inferred from internal
+registers; registers beneath external blocks do not contribute. If no internal
+register ``accesswidth`` is available, the decoder falls back to 32 bits and
+warns. An explicit CLI or TOML width suppresses that warning, so external-only
+maps can state their intended bus width directly.
+
+Invalid TOML types or domains stop with a nonzero exit status and a diagnostic
+naming the file and ``busdecoder.data_width``, without a traceback even with
+``--debug`` or a valid CLI override. A valid project width can still be too
+narrow for a particular design: ``data_width = 32`` fails for an internal
+64-bit register ``accesswidth``, with the file and key in the diagnostic.
+``--data-width 64`` repairs that selection before the design-dependent check.
+
+Expected export errors now produce concise diagnostics and a nonzero exit
+status by default; use ``--debug`` for the full Python traceback on export
+failures. This does not enable tracebacks for TOML type/domain validation
+errors. Undersized ``--addr-width`` values are rejected rather than silently
+truncating addresses. The ``-o`` output path must name a writable directory,
+not an existing file.
 
 
 APB defaults preserve the clockless decoder ports

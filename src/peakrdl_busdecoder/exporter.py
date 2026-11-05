@@ -28,6 +28,7 @@ class ExporterKwargs(TypedDict, total=False):
     module_name: str
     package_name: str
     address_width: int
+    data_width: int
     cpuif_unroll: bool
     parametrize: bool
     reuse_hwif_typedefs: bool
@@ -45,9 +46,9 @@ if TYPE_CHECKING:
 def resolve_clk_src(cpuif_cls: type[BaseCpuif], clk_src: str | None, apb_buffer: str = "none") -> str:
     """Resolve and validate the shared CLI/API protocol, clock, and buffer settings."""
     if clk_src is not None and clk_src not in ("off", "cpuif", "design"):
-        raise ValueError(f"clk_src must be 'off', 'cpuif' or 'design', got {clk_src!r}")
+        raise ValueError(f"--clk-src must be 'off', 'cpuif' or 'design', got {clk_src!r}")
     if apb_buffer not in ("none", "in", "out", "both"):
-        raise ValueError(f"apb_buffer must be one of 'none', 'in', 'out', 'both', got {apb_buffer!r}")
+        raise ValueError(f"--apb-buffer must be one of 'none', 'in', 'out', 'both', got {apb_buffer!r}")
 
     if clk_src is None:
         clk_src = "off" if issubclass(cpuif_cls, APBCpuifBase) and apb_buffer == "none" else "design"
@@ -71,8 +72,8 @@ def resolve_clk_src(cpuif_cls: type[BaseCpuif], clk_src: str | None, apb_buffer:
             )
         if not cpuif_cls.supports_apb_buffer:
             raise ValueError(
-                f"apb_buffer={apb_buffer!r} is not supported by "
-                f"{cpuif_cls.__name__}; only APB cpuifs honor this option."
+                f"--apb-buffer {apb_buffer!r} is not supported by {cpuif_cls.__name__}; "
+                "only APB cpuifs honor this option; choose an APB --cpuif or use --apb-buffer none."
             )
     return clk_src
 
@@ -126,6 +127,11 @@ class BusDecoderExporter:
         address_width: int
             Override the CPU interface's address width. By default, address width
             is sized to the contents of the busdecoder.
+        data_width: int
+            Override the CPU interface's data width with a power of two of at
+            least 8 bits, no smaller than the widest internal register accesswidth.
+            By default, the width is inferred from internal register accesswidths,
+            or falls back to 32 bits with a warning when none are available.
         cpuif_unroll: bool
             Unroll arrayed addressable nodes into separate instances in the CPU
             interface. By default, arrayed nodes are kept as arrays.
@@ -217,16 +223,26 @@ class BusDecoderExporter:
         }
 
         # Write out design
-        os.makedirs(output_dir, exist_ok=True)
-        package_file_path = os.path.join(output_dir, self.ds.package_name + ".sv")
-        template = self.jj_env.get_template("package_tmpl.sv")
-        stream = template.stream(context)
-        stream.dump(package_file_path)
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+            package_file_path = os.path.join(output_dir, self.ds.package_name + ".sv")
+            template = self.jj_env.get_template("package_tmpl.sv")
+            stream = template.stream(context)
+            stream.dump(package_file_path)
 
-        module_file_path = os.path.join(output_dir, self.ds.module_name + ".sv")
-        template = self.jj_env.get_template("module_tmpl.sv")
-        stream = template.stream(context)
-        stream.dump(module_file_path)
+            module_file_path = os.path.join(output_dir, self.ds.module_name + ".sv")
+            template = self.jj_env.get_template("module_tmpl.sv")
+            stream = template.stream(context)
+            stream.dump(module_file_path)
+        except OSError as exc:
+            path = exc.filename or output_dir
+            if isinstance(exc, (FileExistsError, NotADirectoryError, IsADirectoryError)):
+                remedy = "Choose a directory with -o; remove or rename any conflicting file or directory."
+            else:
+                remedy = "Choose a writable directory with -o or fix its permissions."
+            self.ds.top_node.env.msg.fatal(
+                f"Cannot write output path {os.fspath(path)!r} (-o): {exc.strerror}. {remedy}"
+            )
 
     def walk(self, listener_cls: type[BusDecoderListener], **kwargs: dict[str, Any]) -> str:
         # Port-referencing listeners walk unrolled when cpuif_unroll is set, so

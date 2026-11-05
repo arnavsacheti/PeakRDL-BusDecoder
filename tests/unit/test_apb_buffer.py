@@ -412,10 +412,10 @@ def test_buffer_requires_clk_src_design(
 
 
 def test_buffer_rejected_on_non_apb_cpuif(simple_top: AddrmapNode, tmp_path: Path) -> None:
-    with pytest.raises(RDLCompileError, match="only APB cpuifs"):
+    with pytest.raises(RDLCompileError, match="choose an APB --cpuif"):
         BusDecoderExporter().export(simple_top, str(tmp_path), cpuif_cls=AXI4LiteCpuif, apb_buffer="in")
 
 
 def test_invalid_apb_buffer_value(simple_top: AddrmapNode, tmp_path: Path) -> None:
-    with pytest.raises(RDLCompileError, match="apb_buffer must be one of"):
+    with pytest.raises(RDLCompileError, match="--apb-buffer must be one of"):
         BusDecoderExporter().export(simple_top, str(tmp_path), cpuif_cls=APB4CpuifFlat, apb_buffer="bogus")

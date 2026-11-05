@@ -79,6 +79,11 @@ class BaseCpuif:
     def data_width_bytes(self) -> int:
         return self.data_width // 8
 
+    @property
+    def fixed_reset(self) -> tuple[str, bool] | None:
+        """Fixed reset port and active-low flag, or None when no fixed port is used."""
+        return None
+
     def addr_width_param(self, node: AddressableNode) -> str:
         """Name of the package localparam holding this master's address width."""
         return f"{self.exp.ds.module_name.upper()}_{self.exp.ds.get_target_name(node).upper()}_ADDR_WIDTH"

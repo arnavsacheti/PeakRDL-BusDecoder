@@ -59,6 +59,8 @@ Key command-line options:
 * ``--module-name``: Override the generated module name
 * ``--package-name``: Override the generated package name
 * ``--addr-width``: Override the slave address width
+* ``--data-width``: Override TOML ``data_width`` or inferred data width; a power of two of at least 8 and no smaller than any internal register ``accesswidth``
+* ``--debug``: Include a full Python traceback for export failures (TOML type/domain validation remains concise)
 * ``--unroll`` / ``--no-unroll``: Enable/disable unrolling arrayed children into discrete interfaces
 * ``--max-decode-depth``: Control how far the decoder descends into hierarchy
 * ``--parametrize`` / ``--no-parametrize``: Enable/disable propagation of top-level SystemRDL parameters into the generated module

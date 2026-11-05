@@ -2,16 +2,15 @@
 `ifndef SYNTHESIS
     initial begin
         // Width checks (AXI4-Lite)
-        assert_bad_awaddr_width: assert($bits({{cpuif.signal("AWADDR")}}) >= {{ds.package_name}}::{{ds.module_name|upper}}_MIN_ADDR_WIDTH)
-            else $error("AWADDR width %0d < MIN_ADDR_WIDTH %0d",
-                        $bits({{cpuif.signal("AWADDR")}}), {{ds.package_name}}::{{ds.module_name|upper}}_MIN_ADDR_WIDTH);
-
-        assert_bad_araddr_width: assert($bits({{cpuif.signal("ARADDR")}}) >= {{ds.package_name}}::{{ds.module_name|upper}}_MIN_ADDR_WIDTH)
-            else $error("ARADDR width %0d < MIN_ADDR_WIDTH %0d",
-                        $bits({{cpuif.signal("ARADDR")}}), {{ds.package_name}}::{{ds.module_name|upper}}_MIN_ADDR_WIDTH);
+        assert_bad_addr_width: assert(
+            $bits({{cpuif.signal("AWADDR")}}) >= {{ds.package_name}}::{{ds.module_name|upper}}_MIN_ADDR_WIDTH
+            && $bits({{cpuif.signal("ARADDR")}}) >= {{ds.package_name}}::{{ds.module_name|upper}}_MIN_ADDR_WIDTH)
+            else $fatal(1, "Interface address width mismatch at %m: {{cpuif.signal('AWADDR')}} is %0d bits and {{cpuif.signal('ARADDR')}} is %0d bits; expected at least %0d bits each",
+                        $bits({{cpuif.signal("AWADDR")}}), $bits({{cpuif.signal("ARADDR")}}),
+                        {{ds.package_name}}::{{ds.module_name|upper}}_MIN_ADDR_WIDTH);
 
         assert_bad_data_width: assert($bits({{cpuif.signal("WDATA")}}) == {{ds.package_name}}::{{ds.module_name|upper}}_DATA_WIDTH)
-            else $error("WDATA width %0d != DATA_WIDTH %0d",
+            else $fatal(1, "Interface data width mismatch at %m: {{cpuif.signal('WDATA')}} is %0d bits; expected exactly %0d bits",
                         $bits({{cpuif.signal("WDATA")}}), {{ds.package_name}}::{{ds.module_name|upper}}_DATA_WIDTH);
     end
 

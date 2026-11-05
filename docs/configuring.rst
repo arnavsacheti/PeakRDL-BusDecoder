@@ -59,6 +59,11 @@ a value.
         ``"ahb-lite-flat"``; also installed entry-point names and aliases
         defined in ``cpuifs``.
       - ``"apb4"``
+    * - ``data_width``
+      - Integer power of two greater than or equal to ``8``; must not be
+        smaller than the widest internal register ``accesswidth``.
+      - Inferred from internal registers when omitted; falls back to ``32``
+        with a warning if no internal register ``accesswidth`` is available.
     * - ``clk_src``
       - String: ``"off"``, ``"cpuif"``, or ``"design"``.
       - Automatic when omitted: unbuffered APB uses ``off``; buffered APB and
@@ -95,8 +100,10 @@ ingress clock/reset.
 
 Per-design ``module_name``, ``package_name``, and ``addr_width`` are **not**
 supported project keys; continue to use ``--module-name``, ``--package-name``,
-and ``--addr-width`` for those overrides. There is no ``data_width`` project
-key or ``--data-width`` option yet; data width is inferred from the design.
+and ``--addr-width`` for those overrides. ``data_width`` is a project setting
+and can be overridden with ``--data-width``. A value supplied by either TOML
+or CLI suppresses the no-internal-register-width warning; it sets the width
+for all decoder interfaces, without converting widths between interfaces.
 
 For example, place this file in the directory from which PeakRDL is invoked:
 
@@ -105,6 +112,7 @@ For example, place this file in the directory from which PeakRDL is invoked:
     # peakrdl.toml
     [busdecoder]
     cpuif = "apb4-flat"
+    data_width = 32
     clk_src = "design"
     apb_buffer = "both"
     gate_signals = true
@@ -117,10 +125,11 @@ Then a one-off invocation can override just the settings it needs:
 
 .. code-block:: bash
 
-    peakrdl busdecoder design.rdl -o generated/ --no-gate-signals --no-unroll
+    peakrdl busdecoder design.rdl -o generated/ --data-width 64 --no-gate-signals --no-unroll
 
-The buffered APB selection remains in effect, while payload gating and array
-unrolling are disabled for that invocation.
+The data width becomes 64 bits instead of the project's 32 bits, while payload
+gating and array unrolling are disabled for that invocation. The buffered APB
+selection remains in effect.
 
 
 Custom CPU interfaces
@@ -164,16 +173,18 @@ Validation and conflicts
 ------------------------
 
 Project settings are validated for their TOML types and allowed values.
-Booleans are not accepted as integers for ``max_decode_depth`` or
-``axi4lite_max_outstanding``; use actual integer values in the stated ranges.
+Booleans are not accepted as integers for ``data_width``, ``max_decode_depth``,
+or ``axi4lite_max_outstanding``; use actual integer values in the stated ranges.
 Likewise, boolean settings require ``true`` or ``false``, not strings or
 integers. ``cpuif`` is checked against the available built-ins, installed
 entry points, and configured aliases rather than a fixed built-in-only list.
 
 Invalid project settings stop the command with a nonzero exit status and a
 concise diagnostic naming the configuration file and ``busdecoder.<key>``,
-without a traceback. An explicit CLI override does not excuse an invalid TOML
-type, value, or unknown CPU-interface name.
+without a traceback, including with ``--debug``. An explicit CLI override does
+not excuse an invalid TOML type, value, or unknown CPU-interface name. For
+example, ``data_width = true``, ``data_width = 4``, and ``data_width = 24`` are
+invalid even if a valid ``--data-width`` is also supplied.
 
 Clock/buffer compatibility is checked after applying precedence, using the same
 rules as the CLI. Conflicts involving effective TOML values identify the
@@ -182,6 +193,20 @@ TOML selections can be repaired by CLI overrides. For example, TOML
 ``clk_src = "off"`` with ``apb_buffer = "both"`` is incompatible for APB;
 ``--clk-src design`` or ``--apb-buffer none`` makes the effective selections
 compatible.
+
+The minimum data width depends on the elaborated design. A TOML
+``data_width = 32`` is valid by itself, but fails if it remains the effective
+selection for a design with a 64-bit internal register ``accesswidth``. The
+diagnostic identifies the configuration file and ``busdecoder.data_width``.
+``--data-width 64`` repairs that selection because the valid TOML value is
+overridden before the design-dependent minimum is checked. Without CLI or
+TOML selection, the width is inferred from the widest internal register
+``accesswidth``; registers beneath external blocks do not contribute. With
+no internal register width available, the decoder uses 32 bits and warns.
+Set ``data_width`` or ``--data-width`` explicitly for external-only maps.
+
+A too-narrow effective TOML width is an export error: it is concise without
+a traceback by default, while ``--debug`` includes its full Python traceback.
 
 
 Command-Line Options
@@ -196,7 +221,20 @@ change ports, routing boundaries, queues, or pipeline state.
   ``apb4-flat``, ``axi4-lite``, ``axi4-lite-flat``, ``ahb-lite``, ``ahb-lite-flat``)
 * ``--module-name``: Override the generated module name
 * ``--package-name``: Override the generated package name
-* ``--addr-width``: Override the slave address width
+* ``--addr-width``: Override the slave address width; values smaller than the
+  decoder's required minimum are rejected. Omit the option to infer the width.
+* ``--data-width``: Set the data width in bits for all decoder interfaces
+  (a power of two, at least 8, and no smaller than any internal register
+  ``accesswidth``). Overrides TOML ``data_width``; if neither is supplied,
+  the width is inferred from internal registers, or defaults to 32 bits with
+  a warning when no internal register ``accesswidth`` is available. An
+  explicit CLI or TOML value suppresses that warning. Set it explicitly for
+  external-only maps; the decoder does not convert widths between interfaces.
+* ``--debug``: Include the full Python traceback when busdecoder export fails.
+  By default, expected export errors produce concise diagnostics and a nonzero
+  exit status. TOML type/domain validation errors remain concise without a
+  traceback, even with ``--debug``. ``-o`` must name a writable directory, not
+  an existing file.
 * ``--unroll`` / ``--no-unroll``: Enable/disable unrolling arrayed children into
   discrete interfaces (built-in default: disabled)
 * ``--max-decode-depth``: Control how far the decoder descends into hierarchy
@@ -210,6 +248,9 @@ change ports, routing boundaries, queues, or pipeline state.
   ``design`` adds top-level ``clk``/``rst``, and ``cpuif`` uses protocol
   clock/reset. AHB-Lite always uses ingress ``HCLK/HRESETn``; ``design`` and
   ``cpuif`` are ignored for that protocol, while explicit ``off`` is rejected.
+  When present, these are fixed ports and polarities, not names derived from
+  SystemRDL ``cpuif_reset`` declarations: ``rst`` is active-high asynchronous,
+  while ``PRESETn``, ``ARESETn``, and ``HRESETn`` are active-low asynchronous.
 * ``--gate-signals`` / ``--no-gate-signals``: Enable/disable gating APB
   broadcast payload signals with each slave's select so unselected slaves see
   all-zero payload inputs (built-in default: disabled)

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import functools
+import sys
+import traceback
 from argparse import BooleanOptionalAction
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from peakrdl.config import schema
 from peakrdl.plugins.entry_points import get_entry_points
 from peakrdl.plugins.exporter import ExporterSubcommandPlugin
+from systemrdl import RDLCompileError
 
 from .cpuif import BaseCpuif, ahblite, apb, axi4lite
 from .exporter import BusDecoderExporter, resolve_clk_src
@@ -33,6 +36,19 @@ class _IntegerAtLeast(schema.Integer):
         if value < self.minimum:
             raise schema.SchemaException(
                 f"{err_ctx}: Expected an integer greater than or equal to {self.minimum}. Got {value}"
+            )
+        return value
+
+
+class _DataWidth(_IntegerAtLeast):
+    def __init__(self) -> None:
+        super().__init__(8)
+
+    def extract(self, data: object, path: str, err_ctx: str) -> int:
+        value = super().extract(data, path, err_ctx)
+        if value & (value - 1):
+            raise schema.SchemaException(
+                f"{err_ctx}: Expected a power of two of at least 8 bits. Got {value}"
             )
         return value
 
@@ -89,6 +105,7 @@ class Exporter(ExporterSubcommandPlugin):
     cfg_schema = {  # noqa: RUF012
         "cpuifs": {"*": schema.PythonObjectImport()},
         "cpuif": schema.String(),
+        "data_width": _DataWidth(),
         "clk_src": schema.Choice(["off", "cpuif", "design"]),
         "apb_buffer": schema.Choice(["none", "in", "out", "both"]),
         "gate_signals": schema.Boolean(),
@@ -141,6 +158,23 @@ class Exporter(ExporterSubcommandPlugin):
             help="""Override the CPU interface's address width. By default,
             address width is sized to the contents of the busdecoder.
             """,
+        )
+
+        arg_group.add_argument(
+            "--data-width",
+            type=int,
+            default=None,
+            help="""Set the CPU interface data width in bits (power of two, at
+            least 8, and no smaller than any internal register accesswidth).
+            By default, infer it from internal registers, or use 32 bits with
+            a warning when the design has no internal register accesswidth.
+            """,
+        )
+
+        arg_group.add_argument(
+            "--debug",
+            action="store_true",
+            help="Show the full Python traceback when busdecoder export fails",
         )
 
         arg_group.add_argument(
@@ -219,7 +253,7 @@ class Exporter(ExporterSubcommandPlugin):
             default=None,
             help="""Gate downstream broadcast payload signals with the per-slave select.
             For APB this drives PADDR/PWDATA/PSTRB/PPROT to '0 on unselected
-            masters. When omitted, payload signals fan out without select masking.
+            masters. By default, payload signals fan out without select masking.
             PENABLE is always gated with the per-slave select.
             """,
         )
@@ -243,25 +277,35 @@ class Exporter(ExporterSubcommandPlugin):
         cpuif_cls = cpuifs[self._get_option(options, "cpuif", "apb4")]
         apb_buffer = self._get_option(options, "apb_buffer", "none")
         clk_src = options.clk_src if options.clk_src is not None else self.cfg["clk_src"]
+        data_width = options.data_width if options.data_width is not None else self.cfg["data_width"]
         try:
-            clk_src = resolve_clk_src(cpuif_cls, clk_src, apb_buffer)
-        except ValueError as exc:
-            context = self._config_context(options, "cpuif", "clk_src", "apb_buffer")
-            top_node.env.msg.fatal(f"{context}{exc}")
+            try:
+                clk_src = resolve_clk_src(cpuif_cls, clk_src, apb_buffer)
+            except ValueError as exc:
+                context = self._config_context(options, "cpuif", "clk_src", "apb_buffer")
+                top_node.env.msg.fatal(f"{context}{exc}")
 
-        x = BusDecoderExporter()
-        x.export(
-            top_node,
-            options.output,
-            cpuif_cls=cpuif_cls,
-            module_name=options.module_name,
-            package_name=options.package_name,
-            address_width=options.addr_width,
-            cpuif_unroll=self._get_option(options, "unroll", False),
-            parametrize=self._get_option(options, "parametrize", False),
-            max_decode_depth=self._get_option(options, "max_decode_depth", 1),
-            clk_src=clk_src,
-            gate_signals=self._get_option(options, "gate_signals", False),
-            apb_buffer=apb_buffer,
-            axi4lite_max_outstanding=self._get_option(options, "axi4lite_max_outstanding", 4),
-        )
+            x = BusDecoderExporter()
+            x.export(
+                top_node,
+                options.output,
+                cpuif_cls=cpuif_cls,
+                module_name=options.module_name,
+                package_name=options.package_name,
+                address_width=options.addr_width,
+                data_width=data_width,
+                cpuif_unroll=self._get_option(options, "unroll", False),
+                parametrize=self._get_option(options, "parametrize", False),
+                max_decode_depth=self._get_option(options, "max_decode_depth", 1),
+                clk_src=clk_src,
+                gate_signals=self._get_option(options, "gate_signals", False),
+                apb_buffer=apb_buffer,
+                axi4lite_max_outstanding=self._get_option(options, "axi4lite_max_outstanding", 4),
+            )
+        except RDLCompileError:
+            context = self._config_context(options, "data_width")
+            if context:
+                print(f"{context}effective project setting for this export.", file=sys.stderr)
+            if options.debug:
+                traceback.print_exc()
+            raise

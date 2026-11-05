@@ -65,6 +65,21 @@ class _CliProject:
         """AHB routes complete, 1-KiB-aligned downstream apertures."""
         self.source.write_text(dedent(_AHB_RDL), encoding="utf-8")
 
+    def use_register_width(self, width: int) -> None:
+        """Use one internal register with an explicit inference width."""
+        self.source.write_text(
+            dedent(f"""
+            addrmap {_TOP} {{
+                reg {{
+                    regwidth = {width};
+                    accesswidth = {width};
+                    field {{ sw=rw; hw=r; }} data[{width - 1}:0];
+                }} tail @ 0x0;
+            }};
+            """),
+            encoding="utf-8",
+        )
+
     def configure(self, body: str, *, discovery: str = "cwd") -> Path:
         """Use normal discovery, not --peakrdl-cfg, for the configuration under test."""
         if discovery == "cwd":
@@ -163,6 +178,19 @@ def _ports(module: str) -> str:
     )
     assert header is not None, "Expected the CLI-generated decoder's module ports"
     return " ".join(header.group(1).split())
+
+
+def _assert_flat_data_width(module: str, cpuif: str, width: int) -> None:
+    bus, write_data, read_data, strobe = {
+        "apb4-flat": ("apb", "PWDATA", "PRDATA", "PSTRB"),
+        "axi4-lite-flat": ("axil", "WDATA", "RDATA", "WSTRB"),
+    }[cpuif]
+    ports = _ports(module)
+    for direction, prefix in (("input", f"s_{bus}_"), ("output", f"m_{bus}_tail_")):
+        assert f"{direction} logic [{width - 1}:0] {prefix}{write_data}" in ports
+        assert f"{direction} logic [{width // 8 - 1}:0] {prefix}{strobe}" in ports
+        response_direction = "output" if direction == "input" else "input"
+        assert f"{response_direction} logic [{width - 1}:0] {prefix}{read_data}" in ports
 
 
 def _assert_clock(module: str, expected: str, protocol: str = "apb") -> None:
@@ -269,6 +297,156 @@ def test_axi_queue_setting_reaches_generated_rtl(
     assert "axil_rd_dest_q [0:AXI4LITE_MAX_OUTSTANDING-1]" in module
     assert "input logic s_axil_AWVALID" in _ports(module)
     _assert_clock(module, "cpuif", "axil")
+
+
+@pytest.mark.parametrize("discovery", ["cwd", "env"], ids=["peakrdl.toml", "PEAKRDL_CFG"])
+@pytest.mark.parametrize("cpuif", ["apb4-flat", "axi4-lite-flat"])
+@pytest.mark.parametrize("width", [8, 32, 64])
+def test_toml_data_width_reaches_generated_flat_ports(
+    cli_project: _CliProject, discovery: str, cpuif: str, width: int
+) -> None:
+    if width == 8:
+        cli_project.use_register_width(8)
+    cli_project.configure(f'cpuif = "{cpuif}"\ndata_width = {width}', discovery=discovery)
+    configured = _generate(cli_project)
+    explicit = _generate(
+        cli_project, "--cpuif", cpuif, "--data-width", str(width),
+        output="explicit", config_path=cli_project.empty_config,
+    )
+    assert configured == explicit
+    _assert_flat_data_width(configured[0], cpuif, width)
+
+
+@pytest.mark.parametrize("discovery", ["cwd", "env"], ids=["peakrdl.toml", "PEAKRDL_CFG"])
+@pytest.mark.parametrize("width", [32, 128], ids=["old-inferred-width", "another-width"])
+def test_cli_data_width_overrides_toml(
+    cli_project: _CliProject, discovery: str, width: int
+) -> None:
+    cli_project.configure('cpuif = "apb4-flat"\ndata_width = 64', discovery=discovery)
+    configured = _generate(cli_project, output="configured")
+    overridden = _generate(cli_project, "--data-width", str(width), output="overridden")
+    explicit = _generate(
+        cli_project, "--cpuif", "apb4-flat", "--data-width", str(width),
+        output="explicit", config_path=cli_project.empty_config,
+    )
+    assert overridden == explicit
+    assert overridden != configured
+    _assert_flat_data_width(configured[0], "apb4-flat", 64)
+    _assert_flat_data_width(overridden[0], "apb4-flat", width)
+    if width == 32:
+        inferred = _generate(
+            cli_project, "--cpuif", "apb4-flat",
+            output="inferred", config_path=cli_project.empty_config,
+        )
+        assert overridden == inferred
+
+
+@pytest.mark.parametrize("discovery", ["cwd", "env"], ids=["peakrdl.toml", "PEAKRDL_CFG"])
+@pytest.mark.parametrize("width", [8, 32, 64])
+def test_omitted_toml_data_width_preserves_internal_inference(
+    cli_project: _CliProject, discovery: str, width: int
+) -> None:
+    cli_project.use_register_width(width)
+    cli_project.configure('cpuif = "apb4-flat"', discovery=discovery)
+    result = cli_project.run()
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout == "" and result.stderr == "", result.stdout + result.stderr
+    inferred = cli_project.rtl()
+    explicit = _generate(
+        cli_project, "--cpuif", "apb4-flat", "--data-width", str(width),
+        output="explicit", config_path=cli_project.empty_config,
+    )
+    assert inferred == explicit
+    _assert_flat_data_width(inferred[0], "apb4-flat", width)
+
+
+@pytest.mark.parametrize("discovery", ["cwd", "env"], ids=["peakrdl.toml", "PEAKRDL_CFG"])
+@pytest.mark.parametrize("width", [8, 16])
+def test_toml_data_width_cannot_shrink_internal_accesswidth(
+    cli_project: _CliProject, discovery: str, width: int
+) -> None:
+    config = cli_project.configure(f"data_width = {width}", discovery=discovery)
+    _assert_error(
+        cli_project.run(), config, ("data_width",),
+        "smaller than", "inferred internal register accesswidth", "32 bits", "--data-width 32",
+    )
+
+
+@pytest.mark.parametrize("discovery", ["cwd", "env"], ids=["peakrdl.toml", "PEAKRDL_CFG"])
+@pytest.mark.parametrize("width", [32, 64])
+def test_cli_data_width_repairs_valid_but_too_narrow_toml(
+    cli_project: _CliProject, discovery: str, width: int
+) -> None:
+    cli_project.configure('cpuif = "apb4-flat"\ndata_width = 16', discovery=discovery)
+    repaired = _generate(cli_project, "--data-width", str(width))
+    explicit = _generate(
+        cli_project, "--cpuif", "apb4-flat", "--data-width", str(width),
+        output="explicit", config_path=cli_project.empty_config,
+    )
+    assert repaired == explicit
+    _assert_flat_data_width(repaired[0], "apb4-flat", width)
+
+
+@pytest.mark.parametrize("discovery", ["cwd", "env"], ids=["peakrdl.toml", "PEAKRDL_CFG"])
+def test_overridden_toml_data_width_is_not_an_error_source(
+    cli_project: _CliProject, discovery: str
+) -> None:
+    config = cli_project.configure("data_width = 64", discovery=discovery)
+    result = cli_project.run("--data-width", "16")
+    message = result.stdout + result.stderr
+    assert result.returncode != 0, message
+    assert "Traceback" not in message, message
+    assert "--data-width 16" in message, message
+    assert "inferred internal register accesswidth" in message, message
+    assert "--data-width 32" in message, message
+    assert str(config) not in message, message
+    assert "busdecoder.data_width" not in message, message
+
+
+@pytest.mark.parametrize("discovery", ["cwd", "env"], ids=["peakrdl.toml", "PEAKRDL_CFG"])
+@pytest.mark.parametrize("width", [None, 64], ids=["omitted-fallback", "toml-width"])
+def test_external_only_toml_data_width_controls_fallback_warning(
+    cli_project: _CliProject, discovery: str, width: int | None
+) -> None:
+    cli_project.source.write_text(
+        dedent(f"""
+        addrmap external_leaf_t {{
+            reg {{
+                regwidth = 128;
+                accesswidth = 128;
+                field {{ sw=rw; hw=r; }} data[127:0];
+            }} hidden @ 0x0;
+        }};
+        addrmap {_TOP} {{
+            external external_leaf_t tail @ 0x0;
+        }};
+        """),
+        encoding="utf-8",
+    )
+    body = 'cpuif = "apb4-flat"'
+    if width is not None:
+        body += f"\ndata_width = {width}"
+    cli_project.configure(body, discovery=discovery)
+    result = cli_project.run()
+    message = result.stdout + result.stderr
+    assert result.returncode == 0, message
+    assert "Traceback" not in message, message
+    if width is None:
+        for fragment in (
+            "Unable to infer", "no internal register accesswidth", "32 bits",
+            "all decoder data ports", "--data-width",
+        ):
+            assert fragment in message, message
+    else:
+        assert message == "", message
+    generated = cli_project.rtl()
+    effective_width = 32 if width is None else width
+    explicit = _generate(
+        cli_project, "--cpuif", "apb4-flat", "--data-width", str(effective_width),
+        output="explicit", config_path=cli_project.empty_config,
+    )
+    assert generated == explicit
+    _assert_flat_data_width(generated[0], "apb4-flat", effective_width)
 
 
 @pytest.mark.parametrize(
@@ -445,6 +623,24 @@ def test_cli_override_does_not_hide_schema_errors(
 ) -> None:
     config = cli_project.configure(f"{key} = {value}")
     _assert_error(cli_project.run(*override), config, (key,))
+
+
+@pytest.mark.parametrize("discovery", ["cwd", "env"], ids=["peakrdl.toml", "PEAKRDL_CFG"])
+@pytest.mark.parametrize(
+    "value",
+    [
+        "true", "false", '"64"', '"invalid"', "64.0", "[]", "[32, 64]",
+        "{}", "{ value = 64 }", "-8", "0", "1", "4", "7", "24", "48",
+    ],
+)
+@pytest.mark.parametrize(
+    "arguments", [(), ("--data-width", "64")], ids=["toml-only", "valid-cli-override"]
+)
+def test_invalid_toml_data_width_is_rejected_before_cli_precedence(
+    cli_project: _CliProject, discovery: str, value: str, arguments: tuple[str, ...]
+) -> None:
+    config = cli_project.configure(f"data_width = {value}", discovery=discovery)
+    _assert_error(cli_project.run(*arguments), config, ("data_width",))
 
 
 @pytest.mark.parametrize(

@@ -87,6 +87,9 @@ Which flags change structure?
     * - ``--addr-width``
       - Signal width only
       - Widens the upstream address and stored AXI address fields; topology is unchanged.
+    * - ``--data-width``
+      - Data width and byte alignment
+      - Sets every decoder data interface's width; no width converter is inserted.
     * - ``--module-name`` / ``--package-name``
       - Names only
       - Renames generated declarations and files; topology is unchanged.
