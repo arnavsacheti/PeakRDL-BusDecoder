@@ -16,6 +16,7 @@ except ImportError:  # pragma: no cover
 
 from tests.cocotb_lib import RDL_CASES
 from tests.cocotb_lib.utils import colorize_cocotb_log, get_verilog_sources, prepare_cpuif_case
+from tests.cocotb_lib.wrapper_gen import generate_apb_ram_wrapper
 
 
 @pytest.mark.simulation
@@ -34,6 +35,7 @@ def test_apb4_stress(tmp_path: Path, rdl_file: str, top_name: str) -> None:
         cpuif_cls=APB4CpuifFlat,
         control_signal="PSEL",
         max_samples_per_master=0,
+        exporter_kwargs={"clk_src": "design"},
     )
 
     sources = get_verilog_sources(
@@ -41,6 +43,8 @@ def test_apb4_stress(tmp_path: Path, rdl_file: str, top_name: str) -> None:
         package_path,
         [repo_root / "hdl-src" / "apb4_intf.sv"],
     )
+    wrapper = generate_apb_ram_wrapper(module_path.stem, config, build_root)
+    sources += [str(repo_root / "tests" / "cocotb_lib" / "apb_ram_child.sv"), str(wrapper)]
 
     runner = get_runner("verilator")
     sim_build = build_root / "sim_build"
@@ -51,8 +55,9 @@ def test_apb4_stress(tmp_path: Path, rdl_file: str, top_name: str) -> None:
     try:
         runner.build(
             sources=sources,
-            hdl_toplevel=module_path.stem,
+            hdl_toplevel=wrapper.stem,
             build_dir=sim_build,
+            build_args=["-Wno-DECLFILENAME", "-Wno-UNUSEDPARAM", "-Wno-UNUSEDSIGNAL", "-Wno-GENUNNAMED"],
             log_file=str(build_log_file),
         )
     except SystemExit as e:
@@ -67,7 +72,7 @@ def test_apb4_stress(tmp_path: Path, rdl_file: str, top_name: str) -> None:
 
     try:
         runner.test(
-            hdl_toplevel=module_path.stem,
+            hdl_toplevel=wrapper.stem,
             test_module="tests.cocotb.apb4.smoke.test_stress",
             build_dir=sim_build,
             log_file=str(sim_log_file),
