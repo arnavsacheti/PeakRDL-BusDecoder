@@ -88,6 +88,8 @@ def _wrapper(protocol: str, interface: bool) -> str:
             for child, target in enumerate(CHILDREN)
             for name, _width, _request in signals
         ]
+    # The 0.8.0 default clock source is "design", so the decoder exposes clk/rst.
+    connections = [".clk(clk)", ".rst(~resetn)", *connections]
     lines += ["    apb_back_to_back dut (", "        " + ",\n        ".join(connections), "    );"]
     for child in range(2):
         model_signals = [name for name, _width, _request in signals if name != "PPROT"]
