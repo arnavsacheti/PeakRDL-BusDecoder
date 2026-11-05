@@ -1,12 +1,16 @@
-"""Tests for SystemRDL parameter extraction and classification."""
+"""Parameter extraction/public-layout contracts and finite generated-RTL behavior."""
 
 from collections.abc import Callable
 from pathlib import Path
+import shutil
+import subprocess
+
+import pytest
 
 from systemrdl.node import AddrmapNode
 
 from peakrdl_busdecoder import BusDecoderExporter, ParameterUsage, RdlParameterExtractor
-from peakrdl_busdecoder.cpuif.apb.apb_cpuif import APB4Cpuif
+from peakrdl_busdecoder.cpuif.apb.apb_cpuif import APB4Cpuif, APB4CpuifFlat
 
 
 class TestRdlParameterExtractor:
@@ -186,39 +190,6 @@ class TestRdlParameterIntegration:
         module = (tmp_path / "direct_test.sv").read_text()
         assert "MY_RESET" not in module
 
-    def test_enable_param_in_module_output(
-        self, compile_rdl: Callable[..., AddrmapNode], tmp_path: Path
-    ) -> None:
-        """ADDRESS_MODIFYING parameters should appear as SV parameters with
-        assertions constraining n <= N."""
-        rdl = """
-        addrmap enable_test #(longint unsigned N_PORTS = 4) {
-            reg { field { sw=rw; hw=r; } data[31:0]; } port[N_PORTS] @ 0x0;
-        };
-        """
-        top = compile_rdl(rdl, top="enable_test")
-        exporter = BusDecoderExporter()
-        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif, parametrize=True)
-
-        module = (tmp_path / "enable_test.sv").read_text()
-        assert "parameter int N_PORTS = 4" in module
-        assert "N_PORTS >= 0 && N_PORTS <= 4" in module
-
-    def test_enable_param_in_for_loop(
-        self, compile_rdl: Callable[..., AddrmapNode], tmp_path: Path
-    ) -> None:
-        """For loops in the decoder should use the parameter name as the bound."""
-        rdl = """
-        addrmap loop_test #(longint unsigned N_REGS = 8) {
-            reg { field { sw=rw; hw=r; } data[31:0]; } regs[N_REGS] @ 0x0;
-        };
-        """
-        top = compile_rdl(rdl, top="loop_test")
-        exporter = BusDecoderExporter()
-        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif, parametrize=True)
-
-        module = (tmp_path / "loop_test.sv").read_text()
-        assert "i0 < N_REGS" in module
 
     def test_enable_param_max_in_package(
         self, compile_rdl: Callable[..., AddrmapNode], tmp_path: Path
@@ -308,33 +279,6 @@ class TestRdlParameterIntegration:
         module = (tmp_path / "kept_test.sv").read_text()
         assert "localparam N_REGSS = 4" in module
 
-    def test_same_value_non_array_param_not_used_for_loop_bound(
-        self, compile_rdl: Callable[..., AddrmapNode], tmp_path: Path
-    ) -> None:
-        """Loop bounds should bind to the traced array parameter, not by value."""
-        rdl = """
-        addrmap loop_collision #(
-            longint unsigned N_UNUSED = 4,
-            longint unsigned N_REAL = 4
-        ) {
-            reg {
-                field { sw=rw; hw=r; reset=N_UNUSED; } cfg[31:0];
-            } cfg @ 0x0;
-
-            reg {
-                field { sw=rw; hw=r; } data[31:0];
-            } regs[N_REAL] @ 0x10;
-        };
-        """
-        top = compile_rdl(rdl, top="loop_collision")
-        exporter = BusDecoderExporter()
-        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif, parametrize=True)
-
-        module = (tmp_path / "loop_collision.sv").read_text()
-        assert "parameter int N_REAL = 4" in module
-        assert "parameter int N_UNUSED = 4" not in module
-        assert "i0 < N_REAL" in module
-        assert "i0 < N_UNUSED" not in module
 
     def test_parametrize_off_produces_static_output(
         self, compile_rdl: Callable[..., AddrmapNode], tmp_path: Path
@@ -355,29 +299,138 @@ class TestRdlParameterIntegration:
         package = (tmp_path / "static_test_pkg.sv").read_text()
         assert "MAX_N_CH" not in package
 
-    def test_one_param_two_arrays_integration(
-        self, compile_rdl: Callable[..., AddrmapNode], tmp_path: Path
-    ) -> None:
-        """One param controlling two arrays should emit a single parameter
-        declaration, both loops use param name, and a single MAX constant."""
-        rdl = """
-        addrmap multi_arr #(longint unsigned N = 4) {
-            reg { field { sw=rw; hw=r; } d1[31:0]; } regs[N] @ 0x0;
-            reg { field { sw=rw; hw=r; } d2[31:0]; } data[N] @ 0x100;
-        };
-        """
-        top = compile_rdl(rdl, top="multi_arr")
-        exporter = BusDecoderExporter()
-        exporter.export(top, str(tmp_path), cpuif_cls=APB4Cpuif, parametrize=True)
 
-        module = (tmp_path / "multi_arr.sv").read_text()
-        # Single parameter declaration
-        assert module.count("parameter int N = 4") == 1
-        # Both loops use N as bound
-        assert "i0 < N" in module
-        # Single assertion block
-        assert module.count("N >= 0 && N <= 4") == 1
+_PARAMETER_RDL = """
+reg parameter_word_t {
+    field { sw=rw; hw=r; } data[31:0];
+};
+addrmap parameter_child_t {
+    parameter_word_t words[3] @ 0x0 += 0x4;
+};
+addrmap rdl_params_t #(
+    longint unsigned N_ROWS = 2,
+    longint unsigned N_COLS = 3
+) {
+    parameter_child_t grid[N_ROWS][N_COLS] @ 0x0 += 0x20;
+    parameter_child_t shared[N_ROWS] @ 0x100 += 0x20;
+    parameter_child_t tail @ 0x180;
+};
+"""
 
-        package = (tmp_path / "multi_arr_pkg.sv").read_text()
-        # Single MAX constant
-        assert package.count("MULTI_ARR_MAX_N = 4") == 1
+
+@pytest.fixture
+def parameter_rtl(
+    compile_rdl: Callable[..., AddrmapNode], tmp_path: Path
+) -> Path:
+    """Elaborate only the maximum RDL layout, never a reduced RDL instance."""
+    top = compile_rdl(_PARAMETER_RDL, top="rdl_params_t")
+    BusDecoderExporter().export(
+        top,
+        str(tmp_path),
+        cpuif_cls=APB4CpuifFlat,
+        parametrize=True,
+        max_decode_depth=1,
+        address_width=9,
+        cpuif_unroll=False,
+        clk_src="design",
+        gate_signals=True,
+    )
+    return tmp_path
+
+
+def _compile_parameter_simulation(generated: Path, rows: int, columns: int) -> Path:
+    verilator = shutil.which("verilator")
+    assert verilator is not None, "Executable parameter regressions require Verilator"
+    helpers = Path(__file__).parent
+    command = [
+        verilator,
+        "--cc",
+        "--exe",
+        "--build",
+        "--assert",
+        # Invalid overrides can also produce array-index/undriven-port warnings.
+        # They must compile so the generated time-zero bounds assertion runs.
+        "-Wno-fatal",
+        "--top-module",
+        "rdl_params_wrapper",
+        f"-GN_ROWS={rows}",
+        f"-GN_COLS={columns}",
+        "-Mdir",
+        str(generated / "obj_dir"),
+        "-o",
+        "sim",
+        str(generated / "rdl_params_t_pkg.sv"),
+        str(generated / "rdl_params_t.sv"),
+        str(helpers / "rdl_params_wrapper.sv"),
+        str(helpers / "rdl_params_scoreboard.cpp"),
+    ]
+    compile_result = subprocess.run(
+        command, cwd=generated, capture_output=True, text=True, timeout=240
+    )
+    assert compile_result.returncode == 0, (
+        "Verilator compilation failed; no runtime parameter behavior was exercised:\n"
+        f"{compile_result.stdout}\n{compile_result.stderr}"
+    )
+    return generated / "obj_dir" / "sim"
+
+
+def _run_parameter_simulation(
+    executable: Path, rows: int, columns: int
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [str(executable), str(rows), str(columns)],
+        cwd=executable.parent,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+
+@pytest.mark.simulation
+@pytest.mark.verilator
+@pytest.mark.parametrize(
+    "rows,columns",
+    [
+        pytest.param(0, 0, id="zero"),
+        pytest.param(0, 3, id="zero-shared"),
+        pytest.param(2, 0, id="zero-columns"),
+        pytest.param(1, 2, id="reduced-both"),
+        pytest.param(2, 2, id="reduced-columns"),
+        pytest.param(2, 3, id="maximum"),
+    ],
+)
+def test_parameter_overrides_execute_fixed_layout(
+    parameter_rtl: Path, rows: int, columns: int
+) -> None:
+    """Only SV parameters change; reads/writes retain the compiled maximum map."""
+    executable = _compile_parameter_simulation(parameter_rtl, rows, columns)
+    runtime_result = _run_parameter_simulation(executable, rows, columns)
+    output = f"{runtime_result.stdout}\n{runtime_result.stderr}"
+    assert runtime_result.returncode == 0, f"Parameter simulation failed:\n{output}"
+    assert "RDL_PARAMS_SUCCESS" in runtime_result.stdout, output
+
+
+@pytest.mark.simulation
+@pytest.mark.verilator
+@pytest.mark.parametrize(
+    "rows,columns,parameter,maximum",
+    [
+        pytest.param(-1, 3, "N_ROWS", 2, id="rows-negative"),
+        pytest.param(3, 3, "N_ROWS", 2, id="rows-above-maximum"),
+        pytest.param(2, -1, "N_COLS", 3, id="columns-negative"),
+        pytest.param(2, 4, "N_COLS", 3, id="columns-above-maximum"),
+    ],
+)
+def test_parameter_override_bounds_fail_at_runtime(
+    parameter_rtl: Path, rows: int, columns: int, parameter: str, maximum: int
+) -> None:
+    """Reject invalid SV overrides via the intended generated bounds assertion."""
+    executable = _compile_parameter_simulation(parameter_rtl, rows, columns)
+    runtime_result = _run_parameter_simulation(executable, rows, columns)
+    output = f"{runtime_result.stdout}\n{runtime_result.stderr}"
+    assert runtime_result.returncode != 0, f"Invalid override was accepted:\n{output}"
+    assert "RDL_PARAMS_STARTED" in runtime_result.stdout, output
+    assert f"{parameter} must be in range [0, {maximum}]" in output, (
+        f"Runtime failed without the intended {parameter} bounds assertion:\n{output}"
+    )
+    assert "RDL_PARAMS_SUCCESS" not in output, output

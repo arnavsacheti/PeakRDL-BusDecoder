@@ -90,6 +90,31 @@ PYTHONPATH=src uv run pytest tests/cocotb/apb4/smoke/test_runner.py -v
 PYTHONPATH=src uv run pytest tests/cocotb/axi4lite/smoke/test_runner.py -v
 ```
 
+#### Stateful and cross-feature regressions
+
+The APB4 stress runner attaches a separate autonomous RTL RAM to each physical
+downstream endpoint. Only downstream `PSEL && PENABLE && PREADY` clock edges
+commit writes, with byte strobes applied to stored data. The request-side ledger
+checks initial state, partial and zero-strobe overwrites, later readback, stalls,
+and exact child completion counts; it never supplies expected child `PRDATA`.
+The fixed APB back-to-back regression separately covers side-effecting children.
+
+```bash
+PYTHONPATH=src uv run pytest tests/cocotb/apb4/smoke/test_runner_stress.py -v
+PYTHONPATH=src uv run pytest tests/formal/test_apb_back_to_back.py -v
+PYTHONPATH=src uv run pytest tests/unit/test_rdl_params.py -v
+PYTHONPATH=src uv run pytest tests/formal/test_formal_equivalence.py -v
+```
+
+The parameter regression compiles parameterized generated RTL with actual
+module-parameter overrides: disabled entries must error without child activity,
+enabled entries retain their maximum-layout addresses, and invalid overrides
+must fail the emitted runtime bounds assertion. Cross-feature cases compare
+APB4 and AXI4-Lite RTL with the independent SystemRDL-node oracle for nested
+arrays, rolled/unrolled ports, permissions, holes, and an exported nonzero-base
+submap. These are finite behavioral scenarios, not unbounded proofs or evidence
+of compatibility with simulators that the tests do not invoke.
+
 ### AHB-Lite and full regression
 
 AHB-Lite uses an independent C++ cycle scoreboard driven against generated RTL
