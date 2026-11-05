@@ -105,3 +105,4 @@ Links
     cpuif/ahblite
     cpuif/internal_protocol
     cpuif/customizing
+    cpuif/upcoming

@@ -1,0 +1,60 @@
+// Planned ordered AXI4-Lite adapter (PR #83, unreleased).
+// Same conventions as architecture.dot: blue request, dashed green response,
+// red local error, orange retained per-transaction state.
+// The upstream manager is drawn twice (requests left, responses right) so both
+// directions read left to right.
+digraph axi4lite_ordered {
+    graph [rankdir=LR, bgcolor="white", fontname="Helvetica", fontsize=12, nodesep=0.3, ranksep=0.45, pad=0.25,
+           labeljust="l", newrank=true];
+    node  [fontname="Helvetica", fontsize=11, shape=box, style="rounded,filled", fillcolor="#f9fafb", color="#6b7280"];
+    edge  [fontname="Helvetica", fontsize=10, color="#6b7280"];
+
+    up_req  [label="Upstream\nmanager\n(requests)", style="rounded", fillcolor="white"];
+    up_resp [label="Upstream\nmanager\n(responses)", style="rounded", fillcolor="white"];
+
+    subgraph cluster_wr {
+        label="Write direction"; style="rounded"; color="#9ca3af"; fontcolor="#374151";
+        aw   [label="AW hold register", fillcolor="#eff6ff", color="#1d4ed8"];
+        w    [label="W hold register", fillcolor="#eff6ff", color="#1d4ed8"];
+        pair [label="pair oldest AW + W\ndecode once", fillcolor="#eff6ff", color="#1d4ed8"];
+        wq   [label=<<b>write order queue</b><br/>destination or local error,<br/>address, data, strobes,<br/>AW-sent, W-sent<br/><i>tail · issue · response head</i>>,
+              fillcolor="#fff7ed", color="#c2410c"];
+        wca  [label="child A\nAW / W / B", style="rounded", fillcolor="white"];
+        wcb  [label="child B\nAW / W / B", style="rounded", fillcolor="white"];
+        bmux [label="B mux\nBREADY to head child only\nlocal error answered at head", fillcolor="#ecfdf5", color="#15803d"];
+        aw -> pair [color="#1d4ed8"];
+        w  -> pair [color="#1d4ed8"];
+        pair -> wq [color="#1d4ed8", label="enqueue"];
+        wq -> wca  [color="#1d4ed8", label="issue"];
+        wq -> wcb  [color="#1d4ed8"];
+        wca -> bmux [color="#15803d", style=dashed];
+        wcb -> bmux [color="#15803d", style=dashed];
+        wq -> bmux [color="#c2410c", style=dotted, label="head selects", constraint=false];
+    }
+
+    subgraph cluster_rd {
+        label="Read direction (independent ordering)"; style="rounded"; color="#9ca3af"; fontcolor="#374151";
+        ar   [label="AR accept\ndecode once", fillcolor="#eff6ff", color="#1d4ed8"];
+        rq   [label=<<b>read order queue</b><br/>destination or local error,<br/>address<br/><i>tail · issue · response head</i>>,
+              fillcolor="#fff7ed", color="#c2410c"];
+        rca  [label="child A\nAR / R", style="rounded", fillcolor="white"];
+        rcb  [label="child B\nAR / R", style="rounded", fillcolor="white"];
+        rmux [label="R mux\nRREADY to head child only\nlocal error answered at head", fillcolor="#ecfdf5", color="#15803d"];
+        ar -> rq [color="#1d4ed8", label="enqueue"];
+        rq -> rca [color="#1d4ed8", label="issue"];
+        rq -> rcb [color="#1d4ed8"];
+        rca -> rmux [color="#15803d", style=dashed];
+        rcb -> rmux [color="#15803d", style=dashed];
+        rq -> rmux [color="#c2410c", style=dotted, label="head selects", constraint=false];
+    }
+
+    up_req -> aw [color="#1d4ed8", label="AW"];
+    up_req -> w  [color="#1d4ed8", label="W"];
+    up_req -> ar [color="#1d4ed8", label="AR"];
+    bmux -> up_resp [color="#15803d", style=dashed, label="B"];
+    rmux -> up_resp [color="#15803d", style=dashed, label="R"];
+
+    { rank=same; aw; ar; }
+    { rank=same; wq; rq; }
+    { rank=same; bmux; rmux; }
+}

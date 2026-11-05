@@ -17,6 +17,17 @@ decoder asserts ``PREADY`` and ``PSLVERR`` together only when ``PSEL`` and
 ``PENABLE`` are high; both remain low during setup and while unselected.
 Mapped transfers pass through the selected endpoint's response signals.
 
+.. figure:: ../diagrams/svg/apb4_timing.svg
+    :class: diagram
+    :alt: APB4 timing. A read of 0x20 selects child uart[1] with local address
+        0x0; the child holds PREADY low for one access cycle and the upstream
+        PREADY follows it. A following write to the unmapped address 0x08
+        selects no child and completes in its first access cycle with PREADY
+        and PSLVERR high.
+
+    APB4 through the decoder: a mapped read with a child wait state, then an
+    unmapped write. APB3 behaves the same without ``PPROT``/``PSTRB``.
+
 .. warning::
     Some IP vendors will incorrectly implement the address signalling
     assuming word-addresses. (that each increment of ``PADDR`` is the next word)

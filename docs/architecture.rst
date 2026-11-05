@@ -10,6 +10,17 @@ Although you do not need to know the inner workings to use the exporter, the
 sections below explain the structure of the generated module and how it maps to
 SystemRDL hierarchy.
 
+.. figure:: diagrams/svg/architecture.svg
+    :class: diagram
+    :alt: Export-time processing turns SystemRDL into decode targets and unique
+        names. The generated module adapts the upstream bus, decodes reads and
+        writes separately, fans requests out to the selected child with a
+        child-local address, and muxes the selected child's response back. An
+        address with no target is answered by a local error responder.
+
+    Export flow and generated module structure. Blue paths carry requests, dashed
+    green paths carry responses, and red paths are locally generated errors.
+
 For side-by-side diagrams of the structures emitted by command-line options,
 see :ref:`generated_decoder_structure`.
 
@@ -58,6 +69,22 @@ Decode bounds and downstream addresses are relative to the exported addrmap,
 including when the Python API exports an inner addrmap with a nonzero system
 base address. Array stride gaps select no child and return a local error rather
 than waiting indefinitely for a downstream response.
+
+The figure below is computed from an example design (see
+``docs/diagrams/src/address_map.rdl``). It shows every decoder address range,
+which target each direction selects, and the address forwarded to that child.
+
+.. figure:: diagrams/svg/address_map.svg
+    :class: diagram
+    :alt: Address map of the example design. ctrl at 0x00 and trailing at 0x40
+        are read/write registers. At 0x04 reads select the read-only status
+        register and writes select the write-only command register. uart[0..2]
+        are 8-byte blocks on a 16-byte stride, so 0x18, 0x28 and 0x38 start
+        8-byte holes that return local errors, as do 0x08-0x0F and everything
+        from 0x44 to the top of the 7-bit address space.
+
+    Decoded address map at ``max_decode_depth = 1``: read/write overlap at
+    0x04, array stride holes, and child-local addresses.
 
 
 Fanout to Child Interfaces

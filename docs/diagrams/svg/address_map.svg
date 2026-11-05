@@ -1,0 +1,55 @@
+<!-- diagram-source-sha256: 7e61f64beb4c7150ef93efbff25504d7b9a64cfb5c2e93f2d87d4e3fc9980fb7 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="468" viewBox="0 0 760 468" role="img" aria-label="Decoded address map of periph">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="20" y="26" font-family="sans-serif" font-size="14" text-anchor="start" font-weight="bold" fill="#111827">Exported addrmap “periph”: 68 bytes, decoder address width 7 bits, data width 32 bits</text>
+<text x="20" y="46" font-family="sans-serif" font-size="12" text-anchor="start" font-weight="normal" fill="#374151">Addresses are relative to the exported addrmap: A = system address − system base. max_decode_depth = 1.</text>
+<text x="20" y="82" font-family="sans-serif" font-size="12" text-anchor="start" font-weight="bold" fill="#111827">Decoder address A</text>
+<text x="286.0" y="82" font-family="sans-serif" font-size="12" text-anchor="middle" font-weight="bold" fill="#111827">Read selects</text>
+<text x="476.0" y="82" font-family="sans-serif" font-size="12" text-anchor="middle" font-weight="bold" fill="#111827">Write selects</text>
+<text x="576" y="82" font-family="sans-serif" font-size="12" text-anchor="start" font-weight="bold" fill="#111827">Child-local address</text>
+<text x="20" y="111.5" font-family="monospace" font-size="13" text-anchor="start" font-weight="normal" fill="#111827">0x00 – 0x03</text>
+<rect x="196" y="94" width="180" height="26" rx="4" fill="#dbeafe" stroke="#1d4ed8"/><text x="286.0" y="111.5" font-family="sans-serif" font-size="13" text-anchor="middle" font-style="normal" fill="#1d4ed8">ctrl</text>
+<rect x="386" y="94" width="180" height="26" rx="4" fill="#dbeafe" stroke="#1d4ed8"/><text x="476.0" y="111.5" font-family="sans-serif" font-size="13" text-anchor="middle" font-style="normal" fill="#1d4ed8">ctrl</text>
+<text x="576" y="111.5" font-family="monospace" font-size="12" text-anchor="start" font-weight="normal" fill="#374151">A − 0x00 → 0x0–0x3</text>
+<text x="20" y="141.5" font-family="monospace" font-size="13" text-anchor="start" font-weight="normal" fill="#111827">0x04 – 0x07</text>
+<rect x="196" y="124" width="180" height="26" rx="4" fill="#dbeafe" stroke="#1d4ed8"/><text x="286.0" y="141.5" font-family="sans-serif" font-size="13" text-anchor="middle" font-style="normal" fill="#1d4ed8">status</text>
+<rect x="386" y="124" width="180" height="26" rx="4" fill="#dbeafe" stroke="#1d4ed8"/><text x="476.0" y="141.5" font-family="sans-serif" font-size="13" text-anchor="middle" font-style="normal" fill="#1d4ed8">command</text>
+<text x="576" y="141.5" font-family="monospace" font-size="12" text-anchor="start" font-weight="normal" fill="#374151">A − 0x04 → 0x0–0x3</text>
+<text x="20" y="171.5" font-family="monospace" font-size="13" text-anchor="start" font-weight="normal" fill="#111827">0x08 – 0x0F</text>
+<rect x="196" y="154" width="180" height="26" rx="4" fill="#fee2e2" stroke="#b91c1c"/><text x="286.0" y="171.5" font-family="sans-serif" font-size="13" text-anchor="middle" font-style="italic" fill="#b91c1c">local error</text>
+<rect x="386" y="154" width="180" height="26" rx="4" fill="#fee2e2" stroke="#b91c1c"/><text x="476.0" y="171.5" font-family="sans-serif" font-size="13" text-anchor="middle" font-style="italic" fill="#b91c1c">local error</text>
+<text x="20" y="201.5" font-family="monospace" font-size="13" text-anchor="start" font-weight="normal" fill="#111827">0x10 – 0x17</text>
+<rect x="196" y="184" width="180" height="26" rx="4" fill="#dcfce7" stroke="#15803d"/><text x="286.0" y="201.5" font-family="sans-serif" font-size="13" text-anchor="middle" font-style="normal" fill="#15803d">uart[0]</text>
+<rect x="386" y="184" width="180" height="26" rx="4" fill="#dcfce7" stroke="#15803d"/><text x="476.0" y="201.5" font-family="sans-serif" font-size="13" text-anchor="middle" font-style="normal" fill="#15803d">uart[0]</text>
+<text x="576" y="201.5" font-family="monospace" font-size="12" text-anchor="start" font-weight="normal" fill="#374151">A − 0x10 → 0x0–0x7</text>
+<text x="20" y="231.5" font-family="monospace" font-size="13" text-anchor="start" font-weight="normal" fill="#111827">0x18 – 0x1F</text>
+<rect x="196" y="214" width="180" height="26" rx="4" fill="#fee2e2" stroke="#b91c1c"/><text x="286.0" y="231.5" font-family="sans-serif" font-size="13" text-anchor="middle" font-style="italic" fill="#b91c1c">local error</text>
+<rect x="386" y="214" width="180" height="26" rx="4" fill="#fee2e2" stroke="#b91c1c"/><text x="476.0" y="231.5" font-family="sans-serif" font-size="13" text-anchor="middle" font-style="italic" fill="#b91c1c">local error</text>
+<text x="20" y="261.5" font-family="monospace" font-size="13" text-anchor="start" font-weight="normal" fill="#111827">0x20 – 0x27</text>
+<rect x="196" y="244" width="180" height="26" rx="4" fill="#dcfce7" stroke="#15803d"/><text x="286.0" y="261.5" font-family="sans-serif" font-size="13" text-anchor="middle" font-style="normal" fill="#15803d">uart[1]</text>
+<rect x="386" y="244" width="180" height="26" rx="4" fill="#dcfce7" stroke="#15803d"/><text x="476.0" y="261.5" font-family="sans-serif" font-size="13" text-anchor="middle" font-style="normal" fill="#15803d">uart[1]</text>
+<text x="576" y="261.5" font-family="monospace" font-size="12" text-anchor="start" font-weight="normal" fill="#374151">A − 0x20 → 0x0–0x7</text>
+<text x="20" y="291.5" font-family="monospace" font-size="13" text-anchor="start" font-weight="normal" fill="#111827">0x28 – 0x2F</text>
+<rect x="196" y="274" width="180" height="26" rx="4" fill="#fee2e2" stroke="#b91c1c"/><text x="286.0" y="291.5" font-family="sans-serif" font-size="13" text-anchor="middle" font-style="italic" fill="#b91c1c">local error</text>
+<rect x="386" y="274" width="180" height="26" rx="4" fill="#fee2e2" stroke="#b91c1c"/><text x="476.0" y="291.5" font-family="sans-serif" font-size="13" text-anchor="middle" font-style="italic" fill="#b91c1c">local error</text>
+<text x="20" y="321.5" font-family="monospace" font-size="13" text-anchor="start" font-weight="normal" fill="#111827">0x30 – 0x37</text>
+<rect x="196" y="304" width="180" height="26" rx="4" fill="#dcfce7" stroke="#15803d"/><text x="286.0" y="321.5" font-family="sans-serif" font-size="13" text-anchor="middle" font-style="normal" fill="#15803d">uart[2]</text>
+<rect x="386" y="304" width="180" height="26" rx="4" fill="#dcfce7" stroke="#15803d"/><text x="476.0" y="321.5" font-family="sans-serif" font-size="13" text-anchor="middle" font-style="normal" fill="#15803d">uart[2]</text>
+<text x="576" y="321.5" font-family="monospace" font-size="12" text-anchor="start" font-weight="normal" fill="#374151">A − 0x30 → 0x0–0x7</text>
+<text x="20" y="351.5" font-family="monospace" font-size="13" text-anchor="start" font-weight="normal" fill="#111827">0x38 – 0x3F</text>
+<rect x="196" y="334" width="180" height="26" rx="4" fill="#fee2e2" stroke="#b91c1c"/><text x="286.0" y="351.5" font-family="sans-serif" font-size="13" text-anchor="middle" font-style="italic" fill="#b91c1c">local error</text>
+<rect x="386" y="334" width="180" height="26" rx="4" fill="#fee2e2" stroke="#b91c1c"/><text x="476.0" y="351.5" font-family="sans-serif" font-size="13" text-anchor="middle" font-style="italic" fill="#b91c1c">local error</text>
+<text x="20" y="381.5" font-family="monospace" font-size="13" text-anchor="start" font-weight="normal" fill="#111827">0x40 – 0x43</text>
+<rect x="196" y="364" width="180" height="26" rx="4" fill="#dbeafe" stroke="#1d4ed8"/><text x="286.0" y="381.5" font-family="sans-serif" font-size="13" text-anchor="middle" font-style="normal" fill="#1d4ed8">trailing</text>
+<rect x="386" y="364" width="180" height="26" rx="4" fill="#dbeafe" stroke="#1d4ed8"/><text x="476.0" y="381.5" font-family="sans-serif" font-size="13" text-anchor="middle" font-style="normal" fill="#1d4ed8">trailing</text>
+<text x="576" y="381.5" font-family="monospace" font-size="12" text-anchor="start" font-weight="normal" fill="#374151">A − 0x40 → 0x0–0x3</text>
+<text x="20" y="411.5" font-family="monospace" font-size="13" text-anchor="start" font-weight="normal" fill="#111827">0x44 – 0x7F</text>
+<rect x="196" y="394" width="180" height="26" rx="4" fill="#fee2e2" stroke="#b91c1c"/><text x="286.0" y="411.5" font-family="sans-serif" font-size="13" text-anchor="middle" font-style="italic" fill="#b91c1c">local error</text>
+<rect x="386" y="394" width="180" height="26" rx="4" fill="#fee2e2" stroke="#b91c1c"/><text x="476.0" y="411.5" font-family="sans-serif" font-size="13" text-anchor="middle" font-style="italic" fill="#b91c1c">local error</text>
+<rect x="20" y="437" width="14" height="14" rx="3" fill="#dbeafe" stroke="#1d4ed8"/>
+<text x="40" y="448" font-family="sans-serif" font-size="12" text-anchor="start" font-weight="normal" fill="#111827">register target</text>
+<rect x="176.0" y="437" width="14" height="14" rx="3" fill="#dcfce7" stroke="#15803d"/>
+<text x="196.0" y="448" font-family="sans-serif" font-size="12" text-anchor="start" font-weight="normal" fill="#111827">block target (both directions)</text>
+<rect x="440.0" y="437" width="14" height="14" rx="3" fill="#fee2e2" stroke="#b91c1c"/>
+<text x="460.0" y="448" font-family="sans-serif" font-size="12" text-anchor="start" font-weight="normal" fill="#111827">no target: local error response</text>
+</svg>

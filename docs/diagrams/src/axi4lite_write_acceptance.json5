@@ -1,0 +1,22 @@
+// Planned ordered AXI4-Lite adapter (PR #83, unreleased).
+// AW and W are accepted independently and paired in acceptance order:
+// pair 1 arrives W-first, pair 2 arrives AW-first.
+{
+  signal: [
+    { name: "ACLK",           wave: "p........." },
+    ["Upstream",
+      { name: "AWVALID",      wave: "0..1010...", node: "...a.c...." },
+      { name: "AWREADY",      wave: "1........." },
+      { name: "AWADDR",       wave: "x..=x=x...", data: ["A1", "A2"] },
+      { name: "WVALID",       wave: "010....10.", node: ".b.....d.." },
+      { name: "WREADY",       wave: "1........." },
+      { name: "WDATA",        wave: "x=x....=x.", data: ["D1", "D2"] }
+    ],
+    {},
+    { name: "write enqueued", wave: "x...=x..=x", data: ["A1+D1", "A2+D2"], node: "....e...f." }
+  ],
+  edge: ["b~>e", "a~>e", "c~>f", "d~>f"],
+  head: { text: "Planned AXI4-Lite: independent AW and W acceptance (illustrative)" },
+  foot: { text: "A write is enqueued once both halves of the oldest AW/W pair are accepted." },
+  config: { hscale: 2 }
+}

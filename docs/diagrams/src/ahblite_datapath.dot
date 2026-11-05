@@ -1,0 +1,32 @@
+// Planned AHB-Lite adapter (feature/ahb-lite-isolated, unreleased).
+// Address-phase selection is combinational; data-phase response selection is
+// registered. Conventions match architecture.dot (orange = retained state).
+digraph ahblite_datapath {
+    graph [rankdir=LR, bgcolor="white", fontname="Helvetica", fontsize=12, nodesep=0.35, ranksep=0.55, pad=0.25];
+    node  [fontname="Helvetica", fontsize=11, shape=box, style="rounded,filled", fillcolor="#f9fafb", color="#6b7280"];
+    edge  [fontname="Helvetica", fontsize=10, color="#6b7280"];
+
+    up     [label="Upstream\nmanager", style="rounded", fillcolor="white"];
+    decode [label="Address-phase decode\n(live HADDR, HTRANS)\nHSEL + child-local HADDR", fillcolor="#eff6ff", color="#1d4ed8"];
+    owner  [label="Data-phase owner register\ncaptured when HREADY = 1\nand the transfer is active:\nchild index or local-error", fillcolor="#fff7ed", color="#c2410c"];
+    err    [label="Local ERROR sequencer\ncycle 1: HREADYOUT=0, HRESP=1\ncycle 2: HREADYOUT=1, HRESP=1", fillcolor="#fef2f2", color="#b91c1c"];
+    mux    [label="Response mux\nHRDATA, HREADYOUT, HRESP\nselected by owner", fillcolor="#ecfdf5", color="#15803d"];
+
+    subgraph cluster_children {
+        label="Children"; style="rounded,dotted"; color="#9ca3af"; fontcolor="#374151";
+        c0 [label="child 0", style="rounded", fillcolor="white"];
+        c1 [label="child 1", style="rounded", fillcolor="white"];
+    }
+
+    up -> decode [color="#1d4ed8", label="HADDR, HTRANS,\ncontrol"];
+    decode -> c0 [color="#1d4ed8", label="HSEL"];
+    decode -> c1 [color="#1d4ed8"];
+    up -> c0 [color="#1d4ed8", style=dashed, label="HWDATA in\ndata phase", constraint=false];
+    decode -> owner [color="#c2410c", label="destination"];
+    owner -> mux [color="#c2410c", style=dotted, label="select"];
+    owner -> err [color="#b91c1c", label="miss"];
+    c0 -> mux [color="#15803d", style=dashed];
+    c1 -> mux [color="#15803d", style=dashed];
+    err -> mux [color="#b91c1c", style=dashed];
+    mux -> up [color="#15803d", style=dashed, penwidth=1.6, constraint=false, label="HRDATA, HRESP,\nHREADYOUT = HREADY\n(also to all children)"];
+}

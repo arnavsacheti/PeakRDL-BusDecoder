@@ -1,0 +1,32 @@
+// Example design rendered into docs/diagrams/svg/address_map.svg.
+// Edit freely; the figure is computed from the elaborated design.
+
+reg data_t {
+    field { sw = rw; hw = r; } value[31:0];
+};
+
+reg status_t {
+    field { sw = r; hw = w; } value[31:0];
+};
+
+reg command_t {
+    field { sw = w; hw = r; } value[31:0];
+};
+
+addrmap uart_t {
+    data_t tx @ 0x0;
+    data_t rx @ 0x4;
+};
+
+addrmap periph {
+    data_t    ctrl    @ 0x00;
+
+    // Legal SystemRDL overlap: read-only and write-only registers share 0x04.
+    status_t  status  @ 0x04;
+    command_t command @ 0x04;
+
+    // 8-byte elements on a 16-byte stride leave a hole after each element.
+    uart_t    uart[3] @ 0x10 += 0x10;
+
+    data_t    trailing @ 0x40;
+};
