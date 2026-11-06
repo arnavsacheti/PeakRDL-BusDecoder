@@ -1,4 +1,4 @@
-// Planned ordered AXI4-Lite adapter (PR #83, unreleased).
+// Ordered AXI4-Lite adapter, available in 0.8.0.
 // Same conventions as architecture.dot: blue request, dashed green response,
 // red local error, orange retained per-transaction state.
 // The upstream manager is drawn twice (requests left, responses right) so both

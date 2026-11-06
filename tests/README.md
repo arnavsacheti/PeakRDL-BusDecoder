@@ -131,4 +131,7 @@ PYTHONPATH=src uv run pytest tests -q
 
 The complete suite also includes the finite generated-RTL conformance and naming
 regressions in `tests/formal`. These commands are verification instructions, not
-a verification receipt for the 0.8.0 candidate.
+a verification receipt for released 0.8.0. Coverage descriptions identify the
+scenarios exercised by the tests, not release execution results. AXI coverage
+is for AXI4-Lite, not full AXI4; AHB-Lite coverage is limited to the
+single-manager routing profile, not multi-manager AHB or full certification.

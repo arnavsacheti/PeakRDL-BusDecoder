@@ -1,4 +1,4 @@
-// Planned ordered AXI4-Lite adapter (PR #83, unreleased).
+// Ordered AXI4-Lite adapter, available in 0.8.0.
 // Child B answers first, but upstream responses stay in acceptance order.
 {
   signal: [
@@ -23,7 +23,7 @@
     ]
   ],
   edge: ["b~>f"],
-  head: { text: "Planned AXI4-Lite: slow child A, fast child B, responses stay in order (illustrative)" },
+  head: { text: "AXI4-Lite: slow child A, fast child B, responses stay in order (illustrative)" },
   foot: { text: "B waits behind A: only the queue-head child sees RREADY." },
   config: { hscale: 2 }
 }

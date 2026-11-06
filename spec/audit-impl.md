@@ -6,9 +6,10 @@ Every finding is assigned an ID (`IMPL-FINDING-*`), categorized by severity (**C
 
 The detailed findings preserve pre-fix evidence and historical line numbers.
 The recorded 0.7.3 follow-up implements findings 01–05; its verification receipt
-below is historical, not an integration receipt for 0.8.0. The current candidate
-draft is `spec/busdecoder.md`; ordered AXI4-Lite and AHB-Lite supersede the old
-coupled-write/no-DECERR assumptions. Candidate verification is pending.
+below is historical, not a verification receipt for 0.8.0. The released 0.8.0
+contract is `spec/busdecoder.md`; ordered AXI4-Lite and AHB-Lite supersede the old
+coupled-write/no-DECERR assumptions. Current implementation and test-coverage
+descriptions below do not assert release verification results.
 
 Historical 0.7.3 verification receipt: `PYTHONPATH=src uv run pytest tests -q`
 recorded **306 passed, 1 skipped**, including cocotb and standalone Verilator
@@ -20,21 +21,21 @@ SystemRDL design or AXI temporal behavior.
 
 ## 1. Compliance Summary Table
 
-| Spec ID | Impl Location | Status | Summary of Divergence |
+| Spec ID | Impl Location | Status | Implementation and Coverage |
 | :--- | :--- | :--- | :--- |
 | **BD-DEC-GAP-ERROR** | `module_tmpl.sv`, `decode_logic_gen.py` | **IMPLEMENTED** | Active requests default to error; both scalar and array-element hits clear error. Idle stays zero. Oracle sweeps cover every address in the sparse-array fixture. |
-| **BD-CFG-MAX-DEPTH** | `design_state.py:is_decode_boundary`, `listener.py:should_skip_node` | **CANDIDATE INTEGRATION PENDING** | One shared boundary helper covers depth caps, shallow leaves, and opaque all-external-child containers. The candidate preserves incoming shallow-leaf support; its integrated regression has not been run. |
-| **BD-NAME-PORTS** | `design_state.py:get_target_name`, `cpuif/interface.py`, `package_tmpl.sv` | **VERIFIED FOR REGRESSION CASES** | Shared target identifiers preserve unique local names and disambiguate collisions using relative paths plus deterministic suffixes, including uppercase and flattened-path collisions. Behavioral compile/runtime regressions passed across all six built-in protocol/style combinations. |
+| **BD-CFG-MAX-DEPTH** | `design_state.py:is_decode_boundary`, `listener.py:should_skip_node` | **IMPLEMENTED IN 0.8.0** | One shared boundary helper covers depth caps, shallow leaves, and opaque all-external-child containers. The released contract preserves shallow-leaf support. |
+| **BD-NAME-PORTS** | `design_state.py:get_target_name`, `cpuif/interface.py`, `package_tmpl.sv` | **IMPLEMENTED IN 0.8.0** | Shared target identifiers preserve unique local names and disambiguate collisions using relative paths plus deterministic suffixes, including uppercase and flattened-path collisions. Historical behavioral compile/runtime regressions recorded passes across the six then-covered protocol/style combinations; this is not a 0.8.0 verification receipt. |
 | **BD-ARCH-LOCAL-ADDR** | `decode_logic_gen.py`, `cpuif/base_cpuif.py`, protocol fanout generators | **IMPLEMENTED** | Bounds, subtraction and truncation decisions use offsets relative to the exported top; a nonzero-base exported submap exercises non-power-of-two targets. |
 | **BD-DEC-EXCLUSIVITY** | `decode_logic_gen.py:_access_predicate` | **IMPLEMENTED** | Register selects are direction-filtered for scalar and array targets. Both declaration orders of overlapping RO/WO registers are exercised; denied directions return a local error. |
 | **BD-CFG-DATA-WIDTH** | `design_scanner.py` | **SCOPED CONTRACT** | Inference intentionally stops at external boundaries, matching BD-CFG-DATA-WIDTH's internal-scope rule. A deeper opaque block's width is not inferred; this is not a general width-conversion implementation. |
-| **BD-AXIL-ERROR** | `cpuif/axi4lite/axi4_lite_tmpl.sv`, `axi4_lite_cpuif.py` | **CANDIDATE INTEGRATION PENDING** | Local misses now queue DECERR; child responses pass through unchanged. Historical BD-AXIL-NO-DECERR is retired. |
-| **BD-APB-ENABLE-GATE** | `cpuif/apb/apb_cpuif.py` | **RETAINED** | Shared APB3/APB4 fanout ANDs master PENABLE with target select. Candidate verification is pending. |
+| **BD-AXIL-ERROR** | `cpuif/axi4lite/axi4_lite_tmpl.sv`, `axi4_lite_cpuif.py` | **IMPLEMENTED IN 0.8.0** | Local misses queue DECERR; child responses pass through unchanged. Historical BD-AXIL-NO-DECERR is retired. |
+| **BD-APB-ENABLE-GATE** | `cpuif/apb/apb_cpuif.py` | **IMPLEMENTED IN 0.8.0** | Shared APB3/APB4 fanout retains the AND of master PENABLE with target select. |
 | **Field buffering checks** | `validate_design.py`, `docs/limitations.rst` | **REMOVED** | Field atomicity belongs to the downstream block. The RTL sweep exports a writable/onread 64-bit field with 32-bit accesswidth without buffering UDPs. |
 
 ---
 
-## 2. Detailed Findings and Recommended Changes
+## 2. Historical Detailed Findings and Resolutions
 
 ### IMPL-FINDING-01: Array Stride Gap Causes Bus Deadlock (CRITICAL)
 - **Files:** `src/peakrdl_busdecoder/decode_logic_gen.py:112-159`, `src/peakrdl_busdecoder/module_tmpl.sv:65-90`
@@ -95,7 +96,7 @@ SystemRDL design or AXI temporal behavior.
 
 ---
 
-### IMPL-FINDING-03: Port Name Collisions at Deep Hierarchies (IMPLEMENTED; VERIFICATION PENDING)
+### IMPL-FINDING-03: Port Name Collisions at Deep Hierarchies (IMPLEMENTED IN 0.8.0)
 - **Files:** `src/peakrdl_busdecoder/design_state.py`, `src/peakrdl_busdecoder/cpuif/interface.py`, `src/peakrdl_busdecoder/cpuif/base_cpuif.py`, `src/peakrdl_busdecoder/cpuif/fanin_intermediate_gen.py`, the APB3/APB4/AXI4-Lite CPU adapters, and `src/peakrdl_busdecoder/package_tmpl.sv`
 - **Specification:** `BD-NAME-PORTS`, `BD-NAME-PACKAGE`
 - **Original defect:** At decode depth 2, `blk_a.ctrl` and `blk_b.ctrl` both emitted `m_apb_ctrl`. The same local-name-only construction also collided in flat ports, package address-width constants, array-count localparams, and interface-array response intermediates.
@@ -108,7 +109,7 @@ SystemRDL design or AXI temporal behavior.
   - Hierarchical select-structure member paths remain unchanged.
   - Port collection and RTL listeners share `DesignState.is_decode_boundary`; depth-zero external memory leaves therefore receive both declarations and resolved names rather than a dictionary fallback.
 - **Regression coverage:** `tests/formal/test_target_naming.py` compiles and runs generated RTL for duplicate `ctrl` targets under two blocks at depth 2, scalar and rolled-array targets, all three protocols, and both flat and interface ports. It also exercises uppercase and flattened-path collisions, preservation of an existing unique name, and depth-zero external memory alongside internal register leaves. The tests use independently driven target responses and hardcoded public port/constant names, not generated-source string assertions.
-- **Verification status:** These regressions were added but not executed during fix 4. Runtime/compile compliance remains pending the integration verification run.
+- **Historical preparation note:** These regressions were added but not executed during fix 4. This records that development step, not the verification status of released 0.8.0. The regression coverage above describes test behavior, not a release execution receipt.
 
 ---
 

@@ -1,6 +1,6 @@
 # AHB-Lite routing contract
 
-Status: **current 0.8.0 candidate draft, pending integration verification; not shipped.**
+Status: **released 0.8.0 contract.**
 This profile shares the current decoder and naming contracts in `spec/busdecoder.md`.
 Normative source: [Arm AMBA AHB Protocol Specification IHI 0033C](https://documentation-service.arm.com/static/6141bf0d674a052ae36ca811), chapters 2–7. This document is an independently worded profile, not a reproduction or formalization of the entire Arm specification.
 
@@ -60,7 +60,7 @@ AHB-ASSUMPTIONS: manager and children obey AHB-Lite timing, legal HSIZE/data-bus
 
 Executable cycle-level RTL tests establish conformance for exercised finite scenarios, not universal formal equivalence or full AHB certification. Safety obligations are retained-destination stability, no acceptance under stall, no side-effecting child select on a local miss, phase-correct write data and error termination. Liveness depends on downstream responders eventually asserting HREADYOUT. Future symbolic proofs must state that fairness assumption explicitly.
 
-## Candidate coverage and evidence
+## Released coverage and historical evidence
 
 `cpuif/ahblite`, `hdl-src/ahblite_intf.sv`, and `docs/cpuif/ahblite.rst`
 implement and document this profile. `tests/ahblite` uses real generated RTL
@@ -70,13 +70,13 @@ overlap, wait states, live write data, IDLE/BUSY, local misses and array holes,
 child ERROR, cancellation/recovery, reset, rolled/unrolled nested arrays,
 submap-local addresses, permissions, and the address-space upper endpoint.
 
-The imported isolated-development receipt recorded 20 RTL and 18 diagnostic
+The historical isolated-development receipt recorded 20 RTL and 18 diagnostic
 cases, plus existing non-AHB Python modules (241 passed, 1 skipped). That receipt
-belongs to the older isolated AHB snapshot; it does **not** verify the integrated
-0.8.0 candidate. No integrated tests, builds, lint, or formatters were run during
-candidate preparation. The integration owner must exercise the complete suite
-before publication. The current cases use 32/64-bit data; they do not establish
-exhaustive conformance for every supported data width or valid aperture size.
+belongs to the older isolated AHB snapshot; it is **not** a verification receipt
+for released 0.8.0. The coverage described above identifies the released tests,
+not their execution results. The current cases use 32/64-bit data; they do not
+establish exhaustive conformance for every supported data width or valid
+aperture size.
 
 Shared prerequisites include widened exclusive upper-bound comparisons,
 outer-to-inner multidimensional stride/index ordering, balanced traversal,

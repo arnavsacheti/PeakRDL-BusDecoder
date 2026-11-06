@@ -10,8 +10,7 @@ classic AHB-Lite profile in the
 It does not implement multi-manager arbitration, SPLIT/RETRY, AHB5 exclusives,
 security extensions, data-width conversion, or burst-address generation.
 
-This adapter is part of the 0.8.0 candidate, pending integration verification;
-the candidate has not shipped.
+This adapter is available in 0.8.0.
 
 SystemVerilog interface
     * Command line: ``--cpuif ahb-lite``
@@ -125,6 +124,33 @@ largest transfer represented by the three-bit ``HSIZE`` field. The router does
 not adapt a downstream bus of a different width.
 
 
+Router structure
+----------------
+
+AHB-Lite overlaps the address phase of one transfer with the data phase of the
+previous one. The decoder therefore separates live address-phase selection from
+a registered **data-phase owner** that alone selects the response.
+
+The figures use the same conventions as :doc:`../architecture`: blue paths carry
+requests, dashed green paths carry responses, red marks locally generated
+errors, and orange marks state retained per transaction. Timing diagrams are
+illustrative; exact latencies depend on the implementation and the children.
+
+.. figure:: ../diagrams/svg/ahblite_datapath.svg
+    :class: diagram
+    :alt: Address-phase decode drives HSEL and child-local HADDR from the live
+        address. The destination is captured into the data-phase owner register
+        when HREADY is high. The owner selects the response mux, or starts the
+        local two-cycle ERROR sequencer for a miss. Write data reaches children
+        during the data phase. In a system where the router is the only
+        subordinate, its HREADYOUT is fed back as HREADY to the router and all
+        children.
+
+    AHB-Lite structure: combinational address phase, registered data-phase owner.
+    The illustrated ready feedback assumes the router is the only subordinate;
+    otherwise use the system's selected global ``HREADY`` as described above.
+
+
 Address and data phases
 -----------------------
 
@@ -153,6 +179,16 @@ With no pending data phase the router returns ready/OKAY and zero read data.
 An IDLE, BUSY, or unselected address clears the pending marker only on an
 ``HREADY=1`` edge; it never discards a stalled data phase.
 
+.. figure:: ../diagrams/svg/ahblite_pipeline.svg
+    :class: diagram
+    :alt: Transfer A is a write to child 0, B a read from child 1 with one wait
+        state, and C a read from child 0. Each data phase follows its address
+        phase by one cycle; during B's wait state the owner stays child 1 and
+        the address of C is held. Read data for B and C come from their owners.
+
+    Pipelined phases: the response follows the data-phase owner, and write data
+    is forwarded in its data phase.
+
 An accepted address that selects no permitted target produces a local two-cycle
 ERROR response:
 
@@ -164,6 +200,14 @@ The error phase advances across the first forced wait cycle even though global
 ``HREADY`` is low. The following address can be cancelled according to AHB-Lite
 error timing, and the next active address is accepted only when ``HREADY`` is
 high. Unmapped IDLE/BUSY phases do not create errors.
+
+.. figure:: ../diagrams/svg/ahblite_error.svg
+    :class: diagram
+    :alt: A transfer to an unmapped hole selects no child. The decoder responds
+        with HREADYOUT low and HRESP high, then HREADYOUT high and HRESP high.
+        The next mapped address is accepted while HREADY is high.
+
+    An unmapped address receives the required two-cycle ``ERROR`` response.
 
 Where a decode target is a register, reads require a present software-readable
 field and writes require a present software-writable field. Opaque block targets

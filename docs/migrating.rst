@@ -1,22 +1,21 @@
 Migrating from 0.7.x
 ====================
 
-This guide covers migration to the **0.8.0 candidate**, which is pending
-integration verification and has not shipped. The AXI4-Lite and decode-depth
+This guide covers migration to **0.8.0**. The AXI4-Lite and decode-depth
 behavioral comparisons below use 0.7.4 as the baseline. Changes already present
 in 0.7.3 are not repeated here.
 
 
 Python requirement
 ------------------
-Use **Python 3.11 or newer** for the candidate, including environments that
+Use **Python 3.11 or newer** for 0.8.0, including environments that
 install the CLI or invoke the exporter API. The 0.7.4 package allowed Python
-3.10; upgrade those environments before installing the candidate.
+3.10; upgrade those environments before installing 0.8.0.
 
 
 Project-wide defaults in peakrdl.toml
 ----------------------------------------
-The candidate supports project-wide generator settings in ``peakrdl.toml``
+Version 0.8.0 supports project-wide generator settings in ``peakrdl.toml``
 under ``[busdecoder]``: ``cpuif``, ``data_width``, ``clk_src``, ``apb_buffer``,
 ``gate_signals``, ``max_decode_depth``, ``unroll``,
 ``axi4lite_max_outstanding``, and ``parametrize``. Existing
@@ -181,7 +180,7 @@ With ``--max-decode-depth 2``:
 
     * - Behavior
       - 0.7.4
-      - Candidate
+      - 0.8.0
     * - Generated master targets
       - ``a``, ``b``
       - ``top_reg``, ``a``, ``b``
