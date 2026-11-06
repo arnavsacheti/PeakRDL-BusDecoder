@@ -1,3 +1,0 @@
-pygments-systemrdl
-sphinx-book-theme
-sphinxcontrib-mermaid>=2.1.0

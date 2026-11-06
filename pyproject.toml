@@ -53,7 +53,7 @@ cli = ["peakrdl-cli >= 1.2.3"]
 Source = "https://github.com/arnavsacheti/PeakRDL-BusDecoder"
 Tracker = "https://github.com/arnavsacheti/PeakRDL-BusDecoder/issues"
 Changelog = "https://github.com/arnavsacheti/PeakRDL-BusDecoder/releases"
-Documentation = "https://peakrdl-busdecoder.readthedocs.io/"
+Documentation = "https://arnavsacheti.github.io/PeakRDL-BusDecoder/"
 
 [dependency-groups]
 docs = [
