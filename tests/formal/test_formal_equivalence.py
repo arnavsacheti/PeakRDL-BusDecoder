@@ -1,9 +1,9 @@
-"""Mathematical oracle properties and exhaustive APB4-flat RTL conformance.
+"""Independent Node-oracle properties and finite compiled RTL conformance.
 
-The differential tests materialize expected decode tables from the independent
-SystemRDL model, then compare every byte address and both transaction directions
-in Verilator. Child responses vary independently of DUT outputs so stalls,
-errors, readback muxing, and unselected response isolation are all exercised.
+The differential tests materialize expected decode tables from SystemRDL, then
+compare every byte address and both directions in Verilator. APB exercises
+phases and independent child response profiles; AXI4-Lite uses real clocked
+channel handshakes, backpressure and per-endpoint completion accounting.
 """
 
 from __future__ import annotations
@@ -18,7 +18,9 @@ from systemrdl import RDLCompiler
 from systemrdl.node import AddrmapNode
 
 from peakrdl_busdecoder import BusDecoderExporter
-from peakrdl_busdecoder.cpuif.apb4 import APB4CpuifFlat
+from peakrdl_busdecoder.cpuif.apb.apb_cpuif import APB4CpuifFlat
+from peakrdl_busdecoder.cpuif.axi4lite import AXI4LiteCpuifFlat
+from tests.formal.compiled_oracle import PortBindings, axil_testbench, cpp_expected_table
 from tests.formal.reference_model import Direction, FormalBusDecoderModel, TargetElement
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "cocotb_lib" / "rdl"
@@ -87,6 +89,75 @@ addrmap register_array_permissions {
 };
 """
 
+OPAQUE_EXTERNAL_CONTAINER_RDL = """
+mem storage_t {
+    mementries = 16;
+    memwidth = 32;
+    sw = r;
+};
+addrmap downstream_t {
+    external storage_t storage @ 0;
+};
+addrmap opaque_external {
+    reg { field { sw=rw; hw=r; } payload[31:0]; } control @ 0;
+    downstream_t routed @ 0x100;
+};
+"""
+
+EXTERNAL_WIDTH_SCOPE_RDL = """
+regfile local_t {
+    reg {
+        regwidth = 32;
+        accesswidth = 32;
+        field { sw=rw; hw=r; } data[31:0];
+    } last @ 0x3fc;
+};
+addrmap remote_t {
+    reg {
+        regwidth = 64;
+        accesswidth = 64;
+        field { sw=rw; hw=r; } data[63:0];
+    } last @ 0x3f8;
+};
+addrmap width_scope {
+    local_t local_block @ 0;
+    remote_t remote_block @ 0x800;
+};
+"""
+
+COMBINED_ARRAY_PERMISSIONS_RDL = REGISTER_TYPES_RDL + """
+reg mixed_register_t {
+    field { sw=r; hw=w; } status[15:0];
+    field { sw=w; hw=r; } command[31:16];
+};
+addrmap enclosing_system {
+    read_register_t outside @ 0x0;
+    addrmap {
+        regfile {
+            read_register_t status[2][2] @ 0x4 += 0x8;
+            write_register_t command[2][2] @ 0x2c += 0x8;
+        } groups[2] @ 0x14 += 0x60;
+        mixed_register_t mixed @ 0xe4;
+    } peripheral @ 0x400;
+};
+"""
+
+
+def _combined_port_bindings(protocol: str, unroll: bool) -> PortBindings:
+    """Bind this fixture's public ports, never exporter-discovered metadata."""
+    prefix = {"apb4": "apb", "axi4lite": "axil"}[protocol]
+    bindings = {("mixed", ()): f"m_{prefix}_mixed_{{name}}"}
+    for leaf in ("status", "command"):
+        for outer in range(2):
+            for row in range(2):
+                for column in range(2):
+                    key = (leaf, (outer, row, column))
+                    if unroll:
+                        bindings[key] = f"m_{prefix}_{leaf}_{{name}}_{outer}_{row}_{column}"
+                    else:
+                        bindings[key] = f"m_{prefix}_{leaf}_{{name}}[{outer}][{row}][{column}]"
+    return bindings
+
 
 def _compile_top(path: Path) -> AddrmapNode:
     compiler = RDLCompiler()
@@ -104,6 +175,14 @@ def _rdl_path(source: Path | str, tmp_path: Path) -> Path:
 
 def compile_rdl(path: Path) -> FormalBusDecoderModel:
     return FormalBusDecoderModel(_compile_top(path))
+
+
+def _combined_top(tmp_path: Path) -> AddrmapNode:
+    enclosing = _compile_top(_rdl_path(COMBINED_ARRAY_PERMISSIONS_RDL, tmp_path))
+    top = enclosing.get_child_by_name("peripheral")
+    assert isinstance(top, AddrmapNode)
+    assert top.absolute_address == 0x400
+    return top
 
 
 class TestFormalModelAxioms:
@@ -205,25 +284,59 @@ class TestFormalModelAxioms:
                 assert rejected.is_error
                 assert rejected.local_offset is None
 
+    def test_nested_array_permissions_arithmetic(self, tmp_path: Path) -> None:
+        """Literal layout checks anchor the oracle before it supplies RTL tables."""
+        model = FormalBusDecoderModel(_combined_top(tmp_path), max_decode_depth=2)
+        expected = {("mixed", ()): (0xe4, True, True)}
+        for outer in range(2):
+            for row in range(2):
+                for column in range(2):
+                    offset = outer * 0x60 + row * 0x10 + column * 0x8
+                    expected["status", (outer, row, column)] = (0x18 + offset, True, False)
+                    expected["command", (outer, row, column)] = (0x40 + offset, False, True)
+        assert model.address_space_size == 0x100
+        assert {
+            (target.target_name, target.indices):
+                (target.rel_start, target.is_readable, target.is_writable)
+            for target in model.targets
+        } == expected
+        assert all(target.size == 4 for target in model.targets)
+        for key, (start, readable, writable) in expected.items():
+            for direction, permitted in ((Direction.READ, readable), (Direction.WRITE, writable)):
+                for byte in range(4):
+                    result = model.decode(start + byte, direction)
+                    assert result.is_error is not permitted
+                    if permitted:
+                        assert result.hit is not None
+                        assert (result.hit.target_name, result.hit.indices) == key
+                        assert result.local_offset == byte
+                    else:
+                        assert result.hit is None
+                        assert result.local_offset is None
+        for hole in (
+            0x00, 0x14, 0x17, 0x1c, 0x1f, 0x34, 0x3f, 0x5c,
+            0x73, 0x74, 0x77, 0x7c, 0x94, 0xbc, 0xe0, 0xe8, 0xff,
+        ):
+            for direction in Direction:
+                result = model.decode(hole, direction)
+                assert result.is_error
+                assert result.hit is None
+                assert result.local_offset is None
+        assert model.decode(0x400 + 0x18).is_error
 
-def _cpp_testbench(module_name: str, model: FormalBusDecoderModel) -> str:
-    """Generate a driver for safe-named, depth-one, 32-bit APB4-flat targets."""
-    assert model.max_decode_depth == 1
+
+def _cpp_testbench(
+    module_name: str, model: FormalBusDecoderModel, bindings: PortBindings | None = None
+) -> str:
+    """Generate a driver for safe-named 32-bit APB4-flat decode boundaries."""
     assert model.data_width == 32
-    target_indices = {target: index for index, target in enumerate(model.targets)}
-    tables = []
-    for direction in (Direction.READ, Direction.WRITE):
-        rows = []
-        for address in range(model.address_space_size):
-            result = model.decode(address, direction)
-            assert not result.competing_hits, f"Ambiguous oracle decode: {result}"
-            child = -1 if result.hit is None else target_indices[result.hit]
-            offset = 0 if result.local_offset is None else result.local_offset
-            rows.append(f"        {{{child}, {offset}, {str(result.is_error).lower()}}}")
-        tables.append("    {\n" + ",\n".join(rows) + "\n    }")
-    expected_table = ",\n".join(tables)
+    expected_table = cpp_expected_table(model)
+    if bindings is not None:
+        assert set(bindings) == {(target.target_name, target.indices) for target in model.targets}
 
     def signal(target: TargetElement, name: str) -> str:
+        if bindings is not None:
+            return "dut." + bindings[target.target_name, target.indices].format(name=name)
         indices = "".join(f"[{index}]" for index in target.indices)
         return f"dut.m_apb_{target.target_name}_{name}{indices}"
 
@@ -281,6 +394,10 @@ static bool matches(const char* signal, std::uint32_t actual, std::uint32_t want
 int main(int argc, char** argv) {{
     Verilated::commandArgs(argc, argv);
     V{module_name} dut;
+    static_assert(sizeof(dut.s_apb_PWDATA) == sizeof(std::uint32_t),
+                  "The upstream write bus must remain 32 bits");
+    static_assert(sizeof(dut.s_apb_PRDATA) == sizeof(std::uint32_t),
+                  "The upstream read bus must remain 32 bits");
     std::uint32_t child_ready[kChildCount];
     std::uint32_t child_error[kChildCount];
     std::uint32_t child_data[kChildCount];
@@ -364,63 +481,99 @@ int main(int argc, char** argv) {{
 """
 
 
+def _run_verilator(tmp_path: Path, module_name: str, testbench: str) -> str:
+    verilator = shutil.which("verilator")
+    if verilator is None:
+        pytest.skip("Verilator is required for RTL/oracle conformance")
+    cpp_path = tmp_path / "main.cpp"
+    cpp_path.write_text(testbench)
+    build = subprocess.run(
+        [
+            verilator, "--cc", "--exe", "--build",
+            "-Wall", "-Wno-DECLFILENAME", "-Wno-UNUSEDPARAM", "-Wno-UNUSEDSIGNAL", "-Wno-GENUNNAMED",
+            "--top-module", module_name,
+            "-Mdir", str(tmp_path / "obj_dir"),
+            "-o", "sim",
+            str(tmp_path / f"{module_name}_pkg.sv"),
+            str(tmp_path / f"{module_name}.sv"),
+            str(cpp_path),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert build.returncode == 0, f"Verilator compilation failed:\n{build.stdout}\n{build.stderr}"
+    simulation = subprocess.run(
+        [str(tmp_path / "obj_dir" / "sim")], capture_output=True, text=True, timeout=60
+    )
+    assert simulation.returncode == 0, (
+        f"RTL/oracle mismatch in {module_name}:\n{simulation.stdout}\n{simulation.stderr}"
+    )
+    return simulation.stdout
+
+
 @pytest.mark.simulation
 @pytest.mark.verilator
 class TestRtlFormalEquivalence:
-    """One differential harness, with all expected address decisions from decode()."""
+    """All expected address decisions come from the independent Node model."""
 
     @pytest.mark.parametrize(
-        "source,export_child",
+        "source,export_child,max_decode_depth",
         [
-            pytest.param(FIXTURE_DIR / "simple.rdl", None, id="simple"),
-            pytest.param(FIXTURE_DIR / "multiple_reg.rdl", None, id="multiple-registers"),
-            pytest.param(FIXTURE_DIR / "array_only.rdl", None, id="array-stride-gaps"),
-            pytest.param(NESTED_SUBMAP_RDL, "peripheral", id="nested-export-nonpower-two"),
-            pytest.param(WIDE_INTERNAL_RDL, None, id="wide-internal-side-effects"),
-            pytest.param(_register_permissions_rdl(False), None, id="register-overlap-read-first"),
-            pytest.param(_register_permissions_rdl(True), None, id="register-overlap-write-first"),
-            pytest.param(ARRAY_REGISTER_PERMISSIONS_RDL, None, id="array-register-permissions"),
+            pytest.param(FIXTURE_DIR / "simple.rdl", None, 1, id="simple"),
+            pytest.param(FIXTURE_DIR / "multiple_reg.rdl", None, 1, id="multiple-registers"),
+            pytest.param(FIXTURE_DIR / "array_only.rdl", None, 1, id="array-stride-gaps"),
+            pytest.param(NESTED_SUBMAP_RDL, "peripheral", 1, id="nested-export-nonpower-two"),
+            pytest.param(WIDE_INTERNAL_RDL, None, 1, id="wide-internal-side-effects"),
+            pytest.param(_register_permissions_rdl(False), None, 1, id="register-overlap-read-first"),
+            pytest.param(_register_permissions_rdl(True), None, 1, id="register-overlap-write-first"),
+            pytest.param(ARRAY_REGISTER_PERMISSIONS_RDL, None, 1, id="array-register-permissions"),
+            pytest.param(OPAQUE_EXTERNAL_CONTAINER_RDL, None, 0, id="opaque-external-depth-zero"),
+            pytest.param(OPAQUE_EXTERNAL_CONTAINER_RDL, None, 3, id="opaque-external-before-cap"),
+            pytest.param(EXTERNAL_WIDTH_SCOPE_RDL, None, 1, id="external-width-scope"),
         ],
     )
     def test_verilator_oracle_sweep(
-        self, tmp_path: Path, source: Path | str, export_child: str | None
+        self, tmp_path: Path, source: Path | str, export_child: str | None, max_decode_depth: int
     ) -> None:
-        verilator = shutil.which("verilator")
-        if verilator is None:
-            pytest.skip("Verilator is required for RTL/oracle conformance")
-
         top = _compile_top(_rdl_path(source, tmp_path))
         if export_child is not None:
             child = top.get_child_by_name(export_child)
             assert isinstance(child, AddrmapNode)
             top = child
-        model = FormalBusDecoderModel(top, max_decode_depth=1)
+        model = FormalBusDecoderModel(top, max_decode_depth=max_decode_depth)
         BusDecoderExporter().export(
-            top, str(tmp_path), cpuif_cls=APB4CpuifFlat, max_decode_depth=1, cpuif_unroll=False
+            top, str(tmp_path), cpuif_cls=APB4CpuifFlat,
+            max_decode_depth=max_decode_depth, cpuif_unroll=False,
         )
         module_name = top.inst_name
-        cpp_path = tmp_path / "main.cpp"
-        cpp_path.write_text(_cpp_testbench(module_name, model))
-        build = subprocess.run(
-            [
-                verilator, "--cc", "--exe", "--build",
-                "-Wall", "-Wno-DECLFILENAME", "-Wno-UNUSEDPARAM", "-Wno-UNUSEDSIGNAL", "-Wno-GENUNNAMED",
-                "--top-module", module_name,
-                "-Mdir", str(tmp_path / "obj_dir"),
-                "-o", "sim",
-                str(tmp_path / f"{module_name}_pkg.sv"),
-                str(tmp_path / f"{module_name}.sv"),
-                str(cpp_path),
-            ],
-            capture_output=True,
-            text=True,
-            timeout=180,
+        output = _run_verilator(tmp_path, module_name, _cpp_testbench(module_name, model))
+        assert f"ORACLE_SWEEP_OK {model.address_space_size * 2 * 4 * 4}" in output
+
+    @pytest.mark.parametrize("unroll", [False, True], ids=["rolled", "unrolled"])
+    @pytest.mark.parametrize(
+        "protocol,cpuif_cls",
+        [
+            pytest.param("apb4", APB4CpuifFlat, id="apb4"),
+            pytest.param("axi4lite", AXI4LiteCpuifFlat, id="axil"),
+        ],
+    )
+    def test_verilator_nested_array_permissions(
+        self, tmp_path: Path, protocol: str, cpuif_cls: type, unroll: bool
+    ) -> None:
+        """Combine all ancestor/leaf indices, holes, permissions and exported base."""
+        top = _combined_top(tmp_path)
+        model = FormalBusDecoderModel(top, max_decode_depth=2, cpuif_unroll=unroll)
+        bindings = _combined_port_bindings(protocol, unroll)
+        BusDecoderExporter().export(
+            top, str(tmp_path), cpuif_cls=cpuif_cls,
+            max_decode_depth=2, cpuif_unroll=unroll, clk_src="design",
         )
-        assert build.returncode == 0, f"Verilator compilation failed:\n{build.stdout}\n{build.stderr}"
-        simulation = subprocess.run(
-            [str(tmp_path / "obj_dir" / "sim")], capture_output=True, text=True, timeout=60
-        )
-        assert simulation.returncode == 0, (
-            f"RTL/oracle mismatch in {module_name}:\n{simulation.stdout}\n{simulation.stderr}"
-        )
-        assert f"ORACLE_SWEEP_OK {model.address_space_size * 2 * 4 * 4}" in simulation.stdout
+        if protocol == "apb4":
+            testbench = _cpp_testbench(top.inst_name, model, bindings)
+            marker = f"ORACLE_SWEEP_OK {model.address_space_size * 2 * 4 * 4}"
+        else:
+            testbench = axil_testbench(top.inst_name, model, bindings)
+            marker = f"AXIL_ORACLE_SWEEP_OK {model.address_space_size * 2 * 3}"
+        output = _run_verilator(tmp_path, top.inst_name, testbench)
+        assert marker in output

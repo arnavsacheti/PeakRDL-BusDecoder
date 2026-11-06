@@ -4,10 +4,16 @@ Verilator does not support SV interface ports on the top-level module.  This
 module generates a thin wrapper with flat ports that instantiates the
 interface objects and the DUT internally, allowing cocotb+Verilator simulation
 of interface-based bus decoder modules.
+
+By default APB wrappers omit generic DUT clock/reset ports, matching unbuffered
+APB's ``clk_src="off"`` default; AXI4-Lite wrappers retain them for its
+``clk_src="design"`` default. Bus-interface clock/reset signals remain available
+independently for testbench and peripheral timing.
 """
 
 from __future__ import annotations
 
+from itertools import product
 from pathlib import Path
 from typing import Any
 
@@ -130,6 +136,7 @@ def generate_verilator_intf_wrapper(
     global_addr_width: int,
     global_data_width: int,
     output_dir: Path,
+    include_top_clk_rst: bool | None = None,
 ) -> Path:
     """Generate a Verilator wrapper for an interface-based bus decoder module.
 
@@ -148,6 +155,13 @@ def generate_verilator_intf_wrapper(
         Data width of the bus.
     output_dir:
         Directory to write the wrapper file.
+    include_top_clk_rst:
+        Wire top-level ``clk``/``rst`` wrapper inputs through to the DUT.
+        None follows unbuffered protocol defaults: False for APB3/APB4
+        (``clk_src="off"``), True for AXI4-Lite (``clk_src="design"``).
+        Pass True for explicitly design-clocked or default buffered APB DUTs;
+        pass False for explicitly ``clk_src="cpuif"`` or ``"off"`` DUTs.
+        This does not remove bus-interface clocks used by the testbench.
 
     Returns
     -------
@@ -155,6 +169,8 @@ def generate_verilator_intf_wrapper(
         Path to the generated wrapper ``.sv`` file.
     """
     proto = _PROTOCOLS[protocol]
+    if include_top_clk_rst is None:
+        include_top_clk_rst = protocol == "axi4lite"
     intf_type = proto["intf_type"]
     slave_name = proto["slave_name"]
     master_prefix = proto["master_prefix"]
@@ -165,6 +181,11 @@ def generate_verilator_intf_wrapper(
 
     # --- Port declarations ---------------------------------------------------
     ports: list[str] = []
+
+    # Top-level clock/reset (clk_src="design" mode)
+    if include_top_clk_rst:
+        ports.append("    input  logic clk")
+        ports.append("    input  logic rst")
 
     # Slave flat ports
     for sig_name, wk, is_input in signals:
@@ -275,6 +296,9 @@ def generate_verilator_intf_wrapper(
     # --- DUT instantiation ---------------------------------------------------
     lines.append(f"    {module_name} dut (")
     dut_ports: list[str] = []
+    if include_top_clk_rst:
+        dut_ports.append("        .clk(clk)")
+        dut_ports.append("        .rst(rst)")
     dut_ports.append(f"        .{slave_name}({slave_name}_intf)")
     for child in children:
         inst = child["inst_name"]
@@ -289,3 +313,67 @@ def generate_verilator_intf_wrapper(
     wrapper_path = output_dir / f"{wrapper_name}.sv"
     wrapper_path.write_text("\n".join(lines))
     return wrapper_path
+
+
+def generate_apb_ram_wrapper(
+    module_name: str, config: dict[str, Any], output_dir: Path
+) -> Path:
+    """Attach autonomous APB4 RAMs to every physical flat downstream endpoint.
+
+    Configuration supplies only wiring and widths. Neither the request driver nor
+    its expected-value ledger can write these peripherals' architectural state.
+    """
+    addr_width = config["address_width"]
+    data_width = config["data_width"]
+    signals = [signal for signal in _APB4_SIGNALS if signal[0] not in ("PCLK", "PRESETn")]
+    ports = ["    input logic clk", "    input logic rst"]
+    for name, kind, request in signals:
+        direction = "input" if request else "output"
+        width = _width_str(kind, addr_width, data_width)
+        ports.append(f"    {direction} logic {width}s_apb_{name}")
+    counters = ("completions", "writes", "reads")
+    ports.extend(f"    output logic [31:0] child_{name}" for name in counters)
+    wrapper_name = f"{module_name}_ram_wrapper"
+    lines = [f"module {wrapper_name} (", ",\n".join(ports), ");"]
+    connections = [".clk(clk)", ".rst(rst)"]
+    connections.extend(f".s_apb_{name}(s_apb_{name})" for name, _kind, _request in signals)
+    sums: dict[str, list[str]] = {name: [] for name in counters}
+    for master in config["masters"]:
+        prefix = master["port_prefix"]
+        local_width = max(1, clog2(master["child_size"]))
+        dimensions = master["dimensions"]
+        suffix = _array_suffix(dimensions)
+        for name, kind, _request in signals:
+            width = _width_str(kind, local_width, data_width)
+            lines.append(f"    logic {width}{prefix}_{name}{suffix};")
+            connections.append(f".{prefix}_{name}({prefix}_{name})")
+        indices = product(*(range(dim) for dim in dimensions))
+        for index in indices:
+            ref = "".join(f"[{value}]" for value in index)
+            label = prefix + "".join(f"_{value}" for value in index)
+            model_ports = [".clk(clk)", ".resetn(~rst)"]
+            model_ports.extend(
+                f".{name}({prefix}_{name}{ref})"
+                for name, _kind, _request in signals if name != "PPROT"
+            )
+            for name in counters:
+                counter = f"{label}_{name}"
+                lines.append(f"    logic [31:0] {counter};")
+                model_ports.append(f".{name}({counter})")
+                sums[name].append(counter)
+            lines.extend([
+                f"    apb_ram_child #(.ADDR_WIDTH({local_width}), .DATA_WIDTH({data_width})) {label}_ram (",
+                "        " + ",\n        ".join(model_ports),
+                "    );",
+            ])
+    lines.extend([
+        f"    {module_name} dut (",
+        "        " + ",\n        ".join(connections),
+        "    );",
+    ])
+    for name in counters:
+        lines.append(f"    assign child_{name} = " + " + ".join(sums[name]) + ";")
+    lines.extend(["endmodule", ""])
+    path = output_dir / f"{wrapper_name}.sv"
+    path.write_text("\n".join(lines))
+    return path

@@ -14,6 +14,8 @@ if TYPE_CHECKING:
 
 
 class FaninGenerator(BusDecoderListener):
+    walk_unrolled = True
+
     def __init__(self, ds: DesignState, cpuif: "BaseCpuif") -> None:
         super().__init__(ds)
         self._cpuif = cpuif
@@ -28,30 +30,37 @@ class FaninGenerator(BusDecoderListener):
         action = super().enter_AddressableComponent(node)
         should_generate = action == WalkerAction.SkipDescendants
 
-        if node.array_dimensions:
-            for i, dim in enumerate(node.array_dimensions):
+        if self.is_rolled_array(node):
+            assert node.array_dimensions is not None
+            base = self.loop_base_index(node)
+            for i, dim in enumerate(node.array_dimensions, base):
                 fb = ForLoopBody(
                     "int",
                     f"i{i}",
-                    self._ds.resolve_loop_bound(node, i, dim),
+                    self._ds.resolve_loop_bound(node, i - base, dim),
                 )
                 self._stack.append(fb)
 
         if should_generate:
             ifb = IfBody()
-            with ifb.cm(f"cpuif_wr_sel.{get_indexed_path(self._cpuif.exp.ds.top_node, node)}") as b:
+            with ifb.cm(
+                f"{self._cpuif.fanin_wr_select}.{get_indexed_path(self._cpuif.exp.ds.top_node, node)}"
+            ) as b:
                 b += self._cpuif.fanin_wr(node)
             self._stack[-1] += ifb
 
             ifb = IfBody()
-            with ifb.cm(f"cpuif_rd_sel.{get_indexed_path(self._cpuif.exp.ds.top_node, node)}") as b:
+            with ifb.cm(
+                f"{self._cpuif.fanin_rd_select}.{get_indexed_path(self._cpuif.exp.ds.top_node, node)}"
+            ) as b:
                 b += self._cpuif.fanin_rd(node)
             self._stack[-1] += ifb
 
         return action
 
     def exit_AddressableComponent(self, node: AddressableNode) -> None:
-        if node.array_dimensions:
+        if self.is_rolled_array(node):
+            assert node.array_dimensions is not None
             for _ in node.array_dimensions:
                 b = self._stack.pop()
                 if not b:
@@ -62,12 +71,12 @@ class FaninGenerator(BusDecoderListener):
 
     def __str__(self) -> str:
         wr_ifb = IfBody()
-        with wr_ifb.cm("cpuif_wr_sel.cpuif_err") as b:
+        with wr_ifb.cm(f"{self._cpuif.fanin_wr_select}.cpuif_err") as b:
             b += self._cpuif.fanin_wr(error=True)
         self._stack[-1] += wr_ifb
 
         rd_ifb = IfBody()
-        with rd_ifb.cm("cpuif_rd_sel.cpuif_err") as b:
+        with rd_ifb.cm(f"{self._cpuif.fanin_rd_select}.cpuif_err") as b:
             b += self._cpuif.fanin_rd(error=True)
         self._stack[-1] += rd_ifb
 

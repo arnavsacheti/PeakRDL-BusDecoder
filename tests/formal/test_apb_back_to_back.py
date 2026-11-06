@@ -12,8 +12,7 @@ from pathlib import Path
 import pytest
 
 from peakrdl_busdecoder import BusDecoderExporter
-from peakrdl_busdecoder.cpuif.apb3 import APB3Cpuif, APB3CpuifFlat
-from peakrdl_busdecoder.cpuif.apb4 import APB4Cpuif, APB4CpuifFlat
+from peakrdl_busdecoder.cpuif.apb.apb_cpuif import APB3Cpuif, APB3CpuifFlat, APB4Cpuif, APB4CpuifFlat
 
 try:
     from cocotb.runner import get_runner
@@ -36,8 +35,8 @@ addrmap apb_back_to_back {
 """
 
 
-def _wrapper(protocol: str, interface: bool) -> str:
-    """Supply the child-model clock externally, never add a decoder clock port."""
+def _wrapper(protocol: str, interface: bool, clk_src: str | None) -> str:
+    """Clock the child models independently of the default clockless decoder."""
     signals = [
         ("PSEL", 1, True), ("PENABLE", 1, True), ("PWRITE", 1, True),
         ("PADDR", 8, True), ("PWDATA", 32, True),
@@ -89,6 +88,8 @@ def _wrapper(protocol: str, interface: bool) -> str:
             for child, target in enumerate(CHILDREN)
             for name, _width, _request in signals
         ]
+    if clk_src == "design":
+        connections = [".clk(clk)", ".rst(~resetn)", *connections]
     lines += ["    apb_back_to_back dut (", "        " + ",\n        ".join(connections), "    );"]
     for child in range(2):
         model_signals = [name for name, _width, _request in signals if name != "PPROT"]
@@ -128,17 +129,19 @@ def _wrapper(protocol: str, interface: bool) -> str:
         pytest.param("apb4", True, APB4Cpuif, id="apb4-interface"),
     ],
 )
-def test_apb_back_to_back(tmp_path, compile_rdl, protocol, interface, cpuif_cls) -> None:
+@pytest.mark.parametrize("clk_src", [None, "design"], ids=["default-off", "design"])
+def test_apb_back_to_back(tmp_path, compile_rdl, protocol, interface, cpuif_cls, clk_src) -> None:
     """Keep PSEL high across real SETUP/ACCESS transfers and child handshakes."""
     if shutil.which("verilator") is None:
         pytest.skip("Verilator is required for the stateful APB regression")
     top = compile_rdl(RDL)
+    clock_options = {} if clk_src is None else {"clk_src": clk_src}
     BusDecoderExporter().export(
         top, str(tmp_path), cpuif_cls=cpuif_cls, max_decode_depth=1,
-        address_width=8, cpuif_unroll=False,
+        address_width=8, cpuif_unroll=False, **clock_options,
     )
     wrapper = tmp_path / "apb_b2b_tb.sv"
-    wrapper.write_text(_wrapper(protocol, interface))
+    wrapper.write_text(_wrapper(protocol, interface, clk_src))
     sources = [tmp_path / "apb_back_to_back_pkg.sv", tmp_path / "apb_back_to_back.sv"]
     if interface:
         sources.insert(0, ROOT / "hdl-src" / f"{protocol}_intf.sv")

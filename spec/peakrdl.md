@@ -1,6 +1,10 @@
 # PeakRDL / systemrdl-compiler Elaboration Model — Formal Specification
 
-This specification formalizes the object model, AST elaboration semantics, and exporter integration contract implemented by `systemrdl-compiler` (v1.28+) and the `peakrdl` CLI framework. It defines the formal interfaces through which an exporter consumes an elaborated register model.
+This specification formalizes the object model, AST elaboration semantics, and exporter integration contract implemented by `systemrdl-compiler` (project dependency `~=1.30`) and the `peakrdl` CLI framework. It defines the interfaces through which an exporter consumes an elaborated register model.
+
+Status: **0.8.0 candidate draft**, Python 3.11 or newer, pending integration
+verification and not shipped. Protocol/state-machine requirements live in
+`busdecoder.md`; this reference does not impose global single-flight routing.
 
 ---
 
@@ -98,7 +102,9 @@ $$\forall n \in \text{walk}(\text{root}): \quad n.\text{get\_property}(\text{"is
 
 A compliant PeakRDL exporter plugin must satisfy:
 
-1. **Entry Point**: Subclass of `peakrdl.plugins.exporter.BaseExporter`.
+1. **Entry Point**: The CLI plugin subclasses
+   `peakrdl.plugins.exporter.ExporterSubcommandPlugin`; programmatic callers use
+   `peakrdl_busdecoder.BusDecoderExporter`.
 2. **CLI Registration** via setuptools entry points under `peakrdl.exporters`.
 3. **Idempotence**: Running `export(node, out_dir)` twice on the same elaborated `node` must yield identical output files.
 4. **Non-Destructive AST Access**: The exporter must not mutate node properties, instance variables, or compiler message handlers (exception: internal parameter discovery hooks must restore state).

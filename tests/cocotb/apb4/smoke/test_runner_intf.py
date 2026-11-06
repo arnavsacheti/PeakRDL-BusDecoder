@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from peakrdl_busdecoder.cpuif.apb4.apb4_cpuif import APB4Cpuif
+from peakrdl_busdecoder.cpuif.apb.apb_cpuif import APB4Cpuif
 
 try:  # pragma: no cover - optional dependency shim
     from cocotb.runner import get_runner
@@ -24,7 +24,7 @@ from tests.cocotb_lib.wrapper_gen import generate_verilator_intf_wrapper
 @pytest.mark.verilator
 @pytest.mark.parametrize(("rdl_file", "top_name"), RDL_CASES, ids=[case[1] for case in RDL_CASES])
 def test_apb4_intf_smoke(tmp_path: Path, rdl_file: str, top_name: str) -> None:
-    """Compile each APB4 interface design variant and execute the cocotb smoke test."""
+    """Exercise default clockless APB4 exports through an interface wrapper."""
     repo_root = Path(__file__).resolve().parents[4]
     rdl_path = repo_root / "tests" / "cocotb_lib" / "rdl" / rdl_file
     build_root = tmp_path / top_name
@@ -35,9 +35,12 @@ def test_apb4_intf_smoke(tmp_path: Path, rdl_file: str, top_name: str) -> None:
         build_root,
         cpuif_cls=APB4Cpuif,
         control_signal="PSEL",
+        exporter_kwargs={"gate_signals": True},
     )
 
     # Generate Verilator wrapper (Verilator can't have SV interface ports at top level)
+    # Leave both clock-source choices unset to exercise the APB off defaults.
+    # The wrapper still exposes bus clocks for cocotb/peripheral timing.
     children = [
         {
             "inst_name": m["inst_name"],

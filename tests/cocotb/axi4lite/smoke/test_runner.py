@@ -14,14 +14,19 @@ try:  # pragma: no cover - optional dependency shim
 except ImportError:  # pragma: no cover
     from cocotb_tools.runner import get_runner
 
-from tests.cocotb_lib import RDL_CASES
+from tests.cocotb_lib import AXI4LITE_RDL_CASES
 from tests.cocotb_lib.utils import colorize_cocotb_log, get_verilog_sources, prepare_cpuif_case
 
 
 @pytest.mark.simulation
 @pytest.mark.verilator
-@pytest.mark.parametrize(("rdl_file", "top_name"), RDL_CASES, ids=[case[1] for case in RDL_CASES])
-def test_axi4lite_smoke(tmp_path: Path, rdl_file: str, top_name: str) -> None:
+@pytest.mark.parametrize(
+    ("rdl_file", "top_name"), AXI4LITE_RDL_CASES, ids=[case[1] for case in AXI4LITE_RDL_CASES]
+)
+@pytest.mark.parametrize("outstanding_depth", [1, 3, 4], ids=lambda depth: f"queue{depth}")
+def test_axi4lite_smoke(
+    tmp_path: Path, rdl_file: str, top_name: str, outstanding_depth: int
+) -> None:
     """Compile each AXI4-Lite design variant and execute the cocotb smoke test."""
     repo_root = Path(__file__).resolve().parents[4]
     rdl_path = repo_root / "tests" / "cocotb_lib" / "rdl" / rdl_file
@@ -33,7 +38,9 @@ def test_axi4lite_smoke(tmp_path: Path, rdl_file: str, top_name: str) -> None:
         build_root,
         cpuif_cls=AXI4LiteCpuifFlat,
         control_signal="AWVALID",
+        exporter_kwargs={"axi4lite_max_outstanding": outstanding_depth},
     )
+    config["axi4lite_max_outstanding"] = outstanding_depth
 
     sources = get_verilog_sources(
         module_path,

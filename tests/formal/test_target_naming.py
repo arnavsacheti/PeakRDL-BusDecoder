@@ -17,8 +17,9 @@ import pytest
 from systemrdl import RDLCompiler
 
 from peakrdl_busdecoder import BusDecoderExporter
-from peakrdl_busdecoder.cpuif.apb3 import APB3Cpuif, APB3CpuifFlat
-from peakrdl_busdecoder.cpuif.apb4 import APB4Cpuif, APB4CpuifFlat
+from peakrdl_busdecoder.cpuif.apb.apb_cpuif import (
+    APB3Cpuif, APB3CpuifFlat, APB4Cpuif, APB4CpuifFlat,
+)
 from peakrdl_busdecoder.cpuif.axi4lite import AXI4LiteCpuif, AXI4LiteCpuifFlat
 
 HDL_DIR = Path(__file__).resolve().parents[2] / "hdl-src"
@@ -34,6 +35,7 @@ TARGETS = (
     ("z_SLOT", 0x500),
     ("A_B_SLOT__2", 0x600),
     ("a_b_slot", 0x700),
+    ("MIN__2", 0x780),
 )
 
 # A single 32-bit memory entry and both registers have four-byte local windows.
@@ -86,6 +88,7 @@ addrmap target_naming {{
     case_leaf_block_t z @ 0x500;
     case_path_block_t A @ 0x600;
     reserved_block_t reserve @ 0x700;
+    word_t MIN{array} @ 0x780{stride};
 }};
 """
 
@@ -136,6 +139,9 @@ def _wrapper_source(
     Like the cocotb interface wrappers, all interface-array references here use
     constant indices. The DUT itself still exports rolled arrays and must use
     its intermediate fanin signals to select responses at runtime.
+    The harness keeps its test clock/reset in every case, but only AXI4-Lite's
+    default design-clocked DUT connects generic clk/rst ports. APB defaults to
+    clockless decoding; its interface clocks remain driven for bus timing.
     """
     count = 2 if rolled else 1
     endpoints = len(targets) * count
@@ -174,15 +180,18 @@ def _wrapper_source(
             "WVALID": "request & write",
             "WDATA": "32'h12345678",
             "WSTRB": "4'b1010",
-            "BREADY": "1'b1",
+            "BREADY": "response_accept",
             "ARVALID": "request & ~write",
             "ARADDR": "address",
             "ARPROT": "3'b010",
-            "RREADY": "1'b1",
+            "RREADY": "response_accept",
         }
         clock, reset = "ACLK", "ARESETn"
 
     lines = [f"""module target_naming_wrapper (
+    input logic clk,
+    input logic rst,
+    input logic response_accept,
     input logic request,
     input logic write,
     input logic enable,
@@ -196,21 +205,23 @@ def _wrapper_source(
     output logic [{endpoints - 1}:0] reading,
     output logic [1:0] write_addr [{endpoints}],
     output logic [1:0] read_addr [{endpoints}],
+    output logic request_ready,
     output logic response_ready,
     output logic response_error,
+    output logic [1:0] response_code,
     output logic [31:0] response_data,
     output logic package_ok,
     output logic counts_ok
 );
     import target_naming_pkg::*;"""]
-    connections: list[str] = []
+    connections: list[str] = [] if apb else [".clk(clk)", ".rst(rst)"]
 
     if interface:
         lines += [
             f"    {intf_type} #(.DATA_WIDTH(TARGET_NAMING_DATA_WIDTH), "
             f".ADDR_WIDTH(TARGET_NAMING_MIN_ADDR_WIDTH)) {slave}_intf();",
-            f"    assign {slave}_intf.{clock} = 1'b0;",
-            f"    assign {slave}_intf.{reset} = 1'b1;",
+            f"    assign {slave}_intf.{clock} = clk;",
+            f"    assign {slave}_intf.{reset} = ~rst;",
         ]
         connections.append(f".{slave}({slave}_intf)")
     else:
@@ -230,12 +241,19 @@ def _wrapper_source(
             "response_ready": slave_signal("PREADY"),
             "response_error": slave_signal("PSLVERR"),
             "response_data": slave_signal("PRDATA"),
+            "request_ready": "1'b1",
+            "response_code": f"{{{slave_signal('PSLVERR')}, 1'b0}}",
         }
     else:
         responses = {
             "response_ready": f"write ? {slave_signal('BVALID')} : {slave_signal('RVALID')}",
             "response_error": f"write ? {slave_signal('BRESP')}[1] : {slave_signal('RRESP')}[1]",
             "response_data": slave_signal("RDATA"),
+            "response_code": f"write ? {slave_signal('BRESP')} : {slave_signal('RRESP')}",
+            "request_ready": (
+                f"write ? ({slave_signal('AWREADY')} & {slave_signal('WREADY')})"
+                f" : {slave_signal('ARREADY')}"
+            ),
         }
     for output, value in responses.items():
         lines.append(f"    assign {output} = {value};")
@@ -276,8 +294,8 @@ def _wrapper_source(
 
             if interface:
                 lines += [
-                    f"    assign {target_signal(clock)} = 1'b0;",
-                    f"    assign {target_signal(reset)} = 1'b1;",
+                    f"    assign {target_signal(clock)} = clk;",
+                    f"    assign {target_signal(reset)} = ~rst;",
                 ]
             if apb:
                 target_drive = {
@@ -288,7 +306,7 @@ def _wrapper_source(
                 target_observe = {
                     "selected": target_signal("PSEL"),
                     "access": target_signal("PENABLE"),
-                    "writing": target_signal("PWRITE"),
+                    "writing": f"{target_signal('PSEL')} & {target_signal('PWRITE')}",
                     "reading": f"{target_signal('PSEL')} & ~{target_signal('PWRITE')}",
                     "write_addr": target_signal("PADDR"),
                     "read_addr": target_signal("PADDR"),
@@ -335,6 +353,7 @@ def _cpp_source(
     protocol: str,
     rolled: bool,
     targets: tuple[tuple[str, int], ...] = TARGETS,
+    permissions: tuple[tuple[bool, bool], ...] | None = None,
 ) -> str:
     count = 2 if rolled else 1
     bases = [base + 4 * element for _name, base in targets for element in range(count)]
@@ -343,6 +362,9 @@ def _cpp_source(
         for name, _base in targets
         for element in range(count)
     ]
+    permissions = permissions or ((True, True),) * len(targets)
+    readable = [read for read, _write in permissions for _ in range(count)]
+    writable = [write for _read, write in permissions for _ in range(count)]
     return r"""
 #include <cstdint>
 #include <iostream>
@@ -364,80 +386,153 @@ int main(int argc, char** argv) {
     Vtarget_naming_wrapper dut;
     constexpr unsigned bases[] = {BASES};
     const char* names[] = {NAMES};
+    constexpr bool readable[] = {READABLE};
+    constexpr bool writable[] = {WRITABLE};
     constexpr int targets = sizeof(bases) / sizeof(bases[0]);
     constexpr uint32_t all_targets = (1u << targets) - 1u;
     constexpr bool axil = IS_AXIL;
     int selected = -1, responder = -1, write = 0, offset = 0;
+    auto tick = [&]() {
+        dut.clk = 0; dut.eval();
+        dut.clk = 1; dut.eval();
+        dut.clk = 0; dut.eval();
+    };
 
-    dut.request = 1;
+    dut.clk = 0;
+    dut.rst = 1;
+    dut.request = 0;
+    dut.response_accept = 0;
     dut.enable = 1;
     dut.write = 0;
     dut.address = bases[0];
     dut.target_ready = 0;
     dut.target_error = 0;
     for (int i = 0; i < targets; ++i) dut.target_data[i] = 0;
+    tick();
+    dut.rst = 0;
     dut.eval();
     REQUIRE(dut.package_ok == 1);
     REQUIRE(dut.counts_ok == 1);
 
     for (selected = 0; selected < targets; ++selected) {
-        const uint32_t selected_bit = 1u << selected;
         for (write = 0; write <= 1; ++write) {
             for (offset = 0; offset < 4; ++offset) {
+                const unsigned address = bases[selected] + offset;
+                int destination = -1;
+                for (int candidate = 0; candidate < targets; ++candidate) {
+                    if (address >= bases[candidate] && address < bases[candidate] + 4
+                        && (write ? writable[candidate] : readable[candidate])) {
+                        REQUIRE(destination == -1);
+                        destination = candidate;
+                    }
+                }
+                const uint32_t selected_bit = destination < 0 ? 0u : 1u << destination;
                 dut.write = write;
-                dut.address = bases[selected] + offset;
+                dut.address = address;
+                dut.request = 1;
+                dut.response_accept = 0;
                 dut.target_ready = 0;
                 dut.target_error = 0;
                 for (int i = 0; i < targets; ++i)
                     dut.target_data[i] = 0x51000000u + 0x101u * (i + 1);
                 dut.eval();
 
-                // Every scalar/array element must have an independent select.
+                if (axil) {
+                    REQUIRE(dut.request_ready == 1);
+                    tick();  // Accept independent upstream channels.
+                    dut.request = 0;
+                    dut.eval();
+                    if (destination >= 0) {
+                        for (int cycle = 0; cycle < 8 && dut.selected == 0; ++cycle)
+                            tick();
+                    } else {
+                        for (int cycle = 0; cycle < 8 && !dut.response_ready; ++cycle) {
+                            REQUIRE(dut.selected == 0);
+                            REQUIRE(dut.access == 0);
+                            tick();
+                        }
+                    }
+                }
+
+                // Every scalar/array element has an independent, direction-
+                // permitted select, including legal RO/WO address aliases.
                 REQUIRE(dut.selected == selected_bit);
                 REQUIRE(dut.access == ((!axil || write) ? selected_bit : 0u));
                 REQUIRE(dut.writing == (write ? selected_bit : 0u));
                 REQUIRE(dut.reading == (write ? 0u : selected_bit));
-                if (write) REQUIRE(dut.write_addr[selected] == offset);
-                else REQUIRE(dut.read_addr[selected] == offset);
-                REQUIRE(dut.response_ready == 0);
-                REQUIRE(dut.response_error == 0);
-
-                // Change each ready input independently, including all unselected
-                // targets. An accidentally shared fanin reference cannot pass.
-                for (responder = 0; responder < targets; ++responder) {
-                    dut.target_ready = 1u << responder;
-                    dut.eval();
-                    REQUIRE(dut.response_ready == (responder == selected));
+                if (destination >= 0) {
+                    if (write) REQUIRE(dut.write_addr[destination] == address - bases[destination]);
+                    else REQUIRE(dut.read_addr[destination] == address - bases[destination]);
+                    REQUIRE(dut.response_ready == 0);
                     REQUIRE(dut.response_error == 0);
-                    if (!write)
-                        REQUIRE(dut.response_data == 0x51000000u + 0x101u * (selected + 1));
+                }
+                if (axil && destination >= 0) {
+                    tick();  // The selected child's address/data handshake.
+                    REQUIRE(dut.selected == 0);
+                    REQUIRE(dut.access == 0);
                 }
 
-                // Keep every target ready, then change only one error input.
-                dut.target_ready = all_targets;
-                for (responder = 0; responder < targets; ++responder) {
-                    dut.target_error = 1u << responder;
-                    dut.eval();
-                    REQUIRE(dut.response_ready == 1);
-                    REQUIRE(dut.response_error == (responder == selected));
-                    if (!write)
-                        REQUIRE(dut.response_data == 0x51000000u + 0x101u * (selected + 1));
-                }
-
-                // Finally change only one target's data, independently of ready
-                // and error. This also exercises every interface-array fanin.
-                dut.target_error = 0;
-                if (!write) {
+                if (destination < 0) {
+                    // Local permission misses never need a child response and
+                    // must retain their error while upstream is backpressured.
+                    for (int cycle = 0; cycle < 3; ++cycle) {
+                        REQUIRE(dut.response_ready == 1);
+                        REQUIRE(dut.response_error == 1);
+                        REQUIRE(dut.response_data == 0);
+                        REQUIRE(dut.response_code == (axil ? 0b11 : 0b10));
+                        if (axil) tick();
+                    }
+                } else {
+                    // Probe each response source without retiring the head.
+                    // A shared/collided fanin reference cannot pass this sweep.
                     for (responder = 0; responder < targets; ++responder) {
-                        for (int i = 0; i < targets; ++i) dut.target_data[i] = 0;
-                        const uint32_t data = 0xa5000000u + 0x1001u * (responder + 1);
-                        dut.target_data[responder] = data;
+                        dut.target_ready = 1u << responder;
+                        dut.eval();
+                        REQUIRE(dut.response_ready == (responder == destination));
+                        REQUIRE(dut.response_error == 0);
+                        REQUIRE(dut.response_code == 0);
+                        if (!write)
+                            REQUIRE(dut.response_data == 0x51000000u + 0x101u * (destination + 1));
+                    }
+
+                    dut.target_ready = all_targets;
+                    for (responder = 0; responder < targets; ++responder) {
+                        dut.target_error = 1u << responder;
                         dut.eval();
                         REQUIRE(dut.response_ready == 1);
-                        REQUIRE(dut.response_error == 0);
-                        REQUIRE(dut.response_data == (responder == selected ? data : 0u));
+                        REQUIRE(dut.response_error == (responder == destination));
+                        REQUIRE(dut.response_code == (responder == destination ? 0b10 : 0));
+                        if (!write)
+                            REQUIRE(dut.response_data == 0x51000000u + 0x101u * (destination + 1));
+                    }
+
+                    dut.target_error = 0;
+                    if (!write) {
+                        for (responder = 0; responder < targets; ++responder) {
+                            for (int i = 0; i < targets; ++i) dut.target_data[i] = 0;
+                            const uint32_t data = 0xa5000000u + 0x1001u * (responder + 1);
+                            dut.target_data[responder] = data;
+                            dut.eval();
+                            REQUIRE(dut.response_ready == 1);
+                            REQUIRE(dut.response_error == 0);
+                            REQUIRE(dut.response_data == (responder == destination ? data : 0u));
+                        }
                     }
                 }
+
+                if (axil) {
+                    dut.response_accept = 1;
+                    tick();
+                }
+                dut.request = 0;
+                dut.response_accept = 0;
+                dut.target_ready = 0;
+                dut.target_error = 0;
+                dut.eval();
+                REQUIRE(dut.selected == 0);
+                REQUIRE(dut.response_ready == 0);
+                REQUIRE(dut.response_error == 0);
+                REQUIRE(dut.response_data == 0);
             }
         }
     }
@@ -447,6 +542,10 @@ int main(int argc, char** argv) {
 }
 """.replace("BASES", ", ".join(hex(base) for base in bases)).replace(
         "NAMES", ", ".join(names)
+    ).replace(
+        "READABLE", ", ".join("true" if allowed else "false" for allowed in readable)
+    ).replace(
+        "WRITABLE", ", ".join("true" if allowed else "false" for allowed in writable)
     ).replace("IS_AXIL", "true" if protocol == "axi4lite" else "false")
 
 
@@ -457,11 +556,12 @@ def _compile_and_run(
     interface: bool,
     rolled: bool,
     targets: tuple[tuple[str, int], ...] = TARGETS,
+    permissions: tuple[tuple[bool, bool], ...] | None = None,
 ) -> None:
     wrapper_path = tmp_path / "target_naming_wrapper.sv"
     wrapper_path.write_text(_wrapper_source(protocol, interface, rolled, targets))
     cpp_path = tmp_path / "main.cpp"
-    cpp_path.write_text(_cpp_source(protocol, rolled, targets))
+    cpp_path.write_text(_cpp_source(protocol, rolled, targets, permissions))
     sources = [tmp_path / "target_naming_pkg.sv"]
     if interface:
         sources.append(HDL_DIR / f"{protocol}_intf.sv")
@@ -535,3 +635,42 @@ def test_depth_zero_external_memory_targets(
     )
     _compile_and_run(tmp_path, verilator, protocol, interface, False, MEMORY_TARGETS)
 
+
+
+@pytest.mark.verilator
+@pytest.mark.parametrize("protocol,interface,cpuif_cls", EXPORTS[4:])
+@pytest.mark.parametrize("rolled", [False, True], ids=["scalar", "rolled-array"])
+def test_axi4lite_direction_permissions_and_aliases(
+    tmp_path: Path, protocol: str, interface: bool, cpuif_cls: type, rolled: bool
+) -> None:
+    """Local direction misses and legal RO/WO aliases survive clocked queues."""
+    verilator = shutil.which("verilator")
+    assert verilator is not None, "These behavioral regressions require Verilator"
+    array = "[2]" if rolled else ""
+    stride = " += 0x4" if rolled else ""
+    rdl_path = tmp_path / "target_naming.rdl"
+    rdl_path.write_text(f"""
+        reg read_t {{ field {{ sw=r; hw=w; }} payload[31:0]; }};
+        reg write_t {{ field {{ sw=w; hw=r; }} payload[31:0]; }};
+        reg ordinary_t {{ field {{ sw=rw; hw=r; }} payload[31:0]; }};
+        addrmap target_naming {{
+            read_t status{array} @ 0x100{stride};
+            write_t command{array} @ 0x200{stride};
+            read_t read_view{array} @ 0x300{stride};
+            write_t write_view{array} @ 0x300{stride};
+            ordinary_t ordinary{array} @ 0x400{stride};
+        }};
+    """)
+    compiler = RDLCompiler()
+    compiler.compile_file(str(rdl_path))
+    root = compiler.elaborate()
+    BusDecoderExporter().export(
+        root, str(tmp_path), cpuif_cls=cpuif_cls, max_decode_depth=1,
+        cpuif_unroll=False, address_width=11,
+    )
+    targets = (
+        ("status", 0x100), ("command", 0x200),
+        ("read_view", 0x300), ("write_view", 0x300), ("ordinary", 0x400),
+    )
+    permissions = ((True, False), (False, True), (True, False), (False, True), (True, True))
+    _compile_and_run(tmp_path, verilator, protocol, interface, rolled, targets, permissions)

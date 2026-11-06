@@ -7,6 +7,22 @@ you can still generate busdecoders programmatically using the exporter API:
 .. autoclass:: peakrdl_busdecoder.BusDecoderExporter
     :members:
 
+Clock/reset selection
+---------------------
+Omitting ``clk_src`` or passing ``clk_src=None`` selects ``"off"`` for
+unbuffered APB and ``"design"`` for buffered APB and AXI4-Lite. The explicit
+values are ``"off"``, ``"cpuif"``, and ``"design"``. Unbuffered APB's default
+preserves its clockless 0.7.x decoder port shape. Non-``"none"`` ``apb_buffer``
+requires ``"design"``; explicit ``"off"`` or ``"cpuif"`` with buffering is
+rejected. Omit ``clk_src``, select ``"design"``, or disable buffering.
+
+AXI4-Lite rejects ``"off"``; use the default ``"design"`` or select ``"cpuif"``
+and connect the corresponding clock/reset. AHB-Lite always requires ingress
+``HCLK/HRESETn``: it ignores ``"design"`` and ``"cpuif"`` and rejects ``"off"``.
+See :doc:`cpuif/introduction` for port and wiring details and :doc:`migrating`
+for updated APB imports.
+
+
 Example
 -------
 Below is a simple example that demonstrates how to generate a SystemVerilog
@@ -43,5 +59,6 @@ implementation from SystemRDL source.
     exporter = BusDecoderExporter()
     exporter.export(
         root, "path/to/output_dir",
-        cpuif_cls=AXI4LiteCpuif
+        cpuif_cls=AXI4LiteCpuif,
+        clk_src="design",  # Wire the generated clk/rst inputs in the RTL design.
     )

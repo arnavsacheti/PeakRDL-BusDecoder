@@ -1,0 +1,16 @@
+reg ordinary_t {
+    field { sw=rw; hw=r; } data[31:0];
+};
+reg readable_t {
+    field { sw=r; hw=w; } data[31:0];
+};
+reg writable_t {
+    field { sw=w; hw=r; } data[31:0];
+};
+addrmap direction_permissions {
+    ordinary_t control @ 0x0;
+    readable_t read_only @ 0x10;
+    writable_t write_only @ 0x20;
+    readable_t read_bank[2] @ 0x40 += 0x10;
+    writable_t write_bank[2] @ 0x80 += 0x10;
+};

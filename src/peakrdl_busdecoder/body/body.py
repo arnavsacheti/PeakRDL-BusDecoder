@@ -1,6 +1,4 @@
-from typing import Protocol
-
-from typing_extensions import Self
+from typing import Protocol, Self
 
 
 class SupportsStr(Protocol):
