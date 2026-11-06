@@ -41,4 +41,4 @@ clock/reset choices, and changed decode-depth and AXI4-Lite behavior.
 For the command line tool, see the [PeakRDL project](https://peakrdl.readthedocs.io).
 
 ## Documentation
-See the [PeakRDL-BusDecoder Documentation](https://peakrdl-busdecoder.readthedocs.io) for more details
+See the [PeakRDL-BusDecoder Documentation](https://arnavsacheti.github.io/PeakRDL-BusDecoder/) for more details
